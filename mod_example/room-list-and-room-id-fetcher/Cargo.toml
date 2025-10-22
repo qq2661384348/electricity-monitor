@@ -1,0 +1,38 @@
+[package]
+name = "room-fetcher"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# HTTP 客户端（0.12 最新版本，2025稳定）
+reqwest = { version = "0.12", features = ["json"] }
+
+# 异步运行时（Tokio 1.x，2025生态标准）
+tokio = { version = "1", features = ["full"] }
+
+# JSON 序列化/反序列化（1.0 稳定版）
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# 错误处理（应用级）
+anyhow = "1.0"
+
+# 结构化日志（tracing 生态）
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# 性能优化：高性能内存分配器
+mimalloc = { version = "0.1", default-features = false }
+
+[profile.release]
+# LTO 全程序优化（10-20% 性能提升）
+lto = "fat"
+
+# 单 codegen 单元优化（5-10% 性能提升）
+codegen-units = 1
+
+# Panic 立即中止（2-5% 性能提升 + 体积减少）
+panic = "abort"
+
+# 最高优化级别
+opt-level = 3

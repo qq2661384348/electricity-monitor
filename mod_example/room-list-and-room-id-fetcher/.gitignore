@@ -1,0 +1,27 @@
+# Rust 编译产物
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo.lock（应用项目可以提交，库项目应忽略）
+Cargo.lock
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 输出文件
+/output/*.json
+
+# Python 缓存（遗留）
+__pycache__/
+*.py[cod]
+*$py.class
+.mypy_cache/

@@ -1,0 +1,35 @@
+[package]
+name = "electricity-monitor"
+version = "0.2.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "高性能、低内存的电费监控系统 - Rust 实现"
+license = "MIT"
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+url = "2.5"
+futures = "0.3"
+async-trait = "0.1"
+regex = "1"
+configparser = "3.1"
+thiserror = "2.0"
+itoa = "1"
+
+[dev-dependencies]
+mockall = "0.13"
+tokio-test = "0.4"
+criterion = "0.5"
+
+[[bin]]
+name = "electricity-monitor"
+path = "src/main.rs"
+
+[lib]
+name = "electricity_monitor"
+path = "src/lib.rs"
+
+[[bench]]
+name = "url_builder_bench"
+harness = false

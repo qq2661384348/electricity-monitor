@@ -1,0 +1,39 @@
+# ============================================================
+# Cargo 编译配置 - 电力监控系统
+# ============================================================
+# 
+# 说明：
+# 1. PostgreSQL 路径配置已迁移至环境变量，统一管理
+# 2. 链接配置由 build.rs 自动处理，无需手动配置
+# 3. 只需修改下方 [env] 中的 PQ_LIB_DIR 即可
+#
+# ============================================================
+
+# 环境变量配置 - 统一入口
+[env]
+# PostgreSQL 库路径（可选配置）
+# 
+# 注意：build.rs 会自动检测标准安装路径，通常无需手动设置
+# 仅在使用非标准路径时才需要取消注释并修改：
+#
+# Windows 示例: PQ_LIB_DIR = "C:\\Program Files\\PostgreSQL\\16\\lib"
+# Linux 示例: PQ_LIB_DIR = "/usr/lib/postgresql/16/lib"
+#
+# 或者使用 POSTGRES_HOME（自动在其 lib 子目录查找）:
+# POSTGRES_HOME = "C:\\Program Files\\PostgreSQL\\16"
+
+# ============================================================
+# 编译优化配置
+# ============================================================
+
+[build]
+# 启用 SIMD 优化（sonic-rs 需要）
+rustflags = ["-C", "target-cpu=native"]
+
+[target.x86_64-pc-windows-msvc]
+# Windows MSVC 工具链优化
+rustflags = ["-C", "target-cpu=native"]
+
+[target.x86_64-unknown-linux-gnu]
+# Linux GNU 工具链优化
+rustflags = ["-C", "target-cpu=native"]

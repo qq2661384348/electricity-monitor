@@ -1,0 +1,5 @@
+python_version_project/
+
+target/
+
+*.log
