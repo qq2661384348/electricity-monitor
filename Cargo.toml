@@ -29,7 +29,8 @@ serde_json = "1.0"
 config = "0.15.18"
 
 # 认证 & 安全
-jsonwebtoken = "9"
+# jsonwebtoken 10.x 需要选择加密后端：rust_crypto (纯Rust实现) 或 aws_lc_rs (需要NASM/CMake)
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 bcrypt = "0.17"
 
 # 数据验证
