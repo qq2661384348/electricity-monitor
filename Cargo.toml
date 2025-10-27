@@ -43,8 +43,8 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.10", features = ["v4", "serde"] }
 
 # 日志
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing = "0.1"  # 最新稳定版 0.1.x 系列
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }  # 2025年最新版
 
 # 错误处理
 thiserror = "2.0"
