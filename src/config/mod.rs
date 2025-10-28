@@ -4,6 +4,10 @@
 
 pub mod app;
 pub mod database;
+pub mod rate_limit;
+pub mod redis;
 
 pub use app::AppConfig;
 pub use database::DatabaseConfig;
+pub use rate_limit::RateLimitConfig;
+pub use redis::RedisConfig;

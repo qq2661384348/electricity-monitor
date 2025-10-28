@@ -20,6 +20,11 @@ deadpool-diesel = { version = "0.6", features = ["postgres"] }
 diesel_migrations = "2.3"
 futures-util = "0.3"
 
+# Redis - 缓存与限流
+# 注意：deadpool-redis 0.18 使用 redis 0.27，版本需要匹配
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+deadpool-redis = "0.18"
+
 # 序列化 - sonic-rs (SIMD加速) + serde
 sonic-rs = "0.5"
 serde = { version = "1.0", features = ["derive"] }
@@ -69,3 +74,7 @@ opt-level = 0
 [[bin]]
 name = "server"
 path = "src/main.rs"
+
+[[bin]]
+name = "migrate"
+path = "src/bin/migrate.rs"

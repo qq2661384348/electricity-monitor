@@ -21,8 +21,8 @@ cargo install diesel_cli --no-default-features --features postgres
 # 2. 配置环境
 $env:APP_ENV="development"
 
-# 3. 运行迁移（可选）
-diesel migration run
+# 3. 运行迁移（统一命令）
+cargo run --bin migrate
 
 # 4. 启动服务
 cargo run

@@ -4,7 +4,7 @@ use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::sync::OnceLock;
 
-use super::DatabaseConfig;
+use super::{DatabaseConfig, RateLimitConfig, RedisConfig};
 
 /// 服务器配置
 #[derive(Debug, Clone, Deserialize)]
@@ -50,6 +50,12 @@ pub struct AppConfig {
     
     /// 日志配置
     pub logging: LoggingConfig,
+    
+    /// Redis配置
+    pub redis: RedisConfig,
+    
+    /// 限流配置
+    pub rate_limit: RateLimitConfig,
 }
 
 /// 全局配置单例
@@ -125,6 +131,17 @@ mod tests {
             logging: LoggingConfig {
                 level: "info".to_string(),
                 format: "json".to_string(),
+            },
+            redis: RedisConfig {
+                host: "127.0.0.1".to_string(),
+                port: 6379,
+                max_connections: 10,
+                min_connections: 2,
+                connection_timeout: 30,
+            },
+            rate_limit: RateLimitConfig {
+                insert_per_second: 10,
+                query_per_second: 1,
             },
         };
 
