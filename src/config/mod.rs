@@ -6,8 +6,10 @@ pub mod app;
 pub mod database;
 pub mod rate_limit;
 pub mod redis;
+pub mod room_sync;
 
 pub use app::AppConfig;
 pub use database::DatabaseConfig;
 pub use rate_limit::RateLimitConfig;
 pub use redis::RedisConfig;
+pub use room_sync::{CrawlerConfig, RoomSyncConfig};

@@ -6,7 +6,7 @@
 //! 3. Windows 平台特殊处理
 
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
     // 1. 获取 PostgreSQL 库路径
@@ -120,7 +120,7 @@ fn configure_windows_linking() {
 }
 
 /// 验证是否为有效的 PostgreSQL 库目录
-fn is_valid_postgres_lib(path: &PathBuf) -> bool {
+fn is_valid_postgres_lib(path: &Path) -> bool {
     #[cfg(target_os = "windows")]
     {
         // Windows 下检查是否存在 libpq.lib

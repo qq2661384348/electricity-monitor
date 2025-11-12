@@ -15,6 +15,7 @@ use crate::domain::models::{NewRoom, UpdateThreshold};
 use crate::errors::{AppError, Result};
 use crate::infrastructure::repositories::RoomRepository;
 use crate::state::AppState;
+use crate::utils::hash::calculate_roompath_hash;
 
 /// 创建房间请求
 #[derive(Debug, Deserialize, Validate)]
@@ -33,6 +34,10 @@ pub struct CreateRoomRequest {
     /// 初始电费（可选，默认0.0）
     #[serde(default)]
     pub electricity_fee: f32,
+    
+    /// 主要房间路径（必填）
+    #[validate(length(min = 1, max = 255, message = "房间路径长度必须在1-255字符之间"))]
+    pub primary_roompath: String,
 }
 
 /// 更新阈值请求
@@ -68,6 +73,17 @@ pub struct RoomResponse {
     pub send_flag: bool,
     pub threshold: f32,
     pub room_name: String,
+    
+    // 同步相关字段
+    pub primary_roompath: String,
+    pub has_additional_paths: bool,
+    pub is_active: bool,
+    pub source_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_synced_at: Option<String>,
+    
     pub created_at: String,
     pub updated_at: String,
 }
@@ -81,6 +97,12 @@ impl From<crate::domain::models::Room> for RoomResponse {
             send_flag: room.send_flag,
             threshold: room.threshold,
             room_name: room.room_name,
+            primary_roompath: room.primary_roompath,
+            has_additional_paths: room.has_additional_paths,
+            is_active: room.is_active,
+            source_type: room.source_type,
+            external_id: room.external_id,
+            last_synced_at: room.last_synced_at.map(|dt| dt.to_string()),
             created_at: room.created_at.to_string(),
             updated_at: room.updated_at.to_string(),
         }
@@ -101,12 +123,22 @@ pub async fn create_room(
     // 创建Repository
     let repository = RoomRepository::new(state.db_pool.clone());
 
+    // 计算roompath的哈希值
+    let primary_roompath_hash = calculate_roompath_hash(&req.primary_roompath);
+    
     // 创建房间
     let new_room = NewRoom {
         roomid: req.roomid,
         electricity_fee: req.electricity_fee,
         threshold: req.threshold,
         room_name: req.room_name,
+        primary_roompath: req.primary_roompath,
+        primary_roompath_hash,
+        has_additional_paths: false,
+        is_active: true,
+        source_type: "manual".to_string(),
+        external_id: None,
+        last_synced_at: None,
     };
 
     let room = repository.create(new_room).await?;
@@ -134,17 +166,20 @@ pub async fn get_room(
 /// 根据roomid查询房间
 /// 
 /// GET /api/rooms/by-roomid/{roomid}
+/// 
+/// 注意：破坏性变更 - 现在返回单个Room（roomid现为唯一约束）
 pub async fn get_rooms_by_roomid(
     State(state): State<AppState>,
     Path(roomid): Path<i32>,
-) -> Result<Json<Vec<RoomResponse>>> {
+) -> Result<Json<RoomResponse>> {
     let repository = RoomRepository::new(state.db_pool.clone());
 
-    let rooms = repository.find_by_roomid(roomid).await?;
+    let room = repository
+        .find_by_roomid(roomid)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
-    let responses: Vec<RoomResponse> = rooms.into_iter().map(Into::into).collect();
-
-    Ok(Json(responses))
+    Ok(Json(room.into()))
 }
 
 /// 更新房间阈值

@@ -48,23 +48,29 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    #[ignore] // 需要实际数据库连接
     async fn test_create_pool() {
         use crate::config::database::DatabaseType;
 
+        // 使用开发数据库配置
         let config = DatabaseConfig {
             db_type: DatabaseType::Postgres,
-            host: "localhost".to_string(),
+            host: "47.92.117.121".to_string(),
             port: 5432,
             username: "postgres".to_string(),
             password: "postgres".to_string(),
-            database: "test".to_string(),
+            database: "electricity_dev".to_string(),
             max_connections: 5,
             min_connections: 1,
             connection_timeout: 30,
         };
 
         let result = create_pool(&config).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "数据库连接池创建失败: {:?}", result.err());
+        
+        // 验证连接池可用
+        if let Ok(pool) = result {
+            let conn_result = pool.get().await;
+            assert!(conn_result.is_ok(), "无法从连接池获取连接");
+        }
     }
 }

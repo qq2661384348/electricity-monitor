@@ -26,6 +26,9 @@ pub enum AppError {
 
     #[error("内部服务器错误: {0}")]
     Internal(String),
+    
+    #[error("爬虫错误: {0}")]
+    Crawler(String),
 }
 
 impl IntoResponse for AppError {
@@ -49,6 +52,10 @@ impl IntoResponse for AppError {
                 tracing::error!("Internal error: {}", msg);
                 (StatusCode::INTERNAL_SERVER_ERROR, msg.as_str())
             }
+            AppError::Crawler(ref msg) => {
+                tracing::error!("Crawler error: {}", msg);
+                (StatusCode::INTERNAL_SERVER_ERROR, "爬虫服务错误")
+            }
         };
 
         let body = Json(json!({
@@ -62,3 +69,10 @@ impl IntoResponse for AppError {
 
 /// Result类型别名
 pub type Result<T> = std::result::Result<T, AppError>;
+
+/// 从 anyhow::Error 转换为 AppError
+impl From<anyhow::Error> for AppError {
+    fn from(err: anyhow::Error) -> Self {
+        AppError::Crawler(err.to_string())
+    }
+}

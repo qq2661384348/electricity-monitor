@@ -5,7 +5,9 @@
 pub mod electricity_service;
 pub mod notification_service;
 pub mod rate_limiter;
+pub mod room_sync;
 
 pub use electricity_service::{ElectricityData, ElectricityService};
 pub use notification_service::NotificationService;
 pub use rate_limiter::{RateLimiter, RateLimitOperation};
+pub use room_sync::{MergeStatistics, RoomClient, RoomData, RoomFetcher, RoomSyncService, SyncStats};

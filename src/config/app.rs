@@ -4,7 +4,7 @@ use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::sync::OnceLock;
 
-use super::{DatabaseConfig, RateLimitConfig, RedisConfig};
+use super::{DatabaseConfig, RateLimitConfig, RedisConfig, RoomSyncConfig};
 
 /// 服务器配置
 #[derive(Debug, Clone, Deserialize)]
@@ -56,6 +56,10 @@ pub struct AppConfig {
     
     /// 限流配置
     pub rate_limit: RateLimitConfig,
+    
+    /// 房间同步服务配置
+    #[serde(default)]
+    pub room_sync: RoomSyncConfig,
 }
 
 /// 全局配置单例
@@ -143,6 +147,7 @@ mod tests {
                 insert_per_second: 10,
                 query_per_second: 1,
             },
+            room_sync: RoomSyncConfig::default(),
         };
 
         assert_eq!(config.server_addr(), "127.0.0.1:8000");

@@ -26,18 +26,31 @@ pub async fn health_check() -> impl IntoResponse {
 /// 健康检查端点（带数据库检查）
 ///
 /// GET /api/health/db
-pub async fn health_check_db(State(_state): State<AppState>) -> impl IntoResponse {
-    // TODO: 实际检查数据库连接
-    // let _conn = state.db_pool.get().await.map_err(|_| {
-    //     (StatusCode::SERVICE_UNAVAILABLE, "Database unavailable")
-    // })?;
-
-    (
-        StatusCode::OK,
-        Json(json!({
-            "status": "ok",
-            "database": "connected",
-            "message": "Service and database are healthy"
-        }))
-    )
+pub async fn health_check_db(State(state): State<AppState>) -> impl IntoResponse {
+    // 实际检查数据库连接
+    match state.db_pool.get().await {
+        Ok(_conn) => {
+            // 连接成功
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "status": "ok",
+                    "database": "connected",
+                    "message": "Service and database are healthy"
+                }))
+            )
+        }
+        Err(e) => {
+            // 连接失败
+            tracing::error!("Database health check failed: {}", e);
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({
+                    "status": "error",
+                    "database": "unavailable",
+                    "message": format!("Database connection failed: {}", e)
+                }))
+            )
+        }
+    }
 }

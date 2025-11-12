@@ -27,6 +27,15 @@
   - 编译优化设置
   - 链接问题解决方案
   - 常见构建错误排查
+- **[DATABASE_MIGRATION.md](./guides/DATABASE_MIGRATION.md)** - 数据库迁移指南
+  - 统一迁移命令使用
+  - 迁移文件管理
+  - 多环境配置
+- **[TECHNICAL_DEBT.md](./guides/TECHNICAL_DEBT.md)** - 技术债务清单
+  - 项目完成度评估
+  - 待实现功能清单
+  - 开发优先级建议
+  - 关键决策点
 
 ### 🔌 API 文档 (`./api/`)
 - **[API_REFERENCE.md](./api/API_REFERENCE.md)** - API接口文档（待创建）
@@ -46,6 +55,8 @@
 - 添加新API → [QUICKSTART.md § 开发指南](./guides/QUICKSTART.md#开发指南)
 - 配置管理 → [ARCHITECTURE.md § 配置系统](./architecture/ARCHITECTURE.md#核心模块设计)
 - 性能优化 → [ARCHITECTURE.md § 性能优化策略](./architecture/ARCHITECTURE.md#性能优化策略)
+- 技术债务清单 → [TECHNICAL_DEBT.md](./guides/TECHNICAL_DEBT.md)
+- 数据库迁移 → [DATABASE_MIGRATION.md](./guides/DATABASE_MIGRATION.md)
 
 ### 部署运维
 - 环境配置 → [README.md § 环境配置](./README.md#环境配置)
@@ -63,6 +74,8 @@ docs/
 ├── guides/                     # 开发指南
 │   ├── QUICKSTART.md          # 快速启动
 │   ├── BUILD_CONFIGURATION.md # 构建配置指南
+│   ├── DATABASE_MIGRATION.md  # 数据库迁移指南
+│   ├── TECHNICAL_DEBT.md      # 技术债务清单
 │   ├── DEVELOPMENT.md         # 开发规范（待创建）
 │   └── DEPLOYMENT.md          # 部署指南（待创建）
 └── api/                        # API文档
@@ -84,7 +97,9 @@ docs/
 ### 开发相关
 - 添加新端点 → [QUICKSTART.md § 添加新的API端点](./guides/QUICKSTART.md)
 - 数据库操作 → [QUICKSTART.md § 数据库操作示例](./guides/QUICKSTART.md)
+- 数据库迁移 → [DATABASE_MIGRATION.md](./guides/DATABASE_MIGRATION.md)
 - 错误处理 → [ARCHITECTURE.md § 错误处理](./architecture/ARCHITECTURE.md)
+- 待实现功能 → [TECHNICAL_DEBT.md § 技术债务清单](./guides/TECHNICAL_DEBT.md)
 
 ### 性能相关
 - 编译优化 → [ARCHITECTURE.md § 编译时优化](./architecture/ARCHITECTURE.md)
@@ -93,9 +108,10 @@ docs/
 
 ## 📝 文档维护
 
-- **最后更新**: 2025-10-21
-- **文档版本**: 1.0
+- **最后更新**: 2025-10-30
+- **文档版本**: 1.1
 - **维护团队**: Electricity Monitor Team
+- **最新变更**: 新增技术债务清单和数据库迁移指南
 
 ## 💡 贡献指南
 

@@ -14,7 +14,7 @@ tower-http = { version = "0.6", features = ["trace", "cors", "compression-full"]
 
 # 数据库 - Diesel + diesel-async
 # 注意：开发环境仅启用postgres，需要mysql时取消注释mysql feature
-diesel = { version = "2.3", features = ["postgres", "chrono", "uuid"] }
+diesel = { version = "2.3", features = ["postgres", "chrono", "uuid", "serde_json"] }
 diesel-async = { version = "0.7", features = ["postgres", "deadpool", "async-connection-wrapper"] }
 deadpool-diesel = { version = "0.6", features = ["postgres"] }
 diesel_migrations = "2.3"
@@ -30,11 +30,14 @@ sonic-rs = "0.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
+# HTTP客户端 - reqwest (用于爬虫模块)
+reqwest = { version = "0.12", features = ["json"] }
+
 # 配置管理
 config = "0.15.18"
 
 # 认证 & 安全
-# jsonwebtoken 10.x 需要选择加密后端：rust_crypto (纯Rust实现) 或 aws_lc_rs (需要NASM/CMake)
+# jsonwebtoken 10.x 需要选择加密后端：rust_crypto (纯Rust实现) 或 aws_lc_rs (需要NASM/CMake，不便于不同平台迁移)
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 bcrypt = "0.17"
 
