@@ -26,6 +26,20 @@ impl RoomRepository {
         Self { pool }
     }
 
+    /// 获取数据库连接（内部辅助方法）
+    /// 
+    /// # 返回
+    /// 数据库连接或错误
+    /// 
+    /// # 错误
+    /// 当连接池无法提供连接时返回`AppError::Internal`
+    async fn get_conn(&self) -> Result<diesel_async::pooled_connection::deadpool::Object<diesel_async::AsyncPgConnection>> {
+        self.pool.get().await.map_err(|e| {
+            tracing::error!("Failed to get database connection: {}", e);
+            AppError::Internal(format!("Failed to get database connection: {}", e))
+        })
+    }
+
     /// 创建新房间
     /// 
     /// # 参数
@@ -34,9 +48,7 @@ impl RoomRepository {
     /// # 返回
     /// 创建成功的Room实体
     pub async fn create(&self, new_room: NewRoom) -> Result<Room> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         diesel::insert_into(rooms::table)
             .values(&new_room)
@@ -55,9 +67,7 @@ impl RoomRepository {
     /// - `Some(Room)`: 找到房间
     /// - `None`: 房间不存在
     pub async fn find_by_id(&self, id: Uuid) -> Result<Option<Room>> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         rooms::table
             .find(id)
@@ -77,9 +87,7 @@ impl RoomRepository {
     /// - `Some(Room)`: 找到房间
     /// - `None`: 房间不存在
     pub async fn find_by_roomid(&self, roomid: i32) -> Result<Option<Room>> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         rooms::table
             .filter(rooms::roomid.eq(roomid))
@@ -106,9 +114,7 @@ impl RoomRepository {
         id: Uuid,
         update: UpdateElectricityFee,
     ) -> Result<Room> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         diesel::update(rooms::table.find(id))
             .set(&update)
@@ -134,17 +140,33 @@ impl RoomRepository {
         roomid: i32,
         electricity_fee: f32,
     ) -> Result<usize> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         let update = UpdateElectricityFee { electricity_fee };
 
-        diesel::update(rooms::table.filter(rooms::roomid.eq(roomid)))
+        let affected_rows = diesel::update(rooms::table.filter(rooms::roomid.eq(roomid)))
             .set(&update)
             .execute(&mut conn)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::Database)?;
+        
+        // 记录批量更新操作
+        tracing::info!(
+            roomid = roomid,
+            electricity_fee = electricity_fee,
+            affected_rows = affected_rows,
+            "批量更新电费完成"
+        );
+        
+        // 异常情况警告
+        if affected_rows == 0 {
+            tracing::warn!(
+                roomid = roomid,
+                "批量更新电费但没有匹配的房间"
+            );
+        }
+        
+        Ok(affected_rows)
     }
 
     /// 更新房间阈值
@@ -156,9 +178,7 @@ impl RoomRepository {
     /// # 返回
     /// 更新后的Room实体
     pub async fn update_threshold(&self, id: Uuid, update: UpdateThreshold) -> Result<Room> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         diesel::update(rooms::table.find(id))
             .set(&update)
@@ -176,9 +196,7 @@ impl RoomRepository {
     /// # 返回
     /// 更新后的Room实体
     pub async fn reset_send_flag(&self, id: Uuid) -> Result<Room> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         let reset = ResetSendFlag::new();
 
@@ -195,9 +213,7 @@ impl RoomRepository {
     /// # 返回
     /// 需要发送通知的房间列表
     pub async fn find_rooms_with_send_flag_true(&self) -> Result<Vec<Room>> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         rooms::table
             .filter(rooms::send_flag.eq(true))
@@ -216,12 +232,11 @@ impl RoomRepository {
     /// # 返回
     /// 房间列表
     pub async fn find_all(&self, limit: i64, offset: i64) -> Result<Vec<Room>> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         rooms::table
             .select(Room::as_select())
+            .order_by(rooms::created_at.desc())  // 按创建时间降序排序
             .limit(limit)
             .offset(offset)
             .load(&mut conn)
@@ -238,9 +253,7 @@ impl RoomRepository {
     /// - `Some(Room)`: 找到房间
     /// - `None`: 房间不存在
     pub async fn find_by_roompath(&self, roompath: &str) -> Result<Option<Room>> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         rooms::table
             .filter(rooms::primary_roompath.eq(roompath))
@@ -261,9 +274,7 @@ impl RoomRepository {
     /// - `Some(Room)`: 找到房间
     /// - `None`: 房间不存在
     pub async fn find_by_primary_roompath_hash(&self, hash: i64, roompath: &str) -> Result<Option<Room>> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         rooms::table
             .filter(rooms::primary_roompath_hash.eq(hash))
@@ -287,9 +298,7 @@ impl RoomRepository {
     pub async fn find_roomid_by_additional_roompath(&self, hash: i64, roompath: &str) -> Result<Option<i32>> {
         use crate::infrastructure::database::schema::room_paths;
         
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         room_paths::table
             .filter(room_paths::roompath_hash.eq(hash))
@@ -310,9 +319,7 @@ impl RoomRepository {
     /// - `Some(RoomAggregate)`: 找到房间及其所有路径
     /// - `None`: 房间不存在
     pub async fn find_room_with_all_paths(&self, roomid: i32) -> Result<Option<RoomAggregate>> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         // 查找房间
         let room = match self.find_by_roomid(roomid).await? {
@@ -339,9 +346,7 @@ impl RoomRepository {
     /// # 返回
     /// 额外路径列表
     pub async fn find_additional_paths(&self, roomid: i32) -> Result<Vec<RoomPath>> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         room_paths::table
             .filter(room_paths::roomid.eq(roomid))
@@ -361,9 +366,7 @@ impl RoomRepository {
     /// # 返回
     /// 更新的行数
     pub async fn update_primary_roompath(&self, roomid: i32, new_primary_roompath: &str, new_hash: i64) -> Result<usize> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
         
         diesel::update(rooms::table.filter(rooms::roomid.eq(roomid)))
             .set((
@@ -387,9 +390,7 @@ impl RoomRepository {
     pub async fn delete_additional_path(&self, roomid: i32, roompath: &str) -> Result<usize> {
         use crate::infrastructure::database::schema::room_paths;
         
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
         
         diesel::delete(
             room_paths::table
@@ -410,9 +411,7 @@ impl RoomRepository {
     /// # 返回
     /// 更新的行数
     pub async fn update_has_additional_paths(&self, roomid: i32, has_additional: bool) -> Result<usize> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
         
         diesel::update(rooms::table.filter(rooms::roomid.eq(roomid)))
             .set(rooms::has_additional_paths.eq(has_additional))
@@ -429,9 +428,7 @@ impl RoomRepository {
     /// # 返回
     /// 创建的RoomPath列表
     pub async fn add_additional_paths(&self, new_paths: Vec<NewRoomPath>) -> Result<Vec<RoomPath>> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         diesel::insert_into(room_paths::table)
             .values(&new_paths)
@@ -449,9 +446,7 @@ impl RoomRepository {
     /// # 返回
     /// 停用的房间数量
     pub async fn deactivate_except(&self, active_roomids: &[i32]) -> Result<usize> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         diesel::update(
             rooms::table
@@ -472,9 +467,7 @@ impl RoomRepository {
     /// # 返回
     /// 删除的房间数量
     pub async fn delete(&self, id: Uuid) -> Result<usize> {
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
 
         diesel::delete(rooms::table.find(id))
             .execute(&mut conn)
@@ -494,9 +487,7 @@ impl RoomRepository {
     pub async fn get_sync_history(&self, limit: i64) -> Result<Vec<crate::domain::models::RoomSyncLog>> {
         use crate::infrastructure::database::schema::room_sync_log;
         
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
         
         room_sync_log::table
             .order(room_sync_log::started_at.desc())
@@ -511,9 +502,7 @@ impl RoomRepository {
     pub async fn create_sync_log(&self, log: crate::domain::models::NewRoomSyncLog) -> Result<crate::domain::models::RoomSyncLog> {
         use crate::infrastructure::database::schema::room_sync_log;
         
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
         
         diesel::insert_into(room_sync_log::table)
             .values(&log)
@@ -527,9 +516,7 @@ impl RoomRepository {
     pub async fn update_sync_log(&self, id: Uuid, update: crate::domain::models::UpdateRoomSyncLog) -> Result<crate::domain::models::RoomSyncLog> {
         use crate::infrastructure::database::schema::room_sync_log;
         
-        let mut conn = self.pool.get().await.map_err(|e| {
-            AppError::Internal(format!("Failed to get database connection: {}", e))
-        })?;
+        let mut conn = self.get_conn().await?;
         
         diesel::update(room_sync_log::table.find(id))
             .set(&update)
