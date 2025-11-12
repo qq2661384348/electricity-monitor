@@ -227,7 +227,7 @@ mod tests {
             RawRoomInfo { roompath: "path2".into(), roomid: "101".into() },
         ];
         
-        let (merged, stats) = fetcher.group_by_roomid(raw).unwrap();
+        let (merged, _stats) = fetcher.group_by_roomid(raw).unwrap();
         
         assert_eq!(merged.len(), 1);
         

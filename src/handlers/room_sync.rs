@@ -40,6 +40,7 @@ pub async fn trigger_sync(
     
     // 克隆必要的状态
     let db_pool = state.db_pool.clone();
+    let electricity_fetcher = state.electricity_fetcher_service.clone();
     let config = crate::config::AppConfig::global();
     
     // 启动异步任务
@@ -115,6 +116,30 @@ pub async fn trigger_sync(
                 
                 if let Err(e) = repository.update_sync_log(log_id, update_log).await {
                     tracing::error!("更新同步日志失败: job_id={}, error={}", job_id, e);
+                }
+                
+                // ✅ 同步成功后刷新ElectricityFetcher缓存
+                if let Some(fetcher_service) = electricity_fetcher.as_ref() {
+                    tracing::info!("刷新电费获取服务缓存: job_id={}", job_id);
+                    match fetcher_service.refresh_cache().await {
+                        Ok(_) => {
+                            let cache_size = fetcher_service.cache_size().await;
+                            tracing::info!(
+                                "缓存刷新成功: job_id={}, cache_size={}",
+                                job_id,
+                                cache_size
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                "缓存刷新失败: job_id={}, error={}",
+                                job_id,
+                                e
+                            );
+                        }
+                    }
+                } else {
+                    tracing::debug!("电费获取服务未启用，跳过缓存刷新");
                 }
             }
             Err(e) => {

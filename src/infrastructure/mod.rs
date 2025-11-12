@@ -3,6 +3,7 @@
 //! 提供数据库、外部服务等基础设施支持
 
 pub mod database;
+pub mod electricity;
 pub mod redis;
 pub mod repositories;
 

@@ -4,7 +4,7 @@ use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::sync::OnceLock;
 
-use super::{DatabaseConfig, RateLimitConfig, RedisConfig, RoomSyncConfig};
+use super::{DatabaseConfig, ElectricityFetcherConfig, RateLimitConfig, RedisConfig, RoomSyncConfig};
 
 /// 服务器配置
 #[derive(Debug, Clone, Deserialize)]
@@ -60,6 +60,10 @@ pub struct AppConfig {
     /// 房间同步服务配置
     #[serde(default)]
     pub room_sync: RoomSyncConfig,
+    
+    /// 电费获取服务配置
+    #[serde(default)]
+    pub electricity_fetcher: ElectricityFetcherConfig,
 }
 
 /// 全局配置单例
@@ -93,6 +97,17 @@ impl AppConfig {
     /// 初始化全局配置
     pub fn init() -> Result<(), ConfigError> {
         let config = Self::load()?;
+        
+        // 验证电费获取服务配置
+        if config.electricity_fetcher.enabled {
+            if let Err(e) = config.electricity_fetcher.validate() {
+                return Err(ConfigError::Message(format!(
+                    "电费获取服务配置验证失败: {}",
+                    e
+                )));
+            }
+        }
+        
         CONFIG.set(config).map_err(|_| {
             ConfigError::Message("配置已经初始化".to_string())
         })?;
@@ -148,6 +163,7 @@ mod tests {
                 query_per_second: 1,
             },
             room_sync: RoomSyncConfig::default(),
+            electricity_fetcher: ElectricityFetcherConfig::default(),
         };
 
         assert_eq!(config.server_addr(), "127.0.0.1:8000");

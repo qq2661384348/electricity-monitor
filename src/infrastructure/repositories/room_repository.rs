@@ -169,6 +169,79 @@ impl RoomRepository {
         Ok(affected_rows)
     }
 
+    /// 批量更新电费（HashMap模式）
+    /// 
+    /// # 参数
+    /// - `data`: roomid → electricity_fee 映射
+    /// 
+    /// # 返回
+    /// 更新的总行数
+    /// 
+    /// # 说明
+    /// - 分批更新（100条/batch）
+    /// - roomid不存在时DEBUG日志，不中断流程
+    /// - 返回实际更新的行数
+    pub async fn batch_update_electricity_fee(
+        &self,
+        data: std::collections::HashMap<i32, f32>,
+    ) -> Result<usize> {
+        if data.is_empty() {
+            tracing::debug!("批量更新跳过：数据为空");
+            return Ok(0);
+        }
+
+        let mut conn = self.get_conn().await?;
+        let mut total_updated = 0;
+
+        const BATCH_SIZE: usize = 100;
+        let total_count = data.len();
+
+        // 分批更新
+        for (batch_idx, chunk) in data.iter().collect::<Vec<_>>().chunks(BATCH_SIZE).enumerate() {
+            let mut batch_updated = 0;
+
+            for (roomid, fee) in chunk {
+                let update = UpdateElectricityFee {
+                    electricity_fee: **fee,
+                };
+
+                let rows = diesel::update(rooms::table.filter(rooms::roomid.eq(roomid)))
+                    .set(&update)
+                    .execute(&mut conn)
+                    .await
+                    .map_err(AppError::Database)?;
+
+                batch_updated += rows;
+
+                if rows == 0 {
+                    tracing::debug!(
+                        roomid = roomid,
+                        "roomid不存在，跳过更新"
+                    );
+                }
+            }
+
+            total_updated += batch_updated;
+
+            tracing::debug!(
+                batch_idx = batch_idx,
+                batch_size = chunk.len(),
+                updated = batch_updated,
+                total_updated = total_updated,
+                total_count = total_count,
+                "批量更新电费批次完成"
+            );
+        }
+
+        tracing::info!(
+            total = total_updated,
+            batches = total_count.div_ceil(BATCH_SIZE),
+            "批量更新电费完成"
+        );
+
+        Ok(total_updated)
+    }
+
     /// 更新房间阈值
     /// 
     /// # 参数
@@ -240,6 +313,25 @@ impl RoomRepository {
             .limit(limit)
             .offset(offset)
             .load(&mut conn)
+            .await
+            .map_err(AppError::Database)
+    }
+
+    /// 查询所有活跃房间的roomid列表（用于缓存）
+    /// 
+    /// # 返回
+    /// 活跃房间的roomid列表（i32）
+    /// 
+    /// # 说明
+    /// - 只返回is_active=true的房间
+    /// - 用于ElectricityFetcher的批量获取
+    pub async fn find_all_active_roomids(&self) -> Result<Vec<i32>> {
+        let mut conn = self.get_conn().await?;
+
+        rooms::table
+            .filter(rooms::is_active.eq(true))
+            .select(rooms::roomid)
+            .load::<i32>(&mut conn)
             .await
             .map_err(AppError::Database)
     }
@@ -533,7 +625,6 @@ mod tests {
     use crate::config::database::DatabaseType;
     use crate::infrastructure::database::create_pool;
     use crate::domain::models::NewRoom;
-    use std::sync::Arc;
 
     async fn setup_test_pool() -> DbPool {
         let config = crate::config::DatabaseConfig {

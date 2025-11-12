@@ -9,6 +9,7 @@ description = "高性能电力监控系统后端API - Rust实现"
 # Web框架 - Axum 0.8.x (最新稳定版)
 axum = { version = "0.8", features = ["macros"] }
 tokio = { version = "1.45", features = ["full"] }
+tokio-cron-scheduler = "0.15.1"
 tower = { version = "0.5", features = ["full"] }
 tower-http = { version = "0.6", features = ["trace", "cors", "compression-full"] }
 
@@ -21,12 +22,12 @@ diesel_migrations = "2.3"
 futures-util = "0.3"
 
 # Redis - 缓存与限流
-# 注意：deadpool-redis 0.18 使用 redis 0.27，版本需要匹配
-redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
-deadpool-redis = "0.18"
+# 注意：deadpool-redis 0.22 使用 redis 0.32，版本需要匹配
+redis = { version = "0.32.7", features = ["tokio-comp", "connection-manager"] }
+deadpool-redis = "0.22.0"
 
 # 序列化 - sonic-rs (SIMD加速) + serde
-sonic-rs = "0.5"
+sonic-rs = "0.5.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
@@ -38,7 +39,7 @@ config = "0.15.18"
 
 # 认证 & 安全
 # jsonwebtoken 10.x 需要选择加密后端：rust_crypto (纯Rust实现) 或 aws_lc_rs (需要NASM/CMake，不便于不同平台迁移)
-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+jsonwebtoken = { version = "10.2", features = ["rust_crypto"] }
 bcrypt = "0.17"
 
 # 数据验证

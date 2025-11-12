@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use electricity_monitor_backend::{
     config::AppConfig,
-    domain::services::{ElectricityService, NotificationService, RateLimiter},
+    domain::services::{ElectricityFetcherService, ElectricityService, NotificationService, RateLimiter},
     infrastructure::{database::create_pool, redis::create_redis_pool, repositories::RoomRepository},
     middleware::logger::create_trace_layer,
     routes::create_routes,
@@ -55,8 +55,47 @@ async fn main() -> anyhow::Result<()> {
     ));
     tracing::info!("Rate limiter initialized");
 
+    // 初始化ElectricityFetcherService（如果启用）
+    let electricity_fetcher_service = if config.electricity_fetcher.enabled {
+        tracing::info!("Initializing Electricity Fetcher Service...");
+        
+        let service = ElectricityFetcherService::new(
+            config.electricity_fetcher.api_url.clone(),
+            db_pool.clone(),
+            redis_pool.clone(),
+        )
+        .await?;
+        
+        let service_arc = Arc::new(service);
+        
+        // 启动定时任务
+        let scheduler = ElectricityFetcherService::start_scheduler(
+            service_arc.clone(),
+            config.electricity_fetcher.fetch_interval_minutes,
+            config.electricity_fetcher.history_interval_hours,
+        )
+        .await?;
+        
+        scheduler.start().await?;
+        tracing::info!(
+            "Electricity Fetcher Service started (fetch: {}min, history: {}h)",
+            config.electricity_fetcher.fetch_interval_minutes,
+            config.electricity_fetcher.history_interval_hours
+        );
+        
+        Some(service_arc)
+    } else {
+        tracing::info!("Electricity Fetcher Service disabled");
+        None
+    };
+
     // 创建应用状态
-    let state = AppState::new(db_pool.clone(), redis_pool.clone(), rate_limiter.clone());
+    let state = AppState::new(
+        db_pool.clone(),
+        redis_pool.clone(),
+        rate_limiter.clone(),
+        electricity_fetcher_service,
+    );
 
     // 启动后台服务
     spawn_background_services(

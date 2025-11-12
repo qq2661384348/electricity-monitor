@@ -1,6 +1,16 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    electricity_history (id) {
+        id -> Uuid,
+        roomid -> Int4,
+        electricity_fee -> Float4,
+        recorded_at -> Timestamp,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     room_paths (id) {
         id -> Uuid,
         roomid -> Int4,
@@ -55,4 +65,9 @@ diesel::table! {
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(room_paths, room_sync_log, rooms,);
+diesel::allow_tables_to_appear_in_same_query!(
+    electricity_history,
+    room_paths,
+    room_sync_log,
+    rooms,
+);

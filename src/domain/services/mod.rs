@@ -2,12 +2,16 @@
 //!
 //! 封装跨实体的业务逻辑
 
+pub mod electricity_fetcher_service;
 pub mod electricity_service;
 pub mod notification_service;
 pub mod rate_limiter;
 pub mod room_sync;
+pub mod roomid_cache;
 
+pub use electricity_fetcher_service::{ElectricityFetcherService, FetchStatistics};
 pub use electricity_service::{ElectricityData, ElectricityService};
 pub use notification_service::NotificationService;
 pub use rate_limiter::{RateLimiter, RateLimitOperation};
 pub use room_sync::{MergeStatistics, RoomClient, RoomData, RoomFetcher, RoomSyncService, SyncStats};
+pub use roomid_cache::RoomIdCache;
