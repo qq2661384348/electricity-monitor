@@ -14,7 +14,8 @@ mod models;
 mod parser;
 
 use anyhow::Result;
-use std::fs;
+use tokio::fs::File;
+use tokio::io::{AsyncWriteExt, BufWriter as TokioBufWriter};
 use tracing_subscriber::EnvFilter;
 
 use client::RoomClient;
@@ -33,8 +34,8 @@ async fn main() -> Result<()> {
     let client = RoomClient::new()?;
     tracing::info!("✓ HTTP 客户端初始化成功");
 
-    // 3. 创建爬取器（50 并发）
-    let fetcher = RoomFetcher::new(client, 50);
+    // 3. 创建爬取器（优化的并发模型）
+    let fetcher = RoomFetcher::new(client);
 
     // 4. 开始爬取
     let start_time = std::time::Instant::now();
@@ -49,8 +50,8 @@ async fn main() -> Result<()> {
                 duration
             );
 
-            // 5. 输出到 JSON 文件
-            save_to_json(&rooms)?;
+            // 5. 输出到 JSON 文件（I/O优化）
+            save_to_json(&rooms).await?;
 
             // 6. 输出统计信息
             print_statistics(&rooms, duration);
@@ -59,7 +60,7 @@ async fn main() -> Result<()> {
         }
         Err(e) => {
             tracing::error!("❌ 爬取失败: {:?}", e);
-            anyhow::bail!("爬取过程中发生错误: {}", e);
+            anyhow::bail!("爬取过程中发生错误: {e}");
         }
     }
 
@@ -79,21 +80,25 @@ fn init_tracing() -> Result<()> {
     Ok(())
 }
 
-/// 保存结果到 JSON 文件
-fn save_to_json(rooms: &[models::RoomInfo]) -> Result<()> {
-    tracing::info!("💾 正在保存结果到文件...");
+/// 保存结果到 JSON 文件（I/O 优化版本）
+async fn save_to_json(rooms: &[models::RoomInfo]) -> Result<()> {
+    tracing::info!("💾 正在保存结果到文件（I/O优化）...");
 
     // 确保输出目录存在
-    fs::create_dir_all("output")?;
+    tokio::fs::create_dir_all("output").await?;
 
-    // 序列化为格式化的 JSON
-    let json = serde_json::to_string_pretty(rooms)?;
+    // 序列化为格式化的 JSON（使用 SIMD 优化）
+    let json = simd_json::to_string_pretty(rooms)?;
 
-    // 写入文件
+    // 使用异步文件写入 + 缓冲优化
     let output_path = "output/rooms.json";
-    fs::write(output_path, json)?;
+    let file = File::create(output_path).await?;
+    let mut writer = TokioBufWriter::new(file);
+    
+    writer.write_all(json.as_bytes()).await?;
+    writer.flush().await?;
 
-    tracing::info!("✓ 结果已保存到: {}", output_path);
+    tracing::info!("✓ 结果已保存到: {}（I/O优化）", output_path);
 
     Ok(())
 }
@@ -104,11 +109,12 @@ fn print_statistics(rooms: &[models::RoomInfo], duration: std::time::Duration) {
     println!("📈 爬取统计信息");
     println!("{}", "=".repeat(60));
     println!("✅ 总房间数:     {}", rooms.len());
-    println!("⏱️  总耗时:       {:.2?}", duration);
+    println!("⏱️  总耗时:       {duration:.2?}");
 
     if !rooms.is_empty() {
+        #[allow(clippy::cast_precision_loss)]
         let avg_time = duration.as_secs_f64() / rooms.len() as f64;
-        println!("📊 平均速度:     {:.2} 秒/房间", avg_time);
+        println!("📊 平均速度:     {avg_time:.2} 秒/房间");
         println!("🚀 吞吐量:       {:.2} 房间/秒", 1.0 / avg_time);
     }
 

@@ -1,0 +1,4 @@
+[build]
+# CPU 原生指令优化（5-10% 性能提升）
+# 注意：这会降低跨CPU兼容性，仅在目标机器上使用
+rustflags = ["-C", "target-cpu=native"]

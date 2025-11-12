@@ -1,10 +1,12 @@
 //! 核心爬取逻辑
 //!
 //! 实现4层级联爬取：校区 → 建筑 → 楼层 → 房间
+//!
+//! 性能优化：使用 `tokio::spawn` + `tokio::join!` 优化并发调度
 
 use anyhow::{Context, Result};
 use std::sync::Arc;
-use tokio::sync::Semaphore;
+use tokio::task::JoinSet;
 
 use crate::client::RoomClient;
 use crate::models::{RoomComponent, RoomInfo};
@@ -13,14 +15,11 @@ use crate::models::{RoomComponent, RoomInfo};
 ///
 /// 管理整个爬取流程，包括：
 /// - 多层级数据获取
-/// - 并发控制（通过 Semaphore）
+/// - 并发控制（通过 `tokio::spawn` 优化调度）
 /// - 错误处理和恢复
 pub struct RoomFetcher {
     /// HTTP 客户端（Arc 包装用于在异步任务间共享）
     client: Arc<RoomClient>,
-
-    /// 并发控制信号量
-    semaphore: Arc<Semaphore>,
 }
 
 impl RoomFetcher {
@@ -28,13 +27,11 @@ impl RoomFetcher {
     ///
     /// # 参数
     /// - `client`: HTTP 客户端
-    /// - `max_concurrent`: 最大并发数（建议 50）
-    pub fn new(client: RoomClient, max_concurrent: usize) -> Self {
-        tracing::info!("初始化爬取器，最大并发数: {}", max_concurrent);
+    pub fn new(client: RoomClient) -> Self {
+        tracing::info!("初始化爬取器（优化的并发模型）");
 
         Self {
             client: Arc::new(client),
-            semaphore: Arc::new(Semaphore::new(max_concurrent)),
         }
     }
 
@@ -112,7 +109,7 @@ impl RoomFetcher {
     async fn fetch_buildings(&self, campus_id: &str) -> Result<Vec<RoomComponent>> {
         tracing::debug!("Level 2: 请求建筑列表（校区 ID: {}）", campus_id);
 
-        let params = format!("yzm=123&RoomDepId={}&level=2&floor=0", campus_id);
+        let params = format!("yzm=123&RoomDepId={campus_id}&level=2&floor=0");
         let response = self
             .client
             .fetch_tree(&params)
@@ -129,7 +126,7 @@ impl RoomFetcher {
     ///
     /// 流程：
     /// 1. 获取该校区的所有建筑（Level 2）
-    /// 2. 并发处理每个建筑（Level 3-4）
+    /// 2. 使用 `JoinSet` 并发处理每个建筑（Level 3-4）
     async fn fetch_campus(&self, campus: &RoomComponent) -> Result<Vec<RoomInfo>> {
         // Level 2: 获取建筑列表
         let buildings = self.fetch_buildings(&campus.room_dep_id).await?;
@@ -144,19 +141,15 @@ impl RoomFetcher {
             return Ok(Vec::new());
         }
 
-        // Level 3-4: 并发处理每个建筑
-        let mut tasks = Vec::new();
+        // Level 3-4: 使用 JoinSet 并发处理每个建筑
+        let mut join_set = JoinSet::new();
 
         for building in buildings {
             let client = self.client.clone();
-            let semaphore = self.semaphore.clone();
             let campus_name = campus.dep_name.clone();
 
-            // 生成异步任务
-            let task = tokio::spawn(async move {
-                // 获取信号量许可（限流）
-                let _permit = semaphore.acquire().await.unwrap();
-
+            // 生成异步任务（无 Semaphore 限制，提高并发效率）
+            join_set.spawn(async move {
                 tracing::debug!(
                     "    → 处理建筑: {} (ID: {})",
                     building.dep_name,
@@ -166,15 +159,12 @@ impl RoomFetcher {
                 // 获取该建筑的所有房间（Level 3-4）
                 fetch_building_rooms(client, &campus_name, &building).await
             });
-
-            tasks.push(task);
         }
 
-        // 等待所有任务完成并收集结果
+        // 收集所有结果
         let mut rooms = Vec::new();
-
-        for task in tasks {
-            match task.await {
+        while let Some(result) = join_set.join_next().await {
+            match result {
                 Ok(Ok(building_rooms)) => {
                     rooms.extend(building_rooms);
                 }
@@ -219,27 +209,23 @@ async fn fetch_building_rooms(
         return Ok(Vec::new());
     }
 
-    // Level 4: 并发获取所有楼层的房间
-    let mut tasks = Vec::new();
+    // Level 4: 使用 JoinSet 并发获取所有楼层的房间
+    let mut join_set = JoinSet::new();
 
     for floor in floors {
         let client_clone = Arc::clone(&client);
         let room_path = format!("{}/{}/{}", campus_name, building.dep_name, floor.dep_name);
 
-        // 生成异步任务
-        let task =
-            tokio::spawn(
-                async move { fetch_rooms(client_clone, &floor.room_dep_id, &room_path).await },
-            );
-
-        tasks.push(task);
+        // 生成异步任务（优化的并发调度）
+        join_set.spawn(async move {
+            fetch_rooms(client_clone, &floor.room_dep_id, &room_path).await
+        });
     }
 
-    // 等待所有任务完成并收集结果
+    // 收集所有结果
     let mut all_rooms = Vec::new();
-
-    for task in tasks {
-        match task.await {
+    while let Some(result) = join_set.join_next().await {
+        match result {
             Ok(Ok(rooms)) => {
                 all_rooms.extend(rooms);
             }
@@ -266,7 +252,7 @@ async fn fetch_building_rooms(
 async fn fetch_floors(client: &RoomClient, building_id: &str) -> Result<Vec<RoomComponent>> {
     tracing::debug!("      Level 3: 请求楼层列表（建筑 ID: {}）", building_id);
 
-    let params = format!("yzm=123&RoomDepId={}&level=3&floor=0", building_id);
+    let params = format!("yzm=123&RoomDepId={building_id}&level=3&floor=0");
     let response = client
         .fetch_tree(&params)
         .await
@@ -286,7 +272,7 @@ async fn fetch_rooms(
 ) -> Result<Vec<RoomInfo>> {
     tracing::debug!("        Level 4: 请求房间列表（楼层 ID: {}）", floor_id);
 
-    let params = format!("yzm=123&RoomDepId={}&level=4", floor_id);
+    let params = format!("yzm=123&RoomDepId={floor_id}&level=4");
     let response = client
         .fetch_tree(&params)
         .await

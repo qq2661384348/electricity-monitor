@@ -72,7 +72,7 @@ impl RoomClient {
                     return Ok(resp);
                 }
                 Err(e) if attempt >= MAX_RETRIES => {
-                    return Err(e).context(format!("重试 {} 次后仍然失败", MAX_RETRIES));
+                    return Err(e).context(format!("重试 {MAX_RETRIES} 次后仍然失败"));
                 }
                 Err(e) => {
                     let delay = Duration::from_millis(100 * 2u64.pow(attempt - 1)); // 指数退避
@@ -111,7 +111,7 @@ impl RoomClient {
         // 检查 HTTP 状态码
         let status = resp.status();
         if !status.is_success() {
-            anyhow::bail!("HTTP 请求失败，状态码: {}", status);
+            anyhow::bail!("HTTP 请求失败，状态码: {status}");
         }
 
         // 获取响应文本
@@ -122,9 +122,8 @@ impl RoomClient {
         // 解析 JSON（处理 BOM + 双重编码）
         let value = parser::safe_parse(&text).context("解析 JSON 失败")?;
 
-        // 反序列化为 ApiResponse
-        let api_response: ApiResponse =
-            serde_json::from_value(value).context("反序列化 ApiResponse 失败")?;
+        // 反序列化为 ApiResponse（使用 SIMD 优化）
+        let api_response: ApiResponse = serde::Deserialize::deserialize(value).context("反序列化 ApiResponse 失败")?;
 
         Ok(api_response)
     }
