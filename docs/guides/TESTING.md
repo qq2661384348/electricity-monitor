@@ -23,17 +23,30 @@ test result: ok. 53 passed; 0 failed; 0 ignored
 
 | 模块 | 测试数量 | 说明 |
 |------|---------|------|
-| **hash.rs** | 5 | 哈希算法测试 |
-| **fetcher.rs** | 4 | 数据合并逻辑测试 |
-| **models.rs** | 3 | 数据模型测试 |
-| **parser.rs** | 2 | JSON解析测试 |
-| **pool.rs** | 2 | 配置验证测试 |
-| **client.rs** | 3 | 配置和算法测试 |
-| **rate_limiter.rs** | 2 | 配置和键生成测试 |
-| **room_repository.rs** | 3 | 数据库操作测试 |
-| 其他模块 | 16 | 其他单元测试 |
+| utils::hash | 5 | 哈希算法测试 |
+| crawler::fetcher | 4 | 1:N数据分组与去重 |
+| crawler::models | 4 | RoomData与统计计算 |
+| crawler::parser | 5 | 安全解析与树解析 |
+| crawler::client | 3 | 客户端构造/默认配置/退避 |
+| domain::models::room_aggregate | 3 | 聚合模型 |
+| electricity_fetcher_service | 1 | 统计计算 |
+| electricity_service | 1 | 数据序列化 |
+| notification_service | 1 | Mock sender |
+| roomid_cache | 1 | 结构与基本行为 |
+| room_sync::sync_service | 2 | 同步统计 |
+| rate_limiter | 2 | 键生成与配置校验 |
+| config::app | 1 | Server地址拼装 |
+| middleware::auth | 1 | JWT编码解码 |
+| infra::electricity::http_client | 1 | HTTP客户端创建 |
+| infra::electricity::fetcher | 2 | 创建与URL校验 |
+| infra::electricity::parser | 4 | 电费解析（JSON） |
+| infra::redis::batch_writer | 2 | 结构与Key格式 |
+| infra::redis::pool | 1 | 配置验证 |
+| infra::database::pool | 1 | 连接池创建 |
+| infra::repositories::room_repository | 3 | CRUD/查询 |
+| infra::repositories::electricity_history_repository | 1 | 历史仓储 |
 
-**总计**: **40个测试**
+**总计**: **49个单元测试**
 
 ---
 
@@ -81,11 +94,15 @@ cargo test --lib
 
 # 对于 test_parse_real_api_response（默认执行）
 # 无需设置环境变量；测试将尝试访问网络，若失败会自动跳过
+
+# 仅运行真实API测试（输出原始响应）
+cargo test --lib infrastructure::electricity::parser::tests::test_parse_real_api_response -- --nocapture
 ```
 
 **要求**: 
 - 网络可达外部API
-- API地址: `https://zywxhd02.gxust.edu.cn/Home/GetRoomTree`
+- 爬虫API地址: `https://zywxhd02.gxust.edu.cn/Home/GetRoomTree`
+- 电费API地址: `https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid=4330`（示例roomid，可替换）
 
 ---
 
@@ -282,10 +299,10 @@ jobs:
 
 ## 总结
 
-- ✅ **40个测试全部通过**
+- ✅ **53个测试全部通过**（49个单元测试 + 4个集成测试）
 - ✅ **0个ignored测试**
 - ✅ **单元测试自动运行**
-- ✅ **集成测试条件执行**
+- ✅ **集成测试**：真实电费API默认执行、网络失败自动跳过；Redis/RoomTree按需启用
 - ✅ **友好的错误提示**
 - ✅ **CI/CD就绪**
 
