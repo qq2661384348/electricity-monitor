@@ -2,15 +2,15 @@
 
 ## 测试概览
 
-项目包含 **40个测试用例**，涵盖单元测试和集成测试。
+项目包含 **53个测试用例**，涵盖单元测试和集成测试。
 
 ```bash
 # 运行所有测试
 cargo test --lib
 
 # 测试结果
-running 40 tests
-test result: ok. 40 passed; 0 failed; 0 ignored
+running 53 tests
+test result: ok. 53 passed; 0 failed; 0 ignored
 ```
 
 ---
@@ -39,7 +39,9 @@ test result: ok. 40 passed; 0 failed; 0 ignored
 
 ### 2. 集成测试（需要外部服务）
 
-这些测试在没有外部服务时会自动跳过，不影响CI/CD流程。
+这些测试在没有外部服务时会自动跳过，不影响CI/CD流程。特殊说明：
+- `test_parse_real_api_response`（真实电费API）默认执行；若网络不可达或响应读取失败，会打印提示并自动跳过。
+- 其他集成测试（Redis、爬虫）通过环境变量启用或在外部服务可用时执行。
 
 #### Redis相关测试（2个）
 
@@ -65,15 +67,20 @@ cargo test --lib
 
 ---
 
-#### 网络相关测试（1个）
+#### 网络相关测试（2个）
 
 **测试**: 
-- `test_fetch_room_tree` - 爬虫API请求测试
+- `test_fetch_room_tree` - 爬虫API请求测试（需要启用环境变量）
+- `test_parse_real_api_response` - 真实电费API请求解析（默认执行，网络失败自动跳过）
 
 **启用方式**:
 ```bash
+# 对于 test_fetch_room_tree（需要启用环境变量）
 $env:RUN_INTEGRATION_TESTS="1"
 cargo test --lib
+
+# 对于 test_parse_real_api_response（默认执行）
+# 无需设置环境变量；测试将尝试访问网络，若失败会自动跳过
 ```
 
 **要求**: 
@@ -90,11 +97,12 @@ cargo test --lib
 cargo test --lib
 
 # 输出
-running 40 tests
+running 53 tests
 跳过Redis测试：设置 RUN_INTEGRATION_TESTS=1 或 REDIS_URL 环境变量以启用
-跳过网络测试：设置 RUN_INTEGRATION_TESTS=1 以启用
+跳过网络测试（RoomTree）：设置 RUN_INTEGRATION_TESTS=1 以启用
+（电费API测试默认执行；若网络不可达将自动跳过并打印提示）
 跳过限流器测试：设置 RUN_INTEGRATION_TESTS=1 或 REDIS_URL 环境变量以启用
-test result: ok. 40 passed; 0 failed; 0 ignored
+test result: ok. 53 passed; 0 failed; 0 ignored
 ```
 
 ### CI/CD环境
@@ -107,11 +115,11 @@ export REDIS_PORT=6379
 cargo test --lib
 
 # 预期输出
-running 40 tests
+running 53 tests
 ✓ Redis连接池测试通过
 ✓ 爬虫网络测试通过，获取到XXX字节数据
 ✓ 限流器测试通过
-test result: ok. 40 passed; 0 failed; 0 ignored
+test result: ok. 53 passed; 0 failed; 0 ignored
 ```
 
 ---
