@@ -4,8 +4,10 @@
 
 pub mod database;
 pub mod electricity;
+pub mod notification;
 pub mod redis;
 pub mod repositories;
 
 pub use database::DbPool;
+pub use notification::QQClient;
 pub use redis::RedisPool;

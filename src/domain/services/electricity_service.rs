@@ -215,11 +215,11 @@ impl ElectricityService {
     }
 }
 
-/// 电费获取模块trait（预留接口）
+
 /// 
-/// # 说明
-/// 外部模块需要实现此trait以提供电费数据
-#[allow(dead_code, async_fn_in_trait)]
+/// # 注意
+/// 此trait是公开接口，供外部模块扩展使用
+/// 使用显式Future返回类型以支持Send bound
 pub trait ElectricityFetcher: Send + Sync {
     /// 获取房间电费
     /// 
@@ -227,8 +227,8 @@ pub trait ElectricityFetcher: Send + Sync {
     /// - `roomid`: 房间ID
     /// 
     /// # 返回
-    /// 电费值
-    async fn fetch_electricity_fee(&self, roomid: i32) -> Result<f32>;
+    /// 电费值的Future
+    fn fetch_electricity_fee(&self, roomid: i32) -> impl std::future::Future<Output = Result<f32>> + Send;
 }
 
 #[cfg(test)]

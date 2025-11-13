@@ -6,6 +6,8 @@ use axum::Router;
 use crate::state::AppState;
 
 pub mod api;
+pub mod auth;
+pub mod binding;
 pub mod electricity_fetcher;
 pub mod room;
 pub mod room_sync;
@@ -14,6 +16,8 @@ pub mod room_sync;
 pub fn create_routes() -> Router<AppState> {
     Router::new()
         .nest("/api", api::routes())
+        .nest("/api", auth::routes())
+        .nest("/api", binding::routes())
         .nest("/api", room::routes())
         .nest("/api", room_sync::routes())
         .nest("/api/electricity", electricity_fetcher::routes())

@@ -29,6 +29,9 @@ pub enum AppError {
     
     #[error("爬虫错误: {0}")]
     Crawler(String),
+    
+    #[error("Redis错误: {0}")]
+    Redis(String),
 }
 
 impl IntoResponse for AppError {
@@ -55,6 +58,10 @@ impl IntoResponse for AppError {
             AppError::Crawler(ref msg) => {
                 tracing::error!("Crawler error: {}", msg);
                 (StatusCode::INTERNAL_SERVER_ERROR, "爬虫服务错误")
+            }
+            AppError::Redis(ref msg) => {
+                tracing::error!("Redis error: {}", msg);
+                (StatusCode::INTERNAL_SERVER_ERROR, "缓存服务错误")
             }
         };
 

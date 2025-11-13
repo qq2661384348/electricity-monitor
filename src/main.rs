@@ -124,26 +124,43 @@ fn spawn_background_services(
     redis_pool: electricity_monitor_backend::infrastructure::RedisPool,
     rate_limiter: Arc<RateLimiter>,
 ) {
-    // 创建Repository
-    let repository = RoomRepository::new(db_pool);
+    use electricity_monitor_backend::infrastructure::repositories::{UserRepository, UserRoomBindingRepository};
+    
+    // 创建Repositories
+    let room_repository = RoomRepository::new(db_pool.clone());
+    let user_repository = UserRepository::new(db_pool.clone());
+    let binding_repository = UserRoomBindingRepository::new(db_pool.clone());
 
     // 1. 启动电费插入服务
     let electricity_service = ElectricityService::new(
-        repository.clone(),
+        room_repository.clone(),
         redis_pool.clone(),
         rate_limiter.clone(),
     );
     electricity_service.spawn_worker();
     tracing::info!("Electricity insertion service started");
 
-    // 2. 启动通知服务（每60秒查询一次）
-    let notification_service = NotificationService::new(
-        repository.clone(),
-        rate_limiter.clone(),
-        Some(60),
-    );
-    notification_service.spawn_worker();
-    tracing::info!("Notification service started (interval: 60s)");
+    // 2. 创建QQ客户端并启动通知服务（每60秒查询一次）
+    let config = electricity_monitor_backend::config::AppConfig::global();
+    match electricity_monitor_backend::infrastructure::QQClient::new(config.qq_bot.clone()) {
+        Ok(qq_client) => {
+            let qq_client = Arc::new(qq_client);
+            let notification_service = NotificationService::new(
+                room_repository.clone(),
+                user_repository,
+                binding_repository,
+                qq_client,
+                rate_limiter.clone(),
+                Some(60),
+                Some(10),
+            );
+            notification_service.spawn_worker();
+            tracing::info!("Notification service started (interval: 60s, concurrent: 10)");
+        }
+        Err(e) => {
+            tracing::error!("QQ客户端初始化失败，通知服务未启动: {}", e);
+        }
+    }
 }
 
 /// 创建Axum应用

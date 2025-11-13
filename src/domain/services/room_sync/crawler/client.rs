@@ -83,7 +83,8 @@ impl RoomClient {
             }
         }
         
-        Err(last_error.unwrap())
+        // 重试循环至少执行一次，last_error必定存在
+        Err(last_error.expect("重试循环应该至少执行一次"))
     }
     
     /// 尝试单次请求（内部方法）

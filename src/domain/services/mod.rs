@@ -8,6 +8,7 @@ pub mod notification_service;
 pub mod rate_limiter;
 pub mod room_sync;
 pub mod roomid_cache;
+pub mod verification_code;
 
 pub use electricity_fetcher_service::{ElectricityFetcherService, FetchStatistics};
 pub use electricity_service::{ElectricityData, ElectricityService};
@@ -15,3 +16,4 @@ pub use notification_service::NotificationService;
 pub use rate_limiter::{RateLimiter, RateLimitOperation};
 pub use room_sync::{MergeStatistics, RoomClient, RoomData, RoomFetcher, RoomSyncService, SyncStats};
 pub use roomid_cache::RoomIdCache;
+pub use verification_code::VerificationCodeService;

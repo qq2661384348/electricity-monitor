@@ -59,9 +59,10 @@ impl RateLimiter {
         })?;
 
         // 获取当前时间戳（秒）
+        // SystemTime::now()总是大于UNIX_EPOCH（除非系统时钟设置在1970年之前）
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("系统时钟错误：时间早于UNIX纪元（1970-01-01）")
             .as_secs();
 
         // 构造Redis键：ratelimit:insert:1730000000 或 ratelimit:query:1730000000
@@ -119,7 +120,7 @@ impl RateLimiter {
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("系统时钟错误：时间早于UNIX纪元（1970-01-01）")
             .as_secs();
 
         let key = format!("{}:{}", operation.key_prefix(), now);

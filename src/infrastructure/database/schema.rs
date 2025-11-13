@@ -65,9 +65,37 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    user_room_bindings (id) {
+        id -> Uuid,
+        user_id -> Uuid,
+        roomid -> Int4,
+        notification_enabled -> Bool,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    users (id) {
+        id -> Uuid,
+        #[max_length = 20]
+        qq_number -> Varchar,
+        #[max_length = 20]
+        role -> Varchar,
+        is_active -> Bool,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::joinable!(user_room_bindings -> users (user_id));
+
 diesel::allow_tables_to_appear_in_same_query!(
     electricity_history,
     room_paths,
     room_sync_log,
     rooms,
+    user_room_bindings,
+    users,
 );

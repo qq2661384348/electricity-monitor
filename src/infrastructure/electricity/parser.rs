@@ -51,7 +51,8 @@ impl ElectricityParser {
 
 impl Default for ElectricityParser {
     fn default() -> Self {
-        Self::new().expect("ElectricityParser 默认构造失败")
+        // new()总是返回Ok(Self)，永远不会失败
+        Self::new().expect("ElectricityParser::new() 不应该失败")
     }
 }
 

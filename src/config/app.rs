@@ -4,7 +4,10 @@ use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::sync::OnceLock;
 
-use super::{DatabaseConfig, ElectricityFetcherConfig, RateLimitConfig, RedisConfig, RoomSyncConfig};
+use super::{
+    AdminConfig, DatabaseConfig, ElectricityFetcherConfig, NotificationConfig, QQBotConfig,
+    RateLimitConfig, RedisConfig, RoomSyncConfig, VerificationConfig,
+};
 
 /// 服务器配置
 #[derive(Debug, Clone, Deserialize)]
@@ -64,6 +67,22 @@ pub struct AppConfig {
     /// 电费获取服务配置
     #[serde(default)]
     pub electricity_fetcher: ElectricityFetcherConfig,
+    
+    /// QQ机器人配置
+    #[serde(default)]
+    pub qq_bot: QQBotConfig,
+    
+    /// 验证码配置
+    #[serde(default)]
+    pub verification: VerificationConfig,
+    
+    /// 通知配置
+    #[serde(default)]
+    pub notification: NotificationConfig,
+    
+    /// 管理员配置
+    #[serde(default)]
+    pub admin: AdminConfig,
 }
 
 /// 全局配置单例
@@ -164,6 +183,10 @@ mod tests {
             },
             room_sync: RoomSyncConfig::default(),
             electricity_fetcher: ElectricityFetcherConfig::default(),
+            qq_bot: QQBotConfig::default(),
+            verification: VerificationConfig::default(),
+            notification: NotificationConfig::default(),
+            admin: AdminConfig::default(),
         };
 
         assert_eq!(config.server_addr(), "127.0.0.1:8000");

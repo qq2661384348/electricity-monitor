@@ -57,7 +57,9 @@ impl RoomBatchFetcher {
     /// 获取单个房间电费
     async fn fetch_one(&self, room_id: i32) -> RoomResult {
         // 获取许可（限流）
-        let _permit = self.semaphore.acquire().await.unwrap();
+        // Semaphore只有在被关闭时才会失败，而在我们的使用场景中永远不会关闭
+        let _permit = self.semaphore.acquire().await
+            .expect("Semaphore已关闭：这不应该发生");
 
         // 构建 URL（i32转字符串）
         let url = format!("{}{}", self.url_template, room_id);
