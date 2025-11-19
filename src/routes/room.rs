@@ -26,6 +26,11 @@ use crate::state::AppState;
 /// 这些操作仅通过后台同步服务或Repository层内部调用
 pub fn routes() -> Router<AppState> {
     Router::new()
+        // 路径树相关（逐层查询）
+        .route("/rooms/path-tree", get(handlers::query_path_tree))
+        .route("/rooms/by-path", get(handlers::get_room_by_path))
+        .route("/rooms/by-hash", get(handlers::get_room_by_hash))
+        .route("/rooms/calculate-hash", get(handlers::calculate_path_hash))
         // 查询所有房间（分页）
         .route("/rooms", get(handlers::list_rooms))
         // 查询需要通知的房间

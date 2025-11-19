@@ -41,6 +41,7 @@ pub async fn trigger_sync(
     // 克隆必要的状态
     let db_pool = state.db_pool.clone();
     let electricity_fetcher = state.electricity_fetcher_service.clone();
+    let room_path_tree = state.room_path_tree.clone();
     let config = crate::config::AppConfig::global();
     
     // 启动异步任务
@@ -159,6 +160,35 @@ pub async fn trigger_sync(
                     }
                 } else {
                     tracing::debug!("电费获取服务未启用，跳过缓存刷新");
+                }
+                
+                // ✅ 同步成功后重建路径树
+                {
+                    use crate::domain::services::RoomPathTree;
+                    
+                    tracing::info!("重建房间路径树: job_id={}", job_id);
+                    match repository.find_all_active().await {
+                        Ok(rooms) => {
+                            // 转换为 RoomData 格式
+                            let room_data: Vec<crate::domain::services::room_sync::crawler::models::RoomData> = rooms.iter().map(|r| {
+                                crate::domain::services::room_sync::crawler::models::RoomData {
+                                    roomid: r.roomid,
+                                    roompaths: vec![r.primary_roompath.clone()],
+                                    primary_roompath: r.primary_roompath.clone(),
+                                    path_count: if r.has_additional_paths { 2 } else { 1 },
+                                }
+                            }).collect();
+                            
+                            // 构建并更新路径树
+                            let tree = RoomPathTree::build_from_rooms(&room_data);
+                            let mut current_tree = room_path_tree.write().await;
+                            *current_tree = tree;
+                            tracing::info!("路径树重建完成: job_id={}, 房间数={}", job_id, rooms.len());
+                        }
+                        Err(e) => {
+                            tracing::error!("重建路径树失败: job_id={}, error={}", job_id, e);
+                        }
+                    }
                 }
             }
             Err(e) => {

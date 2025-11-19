@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::domain::services::{ElectricityFetcherService, RateLimiter};
+use crate::domain::services::{ElectricityFetcherService, RateLimiter, RoomPathTree};
 use crate::domain::models::Room;
 use crate::infrastructure::{DbPool, RedisPool};
 
@@ -26,6 +26,9 @@ pub struct AppState {
 
     /// 需要通知的房间缓存（避免N+1查询）
     pub flagged_rooms_cache: Arc<RwLock<Vec<Room>>>,
+    
+    /// 房间路径树（用于逐层查询）
+    pub room_path_tree: Arc<RwLock<RoomPathTree>>,
 }
 
 impl AppState {
@@ -42,6 +45,14 @@ impl AppState {
             rate_limiter,
             electricity_fetcher_service,
             flagged_rooms_cache: Arc::new(RwLock::new(Vec::new())),
+            room_path_tree: Arc::new(RwLock::new(RoomPathTree::new())),
         }
+    }
+    
+    /// 更新路径树（由同步服务调用）
+    pub async fn update_path_tree(&self, tree: RoomPathTree) {
+        let mut current_tree = self.room_path_tree.write().await;
+        *current_tree = tree;
+        tracing::info!("路径树已更新");
     }
 }

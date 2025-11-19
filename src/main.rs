@@ -149,6 +149,37 @@ async fn main() -> anyhow::Result<()> {
         rate_limiter.clone(),
         electricity_fetcher_service,
     );
+    
+    // 初始化路径树（从数据库加载所有房间）
+    {
+        use electricity_monitor_backend::domain::services::RoomPathTree;
+        
+        tracing::info!("正在初始化房间路径树...");
+        let room_repo = RoomRepository::new(db_pool.clone());
+        
+        // 查询所有活跃房间
+        match room_repo.find_all_active().await {
+            Ok(rooms) => {
+                // 转换为 RoomData 格式
+                let room_data: Vec<electricity_monitor_backend::domain::services::room_sync::crawler::models::RoomData> = rooms.iter().map(|r| {
+                    electricity_monitor_backend::domain::services::room_sync::crawler::models::RoomData {
+                        roomid: r.roomid,
+                        roompaths: vec![r.primary_roompath.clone()],
+                        primary_roompath: r.primary_roompath.clone(),
+                        path_count: if r.has_additional_paths { 2 } else { 1 },
+                    }
+                }).collect();
+                
+                // 构建路径树
+                let tree = RoomPathTree::build_from_rooms(&room_data);
+                state.update_path_tree(tree).await;
+                tracing::info!("房间路径树初始化完成，包含 {} 个房间", rooms.len());
+            }
+            Err(e) => {
+                tracing::warn!("初始化路径树失败: {}，将使用空树", e);
+            }
+        }
+    }
 
     // 启动后台服务
     spawn_background_services(state.clone());

@@ -46,13 +46,9 @@ pub struct BindingResponse {
     pub created_at: String,
     pub updated_at: String,
     
-    // 可选的房间信息（联表查询时填充）
+    // 完整的房间信息（联表查询时填充）
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub room_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub electricity_fee: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub threshold: Option<f32>,
+    pub room: Option<crate::domain::models::Room>,
 }
 
 impl From<UserRoomBinding> for BindingResponse {
@@ -64,9 +60,7 @@ impl From<UserRoomBinding> for BindingResponse {
             notification_enabled: binding.notification_enabled,
             created_at: binding.created_at.to_string(),
             updated_at: binding.updated_at.to_string(),
-            room_name: None,
-            electricity_fee: None,
-            threshold: None,
+            room: None,
         }
     }
 }
@@ -79,13 +73,7 @@ impl BindingResponse {
     /// - `room`: 可选的房间信息（联表查询时提供）
     pub fn with_room_info(binding: UserRoomBinding, room: Option<&crate::domain::models::Room>) -> Self {
         let mut response = Self::from(binding);
-        
-        if let Some(r) = room {
-            response.room_name = Some(r.room_name.clone());
-            response.electricity_fee = Some(r.electricity_fee);
-            response.threshold = Some(r.threshold);
-        }
-        
+        response.room = room.cloned();
         response
     }
 }

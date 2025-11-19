@@ -30,7 +30,7 @@ impl MessageBuilder {
     /// 格式化的预警消息文本
     pub fn build_electricity_alert_message(room: &Room) -> String {
         format!(
-            "【电费预警提醒】\n\n房间: {}\n房间ID: {}\n当前电费: {:.2}元\n预警阈值: {:.2}元\n\n您的电费已超过预警阈值，请及时充值！",
+            "【电量预警提醒】\n\n房间: {}\n房间ID: {}\n当前剩余电量: {:.2} kWh\n预警阈值: {:.2} kWh\n\n您的电量已低于预警阈值，请及时充值！",
             room.room_name,
             room.roomid,
             room.electricity_fee,
