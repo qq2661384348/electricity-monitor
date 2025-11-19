@@ -81,7 +81,7 @@ impl RoomRepository {
     /// 根据roomid查找房间（破坏性变更：roomid现为唯一约束）
     /// 
     /// # 参数
-    /// - `roomid`: 房间业务ID
+    /// 根据roomid查询房间（单个）
     /// 
     /// # 返回
     /// - `Some(Room)`: 找到房间
@@ -95,6 +95,88 @@ impl RoomRepository {
             .first(&mut conn)
             .await
             .optional()
+            .map_err(AppError::Database)
+    }
+
+    /// 批量查询房间（按roomid列表）
+    /// 
+    /// # 参数
+    /// - `roomids`: roomid列表
+    /// 
+    /// # 返回
+    /// 房间列表，顺序不保证与输入一致
+    /// 
+    /// # 性能
+    /// 使用 `eq_any` 生成 SQL IN 查询，避免N+1问题
+    /// 
+    /// # 安全限制
+    /// - 单次查询最多1000个roomid，超过会自动分批
+    /// - PostgreSQL IN子句理论上限约32767个参数
+    pub async fn find_by_roomids(&self, roomids: &[i32]) -> Result<Vec<Room>> {
+        if roomids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 批量大小限制（保守设置，防止SQL过长）
+        const BATCH_SIZE: usize = 1000;
+
+        // 如果数量在限制内，直接查询
+        if roomids.len() <= BATCH_SIZE {
+            let mut conn = self.get_conn().await?;
+            return rooms::table
+                .filter(rooms::roomid.eq_any(roomids))
+                .select(Room::as_select())
+                .load(&mut conn)
+                .await
+                .map_err(AppError::Database);
+        }
+
+        // 分批查询
+        let mut all_rooms = Vec::new();
+        for chunk in roomids.chunks(BATCH_SIZE) {
+            let mut conn = self.get_conn().await?;
+            let batch_rooms = rooms::table
+                .filter(rooms::roomid.eq_any(chunk))
+                .select(Room::as_select())
+                .load(&mut conn)
+                .await
+                .map_err(AppError::Database)?;
+            all_rooms.extend(batch_rooms);
+        }
+
+        // 记录分批查询信息
+        tracing::debug!(
+            total_roomids = roomids.len(),
+            batch_size = BATCH_SIZE,
+            batches = roomids.len().div_ceil(BATCH_SIZE),
+            "批量查询房间（分批处理）"
+        );
+
+        Ok(all_rooms)
+    }
+
+    /// 根据roomid列表分页查询房间
+    /// 
+    /// # 参数
+    /// - `roomids`: roomid列表
+    /// - `limit`: 每页数量
+    /// - `offset`: 偏移量
+    /// 
+    /// # 返回
+    /// 房间列表
+    pub async fn find_by_roomids_paged(&self, roomids: &[i32], limit: i64, offset: i64) -> Result<Vec<Room>> {
+        if roomids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut conn = self.get_conn().await?;
+        rooms::table
+            .filter(rooms::roomid.eq_any(roomids))
+            .select(Room::as_select())
+            .order_by(rooms::created_at.desc())
+            .limit(limit)
+            .offset(offset)
+            .load(&mut conn)
+            .await
             .map_err(AppError::Database)
     }
 
@@ -313,6 +395,22 @@ impl RoomRepository {
             .limit(limit)
             .offset(offset)
             .load(&mut conn)
+            .await
+            .map_err(AppError::Database)
+    }
+
+    /// 统计房间总数
+    ///
+    /// # 返回
+    /// 房间总数
+    pub async fn count_all(&self) -> Result<i64> {
+        use diesel::dsl::count_star;
+        
+        let mut conn = self.get_conn().await?;
+        
+        rooms::table
+            .select(count_star())
+            .first(&mut conn)
             .await
             .map_err(AppError::Database)
     }
@@ -565,6 +663,81 @@ impl RoomRepository {
             .execute(&mut conn)
             .await
             .map_err(AppError::Database)
+    }
+
+    // === 缓存支持方法 ===
+
+    /// 查询所有活跃房间
+    /// 
+    /// # 返回
+    /// 所有is_active=true的房间列表
+    /// 
+    /// # 说明
+    /// - 用于缓存全量刷新
+    /// - 不分页，一次性返回所有数据
+    pub async fn find_all_active(&self) -> Result<Vec<Room>> {
+        let mut conn = self.get_conn().await?;
+
+        rooms::table
+            .filter(rooms::is_active.eq(true))
+            .select(Room::as_select())
+            .order_by(rooms::created_at.desc())
+            .load(&mut conn)
+            .await
+            .map_err(AppError::Database)
+    }
+
+    /// 查询所有额外路径
+    /// 
+    /// # 返回
+    /// 所有额外路径记录
+    /// 
+    /// # 说明
+    /// - 用于缓存全量刷新
+    /// - 返回room_paths表的所有数据
+    pub async fn find_all_additional_paths(&self) -> Result<Vec<RoomPath>> {
+        let mut conn = self.get_conn().await?;
+
+        room_paths::table
+            .select(RoomPath::as_select())
+            .order_by(room_paths::roomid.asc())
+            .load(&mut conn)
+            .await
+            .map_err(AppError::Database)
+    }
+
+    /// 批量创建房间（事务）
+    /// 
+    /// # 参数
+    /// - `new_rooms`: 新房间列表
+    /// 
+    /// # 返回
+    /// 创建的Room列表
+    /// 
+    /// # 说明
+    /// - 使用单次INSERT语句批量插入
+    /// - 返回插入后的完整Room（含自动生成的ID）
+    /// - 如有冲突（roomid唯一约束），返回DatabaseError
+    pub async fn batch_create(&self, new_rooms: Vec<NewRoom>) -> Result<Vec<Room>> {
+        if new_rooms.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut conn = self.get_conn().await?;
+
+        let created_rooms = diesel::insert_into(rooms::table)
+            .values(&new_rooms)
+            .returning(Room::as_returning())
+            .get_results(&mut conn)
+            .await
+            .map_err(AppError::Database)?;
+
+        tracing::info!(
+            count = created_rooms.len(),
+            "批量创建房间完成"
+        );
+
+        Ok(created_rooms)
     }
     
     // === 同步日志相关方法 ===

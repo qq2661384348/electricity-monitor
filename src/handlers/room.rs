@@ -5,7 +5,7 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -13,7 +13,8 @@ use validator::Validate;
 
 use crate::domain::models::{NewRoom, UpdateThreshold};
 use crate::errors::{AppError, Result};
-use crate::infrastructure::repositories::RoomRepository;
+use crate::infrastructure::repositories::{RoomRepository, UserRoomBindingRepository};
+use crate::middleware::auth::UserContext;
 use crate::state::AppState;
 use crate::utils::hash::calculate_roompath_hash;
 
@@ -149,8 +150,11 @@ pub async fn create_room(
 /// 获取房间详情
 /// 
 /// GET /api/rooms/{id}
+/// 
+/// 需要JWT认证，普通用户只能查询已绑定的房间
 pub async fn get_room(
     State(state): State<AppState>,
+    Extension(user_ctx): Extension<UserContext>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<RoomResponse>> {
     let repository = RoomRepository::new(state.db_pool.clone());
@@ -160,16 +164,46 @@ pub async fn get_room(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    Ok(Json(room.into()))
+    // 管理员可以查询所有房间
+    if user_ctx.is_admin {
+        return Ok(Json(room.into()));
+    }
+
+    // 普通用户只能查询已绑定的房间
+    if let Some(user_id_str) = &user_ctx.user_id {
+        let user_id = Uuid::parse_str(user_id_str)
+            .map_err(|_| AppError::Internal("无效的用户ID格式".to_string()))?;
+        
+        let binding_repo = UserRoomBindingRepository::new(state.db_pool.clone());
+        let binding = binding_repo
+            .find_by_user_and_room(user_id, room.roomid)
+            .await?;
+        
+        if binding.is_none() {
+            tracing::warn!(
+                user_id = %user_id_str,
+                roomid = room.roomid,
+                "普通用户尝试访问未绑定的房间"
+            );
+            return Err(AppError::Forbidden);
+        }
+        
+        return Ok(Json(room.into()));
+    }
+
+    // 未认证
+    Err(AppError::Unauthorized("未认证".to_string()))
 }
 
 /// 根据roomid查询房间
 /// 
 /// GET /api/rooms/by-roomid/{roomid}
 /// 
+/// 需要JWT认证，普通用户只能查询已绑定的房间
 /// 注意：破坏性变更 - 现在返回单个Room（roomid现为唯一约束）
 pub async fn get_rooms_by_roomid(
     State(state): State<AppState>,
+    Extension(user_ctx): Extension<UserContext>,
     Path(roomid): Path<i32>,
 ) -> Result<Json<RoomResponse>> {
     let repository = RoomRepository::new(state.db_pool.clone());
@@ -179,14 +213,45 @@ pub async fn get_rooms_by_roomid(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    Ok(Json(room.into()))
+    // 管理员可以查询所有房间
+    if user_ctx.is_admin {
+        return Ok(Json(room.into()));
+    }
+
+    // 普通用户只能查询已绑定的房间
+    if let Some(user_id_str) = &user_ctx.user_id {
+        let user_id = Uuid::parse_str(user_id_str)
+            .map_err(|_| AppError::Internal("无效的用户ID格式".to_string()))?;
+        
+        let binding_repo = UserRoomBindingRepository::new(state.db_pool.clone());
+        let binding = binding_repo
+            .find_by_user_and_room(user_id, roomid)
+            .await?;
+        
+        if binding.is_none() {
+            tracing::warn!(
+                user_id = %user_id_str,
+                roomid = roomid,
+                "普通用户尝试访问未绑定的房间"
+            );
+            return Err(AppError::Forbidden);
+        }
+        
+        return Ok(Json(room.into()));
+    }
+
+    // 未认证
+    Err(AppError::Unauthorized("未认证".to_string()))
 }
 
 /// 更新房间阈值
 /// 
 /// PUT /api/rooms/{id}/threshold
+/// 
+/// 需要JWT认证，普通用户只能更新已绑定房间的阈值
 pub async fn update_threshold(
     State(state): State<AppState>,
+    Extension(user_ctx): Extension<UserContext>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateThresholdRequest>,
 ) -> Result<Json<RoomResponse>> {
@@ -195,6 +260,37 @@ pub async fn update_threshold(
         .map_err(|e| AppError::Internal(format!("验证失败: {}", e)))?;
 
     let repository = RoomRepository::new(state.db_pool.clone());
+
+    // 先查询房间是否存在
+    let room = repository
+        .find_by_id(id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    // 管理员可以更新所有房间
+    if !user_ctx.is_admin {
+        // 普通用户只能更新已绑定房间的阈值
+        if let Some(user_id_str) = &user_ctx.user_id {
+            let user_id = Uuid::parse_str(user_id_str)
+                .map_err(|_| AppError::Internal("无效的用户ID格式".to_string()))?;
+            
+            let binding_repo = UserRoomBindingRepository::new(state.db_pool.clone());
+            let binding = binding_repo
+                .find_by_user_and_room(user_id, room.roomid)
+                .await?;
+            
+            if binding.is_none() {
+                tracing::warn!(
+                    user_id = %user_id_str,
+                    roomid = room.roomid,
+                    "普通用户尝试更新未绑定房间的阈值"
+                );
+                return Err(AppError::Forbidden);
+            }
+        } else {
+            return Err(AppError::Unauthorized("未认证".to_string()));
+        }
+    }
 
     let update = UpdateThreshold {
         threshold: req.threshold,
@@ -222,34 +318,128 @@ pub async fn reset_send_flag(
 /// 查询需要发送通知的房间
 /// 
 /// GET /api/rooms/flagged
+/// 
+/// 需要JWT认证，普通用户只能查询已绑定房间中需要通知的
+/// 
+/// # 性能优化
+/// 使用内存缓存(state.flagged_rooms_cache)避免全量数据库查询
+/// 使用内存过滤避免N+1查询
 pub async fn get_flagged_rooms(
     State(state): State<AppState>,
+    Extension(user_ctx): Extension<UserContext>,
 ) -> Result<Json<Vec<RoomResponse>>> {
-    let repository = RoomRepository::new(state.db_pool.clone());
+    // 1. 从缓存获取全量 Flagged 房间
+    // 使用异步读取锁
+    let rooms_snapshot = {
+        let cache = state.flagged_rooms_cache.read().await;
+        cache.clone()
+    };
 
-    let rooms = repository.find_rooms_with_send_flag_true().await?;
+    // 如果缓存为空，可能是服务刚启动，尝试直接查库作为降级方案
+    if rooms_snapshot.is_empty() {
+        tracing::warn!("Flagged Rooms缓存为空，降级为数据库查询");
+        let repository = RoomRepository::new(state.db_pool.clone());
+        let rooms = repository.find_rooms_with_send_flag_true().await?;
+        
+        // 管理员返回所有
+        if user_ctx.is_admin {
+            let responses: Vec<RoomResponse> = rooms.into_iter().map(Into::into).collect();
+            return Ok(Json(responses));
+        }
 
-    let responses: Vec<RoomResponse> = rooms.into_iter().map(Into::into).collect();
+        // 普通用户过滤
+        if let Some(user_id_str) = &user_ctx.user_id {
+            let user_id = Uuid::parse_str(user_id_str)
+                .map_err(|_| AppError::Internal("无效的用户ID格式".to_string()))?;
+            
+            let binding_repo = UserRoomBindingRepository::new(state.db_pool.clone());
+            let bindings = binding_repo.find_by_user_id(user_id).await?;
+            let bound_roomids: std::collections::HashSet<i32> = bindings.iter().map(|b| b.roomid).collect();
+            
+            let filtered: Vec<RoomResponse> = rooms.into_iter()
+                .filter(|r| bound_roomids.contains(&r.roomid))
+                .map(Into::into)
+                .collect();
+            return Ok(Json(filtered));
+        }
+        return Err(AppError::Unauthorized("未认证".to_string()));
+    }
 
-    Ok(Json(responses))
+    // 2. 管理员可以直接返回所有数据
+    if user_ctx.is_admin {
+        let responses: Vec<RoomResponse> = rooms_snapshot.into_iter().map(Into::into).collect();
+        return Ok(Json(responses));
+    }
+
+    // 3. 普通用户：内存过滤
+    if let Some(user_id_str) = &user_ctx.user_id {
+        let user_id = Uuid::parse_str(user_id_str)
+            .map_err(|_| AppError::Internal("无效的用户ID格式".to_string()))?;
+        
+        // 获取用户绑定列表 (1次数据库查询，索引扫描)
+        let binding_repo = UserRoomBindingRepository::new(state.db_pool.clone());
+        let bindings = binding_repo.find_by_user_id(user_id).await?;
+        
+        // 构建HashSet用于O(1)查找
+        let bound_roomids: std::collections::HashSet<i32> = bindings.iter().map(|b| b.roomid).collect();
+        
+        // 内存过滤
+        let responses: Vec<RoomResponse> = rooms_snapshot.into_iter()
+            .filter(|r| bound_roomids.contains(&r.roomid))
+            .map(Into::into)
+            .collect();
+            
+        return Ok(Json(responses));
+    }
+
+    // 未认证
+    Err(AppError::Unauthorized("未认证".to_string()))
 }
 
 /// 查询所有房间（分页）
 /// 
 /// GET /api/rooms
+/// 
+/// 需要JWT认证，普通用户只能查询已绑定的房间
 pub async fn list_rooms(
     State(state): State<AppState>,
+    Extension(user_ctx): Extension<UserContext>,
     Query(pagination): Query<PaginationQuery>,
 ) -> Result<Json<Vec<RoomResponse>>> {
     let repository = RoomRepository::new(state.db_pool.clone());
 
-    let rooms = repository
-        .find_all(pagination.limit, pagination.offset)
-        .await?;
+    // 管理员可以查询所有房间
+    if user_ctx.is_admin {
+        let rooms = repository
+            .find_all(pagination.limit, pagination.offset)
+            .await?;
+        let responses: Vec<RoomResponse> = rooms.into_iter().map(Into::into).collect();
+        return Ok(Json(responses));
+    }
 
-    let responses: Vec<RoomResponse> = rooms.into_iter().map(Into::into).collect();
+    // 普通用户只能查询已绑定的房间
+    if let Some(user_id_str) = &user_ctx.user_id {
+        let user_id = Uuid::parse_str(user_id_str)
+            .map_err(|_| AppError::Internal("无效的用户ID格式".to_string()))?;
+        
+        let binding_repo = UserRoomBindingRepository::new(state.db_pool.clone());
+        let bindings = binding_repo.find_by_user_id(user_id).await?;
+        
+        // 获取用户已绑定的房间ID列表
+        let bound_roomids: Vec<i32> = bindings.iter().map(|b| b.roomid).collect();
+        
+        // 使用find_by_roomids_paged代替先查全量再过滤
+        // 这解决了分页逻辑错误（先分页后过滤导致空页）
+        let filtered_rooms = repository
+            .find_by_roomids_paged(&bound_roomids, pagination.limit, pagination.offset)
+            .await?;
+        
+        let responses: Vec<RoomResponse> = filtered_rooms.into_iter().map(Into::into).collect();
+        return Ok(Json(responses));
+    }
 
-    Ok(Json(responses))
+    // 未认证
+    Err(AppError::Unauthorized("未认证".to_string()))
 }
 
 /// 删除房间

@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use electricity_monitor_backend::{
     config::AppConfig,
-    domain::services::{ElectricityFetcherService, ElectricityService, NotificationService, RateLimiter},
+    domain::services::{ElectricityFetcherService, ElectricityService, NotificationService, RateLimiter, RoomSyncCache},
     infrastructure::{database::create_pool, redis::create_redis_pool, repositories::RoomRepository},
     middleware::logger::create_trace_layer,
     routes::create_routes,
@@ -25,15 +25,14 @@ use electricity_monitor_backend::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // 初始化日志
-    init_tracing();
-
-    tracing::info!("Starting Electricity Monitor Backend...");
-
-    // 加载配置
+    // 先加载配置（日志初始化需要用到配置）
     AppConfig::init()?;
     let config = AppConfig::global();
 
+    // 根据配置初始化日志
+    init_tracing(&config.logging);
+
+    tracing::info!("Starting Electricity Monitor Backend...");
     tracing::info!(
         "Configuration loaded: environment={}, database={:?}",
         std::env::var("APP_ENV").unwrap_or("development".to_string()),
@@ -54,6 +53,60 @@ async fn main() -> anyhow::Result<()> {
         config.rate_limit.clone(),
     ));
     tracing::info!("Rate limiter initialized");
+
+    // 触发启动时房间同步（如果配置启用）
+    if config.room_sync.enabled {
+        use electricity_monitor_backend::domain::services::RoomSyncService;
+        
+        tracing::info!("检查是否需要启动时房间同步...");
+        
+        // 检查数据库中是否有房间数据
+        let room_repo = RoomRepository::new(db_pool.clone());
+        let room_count = room_repo.count_all().await?;
+        
+        if room_count == 0 {
+            tracing::info!("数据库无房间数据，触发启动时自动同步");
+            
+            // 创建RoomClient和RoomFetcher
+            use electricity_monitor_backend::domain::services::room_sync::crawler::{RoomClient, RoomFetcher};
+            let client = Arc::new(RoomClient::new(&config.room_sync.crawler)?);
+            let fetcher = Arc::new(RoomFetcher::new(client));
+            
+            // 创建RoomSyncCache（初始化时自动加载数据）
+            let room_sync_cache = match RoomSyncCache::new(db_pool.clone()).await {
+                Ok(cache) => Arc::new(cache),
+                Err(e) => {
+                    tracing::error!(error = %e, "创建RoomSyncCache失败，启动时同步将被跳过");
+                    return Err(anyhow::anyhow!("创建RoomSyncCache失败: {}", e));
+                }
+            };
+            
+            // 创建同步服务
+            let sync_service = RoomSyncService::new(
+                Arc::new(room_repo.clone()),
+                fetcher,
+                room_sync_cache,
+                config.room_sync.default_threshold,
+            );
+            
+            match sync_service.sync().await {
+                Ok(stats) => {
+                    tracing::info!(
+                        total = stats.total,
+                        new = stats.new,
+                        updated = stats.updated,
+                        failed = stats.failed,
+                        "启动时房间同步完成"
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "启动时房间同步失败，将继续启动但可能无数据");
+                }
+            }
+        } else {
+            tracing::info!(room_count = room_count, "数据库已有房间数据，跳过启动时同步");
+        }
+    }
 
     // 初始化ElectricityFetcherService（如果启用）
     let electricity_fetcher_service = if config.electricity_fetcher.enabled {
@@ -98,11 +151,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // 启动后台服务
-    spawn_background_services(
-        db_pool.clone(),
-        redis_pool.clone(),
-        rate_limiter.clone(),
-    );
+    spawn_background_services(state.clone());
 
     // 构建应用路由
     let app = create_app(state);
@@ -119,13 +168,14 @@ async fn main() -> anyhow::Result<()> {
 }
 
 /// 启动后台服务
-fn spawn_background_services(
-    db_pool: electricity_monitor_backend::infrastructure::DbPool,
-    redis_pool: electricity_monitor_backend::infrastructure::RedisPool,
-    rate_limiter: Arc<RateLimiter>,
-) {
+fn spawn_background_services(state: AppState) {
     use electricity_monitor_backend::infrastructure::repositories::{UserRepository, UserRoomBindingRepository};
     
+    let db_pool = state.db_pool.clone();
+    let redis_pool = state.redis_pool.clone();
+    let rate_limiter = state.rate_limiter.clone();
+    let flagged_rooms_cache = state.flagged_rooms_cache.clone();
+
     // 创建Repositories
     let room_repository = RoomRepository::new(db_pool.clone());
     let user_repository = UserRepository::new(db_pool.clone());
@@ -161,6 +211,40 @@ fn spawn_background_services(
             tracing::error!("QQ客户端初始化失败，通知服务未启动: {}", e);
         }
     }
+
+    // 3. 启动Flagged Rooms缓存刷新任务（每10秒刷新一次）
+    // 这解决了N+1查询问题，并降低了数据库压力
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
+        tracing::info!("Flagged rooms cache refresher started (interval: 10s)");
+        
+        loop {
+            interval.tick().await;
+            
+            // 查询数据库
+            let start = std::time::Instant::now();
+            match room_repository.find_rooms_with_send_flag_true().await {
+                Ok(rooms) => {
+                    let count = rooms.len();
+                    
+                    // 更新缓存
+                    let mut cache = flagged_rooms_cache.write().await;
+                    *cache = rooms;
+                    let duration = start.elapsed();
+                    // 仅在数据变化或长时间间隔时打印DEBUG日志，避免刷屏
+                    // 这里每次刷新都打印DEBUG，生产环境可能需要调整日志级别
+                    tracing::debug!(
+                        count = count,
+                        duration_ms = duration.as_millis(),
+                        "Updated flagged rooms cache"
+                    );
+                },
+                Err(e) => {
+                    tracing::error!("Failed to fetch flagged rooms from DB: {}", e);
+                }
+            }
+        }
+    });
 }
 
 /// 创建Axum应用
@@ -183,16 +267,43 @@ fn create_app(state: AppState) -> Router {
 }
 
 /// 初始化日志追踪
-fn init_tracing() {
-    // 从环境变量获取日志级别，默认为info
+/// 
+/// # 参数
+/// - `config`: 日志配置
+/// 
+/// # 优先级
+/// 1. 环境变量 `RUST_LOG`（最高优先级）
+/// 2. 配置文件 `logging.level`
+fn init_tracing(config: &electricity_monitor_backend::config::LoggingConfig) {
+    // 优先使用环境变量，否则使用配置文件
     let log_level = std::env::var("RUST_LOG")
-        .unwrap_or_else(|_| "info,electricity_monitor_backend=debug".to_string());
+        .unwrap_or_else(|_| {
+            // 使用配置文件中的日志级别
+            // 设置全局默认级别，同时为项目和常见的第三方库设置级别
+            format!(
+                "{},electricity_monitor_backend={},tokio_postgres=warn,hyper=warn,tower_http=info",
+                config.level, config.level
+            )
+        });
 
-    tracing_subscriber::registry()
+    // 根据配置选择日志格式
+    let registry = tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| log_level.into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+        );
+
+    match config.format.as_str() {
+        "json" => {
+            registry
+                .with(tracing_subscriber::fmt::layer().json())
+                .init();
+        }
+        _ => {
+            // 默认 pretty 格式
+            registry
+                .with(tracing_subscriber::fmt::layer())
+                .init();
+        }
+    }
 }

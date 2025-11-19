@@ -7,6 +7,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::domain::models::{NewRoom, NewRoomPath};
+use crate::domain::services::RoomSyncCache;
 use crate::errors::{AppError, Result};
 use crate::infrastructure::repositories::RoomRepository;
 use crate::utils::hash::calculate_roompath_hash;
@@ -76,6 +77,9 @@ pub struct RoomSyncService {
     /// 爬虫获取器
     fetcher: Arc<RoomFetcher>,
     
+    /// 房间同步缓存
+    cache: Arc<RoomSyncCache>,
+    
     /// 默认电费阈值
     default_threshold: f32,
 }
@@ -85,46 +89,101 @@ impl RoomSyncService {
     pub fn new(
         repository: Arc<RoomRepository>,
         fetcher: Arc<RoomFetcher>,
+        cache: Arc<RoomSyncCache>,
         default_threshold: f32,
     ) -> Self {
         Self {
             repository,
             fetcher,
+            cache,
             default_threshold,
         }
     }
     
-    /// 执行同步
+    /// 执行同步（使用缓存增量更新）
     /// 
     /// 从爬虫获取所有房间数据并同步到数据库
     /// 
     /// # 返回
     /// SyncStats - 同步统计信息
+    /// 
+    /// # 性能优化
+    /// - 从缓存获取现有房间（零数据库查询）
+    /// - 内存差异计算
+    /// - 批量创建/更新数据库
+    /// - 同步后增量更新缓存
     pub async fn sync(&self) -> Result<SyncStats> {
-        tracing::info!("开始房间同步服务...");
+        tracing::info!("开始房间同步服务（缓存增量模式）...");
         
         let mut stats = SyncStats::new();
         
-        // 1. 调用爬虫获取数据
-        let rooms = self.fetcher.fetch_all().await?;
+        // 1️⃣ 从爬虫获取最新数据
+        let latest_rooms = self.fetcher.fetch_all().await?;
         
-        stats.total = rooms.len();
-        tracing::info!("获取到{}个房间数据", stats.total);
+        stats.total = latest_rooms.len();
+        tracing::info!("从爬虫获取到 {} 个房间数据", stats.total);
         
-        // 2. 遍历同步
-        for room in rooms {
-            match self.sync_room(&room).await {
-                Ok(is_new) => {
-                    if is_new {
-                        stats.new += 1;
+        // 2️⃣ 从缓存获取现有数据（⭐ 零数据库查询）
+        let existing_map = self.cache.get_all_rooms().await;
+        
+        tracing::debug!("从缓存加载 {} 个现有房间", existing_map.len());
+        
+        // 3️⃣ 内存增量差异计算
+        let mut to_create = Vec::new();
+        let mut to_update = Vec::new();
+        
+        for room_data in latest_rooms {
+            match existing_map.get(&room_data.roomid) {
+                None => {
+                    // 新增房间
+                    to_create.push(room_data);
+                }
+                Some(existing_room) => {
+                    // 检查是否需要更新（路径变化）
+                    if self.needs_update(existing_room, &room_data) {
+                        to_update.push(room_data);
                     } else {
-                        stats.updated += 1;
+                        stats.skipped += 1;
                     }
+                }
+            }
+        }
+        
+        tracing::info!(
+            "差异计算完成: 新增={}, 更新={}, 跳过={}",
+            to_create.len(),
+            to_update.len(),
+            stats.skipped
+        );
+        
+        // 4️⃣ 批量创建新房间（单次事务）
+        let created_rooms = if !to_create.is_empty() {
+            let create_count = to_create.len();
+            match self.batch_create_rooms(to_create).await {
+                Ok(rooms) => {
+                    stats.new = rooms.len();
+                    rooms
+                }
+                Err(e) => {
+                    tracing::error!("批量创建失败: {}", e);
+                    stats.failed += create_count;
+                    Vec::new()
+                }
+            }
+        } else {
+            Vec::new()
+        };
+        
+        // 5️⃣ 批量更新房间（逐个事务，因为涉及路径diff）
+        for room_data in to_update {
+            match self.update_room(&room_data).await {
+                Ok(_) => {
+                    stats.updated += 1;
                 }
                 Err(e) => {
                     tracing::error!(
-                        "同步房间失败: roomid={}, error={}",
-                        room.roomid,
+                        "更新房间失败: roomid={}, error={}",
+                        room_data.roomid,
                         e
                     );
                     stats.failed += 1;
@@ -132,98 +191,114 @@ impl RoomSyncService {
             }
         }
         
-        // 3. 完成统计
+        // 6️⃣ 增量更新缓存（⭐ 保持同步）
+        if !created_rooms.is_empty() {
+            self.cache.add_rooms(created_rooms).await;
+        }
+        
+        // 注意：更新的房间在update_room时已经通过兜底机制更新了缓存
+        
+        // 7️⃣ 完成统计
         stats.complete();
         stats.log();
+        
+        tracing::info!(
+            "同步完成: 新增={}, 更新={}, 跳过={}, 失败={}",
+            stats.new,
+            stats.updated,
+            stats.skipped,
+            stats.failed
+        );
         
         Ok(stats)
     }
     
-    /// 同步单个房间
-    /// 
-    /// # 参数
-    /// - `room`: 爬虫获取的房间数据
-    /// 
-    /// # 返回
-    /// bool - true表示新增，false表示更新
-    async fn sync_room(&self, room: &RoomData) -> Result<bool> {
-        // 检查房间是否已存在
-        let existing = self.repository.find_by_roomid(room.roomid).await?;
-        
-        if existing.is_none() {
-            // 新增房间
-            self.create_room(room).await?;
-            tracing::info!("新增房间: roomid={}", room.roomid);
-            Ok(true)
-        } else {
-            // 更新房间
-            self.update_room(room).await?;
-            tracing::debug!("更新房间: roomid={}", room.roomid);
-            Ok(false)
+    /// 检查房间是否需要更新
+    fn needs_update(&self, existing: &crate::domain::models::Room, new_data: &RoomData) -> bool {
+        // 1. 主路径变化
+        if existing.primary_roompath != new_data.primary_roompath {
+            return true;
         }
+        
+        // 2. 路径数量变化
+        let new_has_additional = new_data.path_count > 1;
+        if existing.has_additional_paths != new_has_additional {
+            return true;
+        }
+        
+        // 3. 路径内容变化（简化判断，后续可优化）
+        // 这里返回true会触发update，在update中会做详细的路径diffing
+        if new_has_additional {
+            return true;
+        }
+        
+        false
     }
     
-    /// 创建新房间
-    /// 
-    /// ⭐ 应用层维护 has_additional_paths（非触发器）
-    async fn create_room(&self, room: &RoomData) -> Result<()> {
-        // 计算主路径哈希
-        let primary_roompath_hash = calculate_roompath_hash(&room.primary_roompath);
-        
-        // ⭐ 应用层计算 has_additional_paths
-        let has_additional_paths = room.path_count > 1;
-        
-        // 创建主表记录
-        let new_room = NewRoom {
-            roomid: room.roomid,
-            electricity_fee: 0.0,  // 初始电费为0
-            threshold: self.default_threshold,
-            room_name: room.primary_roompath.split('/').next_back()
-                .unwrap_or("未知房间")
-                .to_string(),
-            primary_roompath: room.primary_roompath.clone(),
-            primary_roompath_hash,
-            has_additional_paths,  // ⭐ 应用层维护
-            is_active: true,
-            source_type: "api_sync".to_string(),
-            external_id: None,
-            last_synced_at: Some(Utc::now().naive_utc()),
-        };
-        
-        self.repository.create(new_room).await?;
-        
-        // 如果有额外路径，插入扩展表
-        if has_additional_paths {
-            let additional_paths: Vec<NewRoomPath> = room.roompaths
-                .iter()
-                .skip(1)  // 跳过主路径
-                .map(|roompath| {
-                    let roompath_hash = calculate_roompath_hash(roompath);
-                    let room_name = roompath.split('/').next_back()
+    /// 批量创建房间
+    async fn batch_create_rooms(&self, rooms_data: Vec<RoomData>) -> Result<Vec<crate::domain::models::Room>> {
+        let new_rooms: Vec<NewRoom> = rooms_data
+            .iter()
+            .map(|room| {
+                let primary_roompath_hash = calculate_roompath_hash(&room.primary_roompath);
+                let has_additional_paths = room.path_count > 1;
+                
+                NewRoom {
+                    roomid: room.roomid,
+                    electricity_fee: 0.0,
+                    threshold: self.default_threshold,
+                    room_name: room.primary_roompath.split('/').next_back()
                         .unwrap_or("未知房间")
-                        .to_string();
+                        .to_string(),
+                    primary_roompath: room.primary_roompath.clone(),
+                    primary_roompath_hash,
+                    has_additional_paths,
+                    is_active: true,
+                    source_type: "api_sync".to_string(),
+                    external_id: None,
+                    last_synced_at: Some(Utc::now().naive_utc()),
+                }
+            })
+            .collect();
+        
+        // ⭐ 批量创建
+        let created_rooms = self.repository.batch_create(new_rooms).await?;
+        
+        // 为每个新房间添加额外路径
+        for room_data in &rooms_data {
+            if room_data.path_count > 1 {
+                let additional_paths: Vec<NewRoomPath> = room_data.roompaths
+                    .iter()
+                    .skip(1)
+                    .map(|roompath| {
+                        let roompath_hash = calculate_roompath_hash(roompath);
+                        let room_name = roompath.split('/').next_back()
+                            .unwrap_or("未知房间")
+                            .to_string();
+                        
+                        NewRoomPath {
+                            roomid: room_data.roomid,
+                            roompath: roompath.clone(),
+                            roompath_hash,
+                            room_name,
+                            source_type: "api_sync".to_string(),
+                        }
+                    })
+                    .collect();
+                
+                if !additional_paths.is_empty() {
+                    self.repository.add_additional_paths(additional_paths).await?;
                     
-                    NewRoomPath {
-                        roomid: room.roomid,
-                        roompath: roompath.clone(),
-                        roompath_hash,
-                        room_name,
-                        source_type: "api_sync".to_string(),
-                    }
-                })
-                .collect();
-            
-            if !additional_paths.is_empty() {
-                self.repository.add_additional_paths(additional_paths).await?;
-                tracing::debug!(
-                    "添加{}条额外路径: roomid={}",
-                    room.path_count - 1,
-                    room.roomid
-                );
+                    tracing::debug!(
+                        "为房间 {} 添加了 {} 条额外路径",
+                        room_data.roomid,
+                        room_data.path_count - 1
+                    );
+                }
             }
         }
         
-        Ok(())
+        Ok(created_rooms)
     }
     
     /// 更新房间

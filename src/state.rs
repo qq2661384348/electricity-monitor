@@ -3,8 +3,10 @@
 //! 管理共享资源如数据库连接池、配置等
 
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use crate::domain::services::{ElectricityFetcherService, RateLimiter};
+use crate::domain::models::Room;
 use crate::infrastructure::{DbPool, RedisPool};
 
 /// 应用程序状态
@@ -21,6 +23,9 @@ pub struct AppState {
     
     /// 电费获取服务（可选）
     pub electricity_fetcher_service: Option<Arc<ElectricityFetcherService>>,
+
+    /// 需要通知的房间缓存（避免N+1查询）
+    pub flagged_rooms_cache: Arc<RwLock<Vec<Room>>>,
 }
 
 impl AppState {
@@ -36,6 +41,7 @@ impl AppState {
             redis_pool,
             rate_limiter,
             electricity_fetcher_service,
+            flagged_rooms_cache: Arc::new(RwLock::new(Vec::new())),
         }
     }
 }
