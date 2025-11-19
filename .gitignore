@@ -2,6 +2,10 @@
 /target/
 target/
 
+# Node.js 依赖
+node_modules/
+frontend/node_modules/
+
 # 开发临时文件
 do
 
