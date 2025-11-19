@@ -49,7 +49,7 @@ pub async fn trigger_sync(
         
         // 创建仓储
         let repository = std::sync::Arc::new(
-            crate::infrastructure::repositories::RoomRepository::new(db_pool)
+            crate::infrastructure::repositories::RoomRepository::new(db_pool.clone())
         );
         
         // 创建同步日志记录
@@ -87,10 +87,29 @@ pub async fn trigger_sync(
         
         let fetcher = std::sync::Arc::new(crate::domain::services::RoomFetcher::new(client));
         
+        // 创建RoomSyncCache
+        let room_sync_cache = match crate::domain::services::RoomSyncCache::new(db_pool.clone()).await {
+            Ok(cache) => std::sync::Arc::new(cache),
+            Err(e) => {
+                tracing::error!("创建RoomSyncCache失败: job_id={}, error={}", job_id, e);
+                
+                // 更新日志为失败状态
+                let update_log = crate::domain::models::UpdateRoomSyncLog {
+                    completed_at: Some(chrono::Utc::now().naive_utc()),
+                    status: Some("failed".to_string()),
+                    stats: None,
+                    error_message: Some(format!("创建RoomSyncCache失败: {}", e)),
+                };
+                let _ = repository.update_sync_log(log_id, update_log).await;
+                return;
+            }
+        };
+        
         // 创建同步服务
         let sync_service = RoomSyncService::new(
             repository.clone(),
             fetcher,
+            room_sync_cache,
             config.room_sync.default_threshold,
         );
         

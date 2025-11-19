@@ -22,8 +22,8 @@ pub fn routes() -> Router<AppState> {
         .route("/bindings/{id}", get(binding::get_binding))
         .route("/bindings/{id}/notification", put(binding::update_notification))
         .route("/bindings/{id}", delete(binding::delete_binding))
-        // 应用认证中间件（所有端点都需要登录）
-        .route_layer(middleware::from_fn(auth_middleware))
-        // 应用用户角色验证（只有user和admin可以访问）
+        // 注意：route_layer是从下往上执行，所以require_user要放在下面（后执行）
         .route_layer(middleware::from_fn(require_user))
+        // auth_middleware放在上面（先执行）
+        .route_layer(middleware::from_fn(auth_middleware))
 }

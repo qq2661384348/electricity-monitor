@@ -11,7 +11,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::AppConfig;
 
-/// JWT Claims
+/// 管理员标记（通过固定token识别）
+#[derive(Debug, Clone)]
+pub struct AdminMarker;
+
+/// JWT Claims（普通用户）
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     /// QQ号（主题标识）
@@ -20,9 +24,6 @@ pub struct Claims {
     /// 用户UUID（字符串格式）
     pub user_id: String,
     
-    /// 用户角色 (admin/user)
-    pub role: String,
-    
     /// 过期时间（Unix时间戳）
     pub exp: usize,
     
@@ -30,7 +31,20 @@ pub struct Claims {
     pub iat: usize,
 }
 
+/// 用户上下文（统一的认证信息）
+#[derive(Debug, Clone)]
+pub struct UserContext {
+    /// 是否为管理员
+    pub is_admin: bool,
+    
+    /// 用户ID（仅普通用户有效，管理员为None）
+    pub user_id: Option<String>,
+}
+
 /// JWT认证中间件
+/// 
+/// 优先检查admin_token，如果匹配则标记为管理员
+/// 否则验证JWT token（普通用户）
 pub async fn auth_middleware(
     mut req: Request,
     next: Next,
@@ -48,9 +62,29 @@ pub async fn auth_middleware(
     }
 
     let token = &auth_header[7..]; // 去掉"Bearer "前缀
-
-    // 验证token（使用增强的验证规则）
     let config = AppConfig::global();
+
+    // 优先检查是否为管理员固定token
+    if token == config.jwt.admin_token {
+        // 是管理员token，注入管理员上下文
+        let user_ctx = UserContext {
+            is_admin: true,
+            user_id: None,
+        };
+        req.extensions_mut().insert(AdminMarker);  // 保留AdminMarker用于require_admin中间件
+        req.extensions_mut().insert(user_ctx);
+        
+        // 记录管理员访问（不记录token值，防止泄露）
+        tracing::info!(
+            method = %req.method(),
+            path = %req.uri().path(),
+            "管理员访问"
+        );
+        
+        return Ok(next.run(req).await);
+    }
+
+    // 不是管理员token，验证JWT（普通用户）
     let secret = config.jwt.secret.as_bytes();
     
     // 创建严格的JWT验证规则
@@ -65,13 +99,18 @@ pub async fn auth_middleware(
     )
     .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-    // 将claims添加到请求扩展中，后续处理器可以使用
-    req.extensions_mut().insert(token_data.claims);
+    // 注入普通用户上下文
+    let user_ctx = UserContext {
+        is_admin: false,
+        user_id: Some(token_data.claims.user_id.clone()),
+    };
+    req.extensions_mut().insert(token_data.claims.clone());  // 保留Claims用于兼容性
+    req.extensions_mut().insert(user_ctx);
 
     Ok(next.run(req).await)
 }
 
-/// 要求管理员角色的中间件
+/// 要求管理员权限的中间件
 /// 
 /// # 使用
 /// 必须在auth_middleware之后使用
@@ -79,26 +118,17 @@ pub async fn require_admin(
     req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // 从请求扩展中获取Claims
-    let claims = req
-        .extensions()
-        .get::<Claims>()
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    // 验证角色
-    if claims.role != "admin" {
-        tracing::warn!(
-            user_id = %claims.user_id,
-            role = %claims.role,
-            "用户尝试访问管理员资源被拒绝"
-        );
-        return Err(StatusCode::FORBIDDEN);
+    // 检查是否有AdminMarker（管理员固定token）
+    if req.extensions().get::<AdminMarker>().is_some() {
+        return Ok(next.run(req).await);
     }
 
-    Ok(next.run(req).await)
+    // 没有管理员权限，拒绝访问
+    tracing::warn!("非管理员用户尝试访问管理员资源被拒绝");
+    Err(StatusCode::FORBIDDEN)
 }
 
-/// 要求用户角色的中间件（包括admin）
+/// 要求用户认证的中间件（包括admin和普通用户）
 /// 
 /// # 使用
 /// 必须在auth_middleware之后使用
@@ -106,20 +136,13 @@ pub async fn require_user(
     req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // 从请求扩展中获取Claims
-    let claims = req
-        .extensions()
-        .get::<Claims>()
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    // 检查是否有AdminMarker或Claims（管理员或普通用户都允许）
+    let has_admin = req.extensions().get::<AdminMarker>().is_some();
+    let has_user = req.extensions().get::<Claims>().is_some();
 
-    // 验证角色（user或admin都可以）
-    if claims.role != "user" && claims.role != "admin" {
-        tracing::warn!(
-            user_id = %claims.user_id,
-            role = %claims.role,
-            "用户角色无效"
-        );
-        return Err(StatusCode::FORBIDDEN);
+    if !has_admin && !has_user {
+        tracing::warn!("未认证用户尝试访问受保护资源被拒绝");
+        return Err(StatusCode::UNAUTHORIZED);
     }
 
     Ok(next.run(req).await)
@@ -128,20 +151,43 @@ pub async fn require_user(
 /// 辅助函数：检查用户是否拥有绑定资源
 /// 
 /// # 参数
-/// - `claims`: JWT Claims
+/// - `claims`: JWT Claims（普通用户）
 /// - `binding_user_id`: 绑定的user_id
 /// 
 /// # 返回
-/// - `true`: 用户是管理员或拥有该资源
+/// - `true`: 用户拥有该资源
 /// - `false`: 用户无权访问该资源
+/// 
+/// # 注意
+/// 此函数仅用于普通用户的所有权检查
+/// 管理员应在调用此函数前通过AdminMarker判断并直接放行
 pub fn check_binding_ownership(claims: &Claims, binding_user_id: &str) -> bool {
-    // 管理员可以访问所有资源
-    if claims.role == "admin" {
-        return true;
-    }
-    
     // 普通用户只能访问自己的资源
     claims.user_id == binding_user_id
+}
+
+/// 辅助函数：判断请求是否为管理员
+/// 
+/// # 参数
+/// - `req_extensions`: 请求扩展
+/// 
+/// # 返回
+/// - `true`: 请求来自管理员
+/// - `false`: 请求来自普通用户或未认证
+pub fn is_admin(req_extensions: &axum::http::Extensions) -> bool {
+    req_extensions.get::<AdminMarker>().is_some()
+}
+
+/// 辅助函数：获取请求中的Claims（普通用户）
+/// 
+/// # 参数
+/// - `req_extensions`: 请求扩展
+/// 
+/// # 返回
+/// - `Some(Claims)`: 普通用户的Claims
+/// - `None`: 请求来自管理员或未认证
+pub fn get_user_claims(req_extensions: &axum::http::Extensions) -> Option<&Claims> {
+    req_extensions.get::<Claims>()
 }
 
 #[cfg(test)]
@@ -156,7 +202,6 @@ mod tests {
         let claims = Claims {
             sub: "123456789".to_string(),
             user_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
-            role: "user".to_string(),
             exp: 9999999999,
             iat: 1234567890,
         };
@@ -182,6 +227,6 @@ mod tests {
         .unwrap();
 
         assert_eq!(decoded.claims.sub, "123456789");
-        assert_eq!(decoded.claims.role, "user");
+        assert_eq!(decoded.claims.user_id, "550e8400-e29b-41d4-a716-446655440000");
     }
 }

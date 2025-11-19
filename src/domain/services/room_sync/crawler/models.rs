@@ -4,16 +4,75 @@
 
 use serde::{Deserialize, Serialize};
 
-/// 原始房间信息（内部临时结构）
-/// 
-/// 从API直接解析的扁平数据，一条记录对应一个roompath
-#[derive(Debug, Clone, Deserialize)]
-pub(crate) struct RawRoomInfo {
-    /// 房间路径（如：桂林/雁山/05栋/0501）
+/// API响应根结构
+///
+/// API返回的JSON格式：
+/// ```json
+/// {
+///     "BS": "1",
+///     "Msg": "成功",
+///     "total": 5,
+///     "component": [
+///         {"RoomDepId": "3", "DepName": "箭盘校区", "IsBuilding": 1},
+///         ...
+///     ]
+/// }
+/// ```
+#[derive(Debug, Deserialize, Clone)]
+pub struct ApiResponse {
+    /// 状态码（"1"表示成功）
+    #[serde(rename = "BS")]
+    pub bs: Option<String>,
+    
+    /// 消息
+    #[serde(rename = "Msg")]
+    pub msg: Option<String>,
+    
+    /// 总数
+    pub total: Option<i32>,
+    
+    /// 组件列表（可能为空）
+    pub component: Option<Vec<RoomComponent>>,
+}
+
+/// 房间组件（通用结构，适配4层级）
+///
+/// 用于表示：
+/// - Level 1: 校区（Campus）
+/// - Level 2: 建筑（Building）
+/// - Level 3: 楼层（Floor）
+/// - Level 4: 房间（Room）
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "PascalCase")]
+pub struct RoomComponent {
+    /// 房间部门ID（层级标识符）
+    pub room_dep_id: String,
+    
+    /// 部门名称（显示名称）
+    pub dep_name: String,
+    
+    /// 是否是建筑（可选）
+    pub is_building: Option<i32>,
+    
+    /// 楼层列表（可选）
+    pub floor_list: Option<Vec<i32>>,
+}
+
+/// 房间信息（最终输出结构）
+///
+/// 输出格式：
+/// ```json
+/// {
+///     "roompath": "东环校区/东环北区12栋/三楼/B12313",
+///     "roomid": "3241"
+/// }
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoomInfo {
+    /// 房间完整路径（校区/建筑/楼层/房间）
     pub roompath: String,
     
-    /// 房间ID（String类型，需要转换为i32）
-    /// 注意：可能包含非数字字符，需要错误处理
+    /// 房间唯一标识符
     pub roomid: String,
 }
 

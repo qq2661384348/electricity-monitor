@@ -15,7 +15,7 @@ use validator::Validate;
 use crate::domain::models::{NewUserRoomBinding, UserRoomBinding};
 use crate::errors::{AppError, Result};
 use crate::infrastructure::repositories::{RoomRepository, UserRoomBindingRepository};
-use crate::middleware::auth::{check_binding_ownership, Claims};
+use crate::middleware::auth::UserContext;
 use crate::state::AppState;
 
 /// 创建绑定请求
@@ -24,13 +24,9 @@ pub struct CreateBindingRequest {
     /// 房间ID
     pub roomid: i32,
     
-    /// 是否启用通知（默认: true）
-    #[serde(default = "default_true")]
+    /// 是否启用通知（默认: false）
+    #[serde(default)]
     pub notification_enabled: bool,
-}
-
-fn default_true() -> bool {
-    true
 }
 
 /// 更新通知开关请求
@@ -75,6 +71,25 @@ impl From<UserRoomBinding> for BindingResponse {
     }
 }
 
+impl BindingResponse {
+    /// 从绑定和房间信息构造完整响应
+    /// 
+    /// # 参数
+    /// - `binding`: 用户房间绑定
+    /// - `room`: 可选的房间信息（联表查询时提供）
+    pub fn with_room_info(binding: UserRoomBinding, room: Option<&crate::domain::models::Room>) -> Self {
+        let mut response = Self::from(binding);
+        
+        if let Some(r) = room {
+            response.room_name = Some(r.room_name.clone());
+            response.electricity_fee = Some(r.electricity_fee);
+            response.threshold = Some(r.threshold);
+        }
+        
+        response
+    }
+}
+
 /// 创建用户-房间绑定
 /// 
 /// POST /api/bindings
@@ -82,21 +97,29 @@ impl From<UserRoomBinding> for BindingResponse {
 /// 需要认证
 pub async fn create_binding(
     State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
+    Extension(user_ctx): Extension<UserContext>,
     Json(req): Json<CreateBindingRequest>,
 ) -> Result<(StatusCode, Json<BindingResponse>)> {
+    // 管理员不能创建绑定（没有user_id）
+    if user_ctx.is_admin {
+        return Err(AppError::Forbidden);
+    }
+
+    let user_id_str = user_ctx.user_id.as_ref()
+        .ok_or(AppError::Internal("用户ID缺失".to_string()))?;
+
     // 验证请求
     req.validate()
         .map_err(|e| AppError::Internal(format!("验证失败: {}", e)))?;
 
     tracing::info!(
-        user_id = %claims.user_id,
+        user_id = %user_id_str,
         roomid = req.roomid,
         "收到创建绑定请求"
     );
 
     // 解析user_id
-    let user_id = Uuid::parse_str(&claims.user_id)
+    let user_id = Uuid::parse_str(user_id_str)
         .map_err(|_| AppError::Internal("无效的用户ID格式".to_string()))?;
 
     // 检查房间是否存在
@@ -138,26 +161,70 @@ pub async fn create_binding(
     Ok((StatusCode::CREATED, Json(binding.into())))
 }
 
-/// 查询用户的所有绑定
+/// 查询用户的所有绑定（包含房间信息）
 /// 
 /// GET /api/bindings
 /// 
 /// 需要认证
+/// 
+/// # 性能优化
+/// 使用批量查询避免N+1问题：
+/// 1. 查询所有绑定
+/// 2. 批量查询相关房间
+/// 3. 内存中组装数据
 pub async fn list_bindings(
     State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
+    Extension(user_ctx): Extension<UserContext>,
 ) -> Result<Json<Vec<BindingResponse>>> {
+    // 管理员可以查看所有绑定（TODO: 实现管理员查询所有绑定）
+    // 目前管理员返回空列表
+    if user_ctx.is_admin {
+        // TODO: 实现管理员查询所有绑定
+        return Ok(Json(Vec::new()));
+    }
+
+    let user_id_str = user_ctx.user_id.as_ref()
+        .ok_or(AppError::Internal("用户ID缺失".to_string()))?;
+    
     // 解析user_id
-    let user_id = Uuid::parse_str(&claims.user_id)
+    let user_id = Uuid::parse_str(user_id_str)
         .map_err(|_| AppError::Internal("无效的用户ID格式".to_string()))?;
 
+    // 1. 查询所有绑定
     let binding_repo = UserRoomBindingRepository::new(state.db_pool.clone());
     let bindings = binding_repo.find_by_user_id(user_id).await?;
 
+    // 如果没有绑定，直接返回空列表
+    if bindings.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+
+    // 2. 收集所有roomid
+    let roomids: Vec<i32> = bindings.iter().map(|b| b.roomid).collect();
+
+    // 3. 批量查询房间信息
+    let room_repo = RoomRepository::new(state.db_pool.clone());
+    let rooms = room_repo.find_by_roomids(&roomids).await?;
+
+    // 4. 构建roomid -> Room 的映射，方便快速查找
+    use std::collections::HashMap;
+    let room_map: HashMap<i32, &crate::domain::models::Room> = 
+        rooms.iter().map(|r| (r.roomid, r)).collect();
+
+    // 5. 组装响应，填充房间信息
     let responses: Vec<BindingResponse> = bindings
         .into_iter()
-        .map(Into::into)
+        .map(|binding| {
+            let room = room_map.get(&binding.roomid).copied();
+            BindingResponse::with_room_info(binding, room)
+        })
         .collect();
+
+    tracing::debug!(
+        user_id = %user_id_str,
+        binding_count = responses.len(),
+        "查询绑定列表成功（含房间信息）"
+    );
 
     Ok(Json(responses))
 }
@@ -169,7 +236,7 @@ pub async fn list_bindings(
 /// 需要认证，只能查看自己的绑定（管理员除外）
 pub async fn get_binding(
     State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
+    Extension(user_ctx): Extension<UserContext>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<BindingResponse>> {
     let binding_repo = UserRoomBindingRepository::new(state.db_pool.clone());
@@ -179,14 +246,20 @@ pub async fn get_binding(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    // 检查所有权
-    if !check_binding_ownership(&claims, &binding.user_id.to_string()) {
-        tracing::warn!(
-            user_id = %claims.user_id,
-            binding_id = %id,
-            "用户尝试访问他人的绑定"
-        );
-        return Err(AppError::Unauthorized("无权访问该绑定".to_string()));
+    // 管理员可以查看所有绑定
+    if !user_ctx.is_admin {
+        // 普通用户只能查看自己的绑定
+        let user_id_str = user_ctx.user_id.as_ref()
+            .ok_or(AppError::Internal("用户ID缺失".to_string()))?;
+        
+        if binding.user_id.to_string() != *user_id_str {
+            tracing::warn!(
+                user_id = %user_id_str,
+                binding_id = %id,
+                "用户尝试访问他人的绑定"
+            );
+            return Err(AppError::Unauthorized("无权访问该绑定".to_string()));
+        }
     }
 
     Ok(Json(binding.into()))
@@ -199,7 +272,7 @@ pub async fn get_binding(
 /// 需要认证，只能更新自己的绑定（管理员除外）
 pub async fn update_notification(
     State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
+    Extension(user_ctx): Extension<UserContext>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateNotificationRequest>,
 ) -> Result<Json<BindingResponse>> {
@@ -215,14 +288,20 @@ pub async fn update_notification(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    // 检查所有权
-    if !check_binding_ownership(&claims, &binding.user_id.to_string()) {
-        tracing::warn!(
-            user_id = %claims.user_id,
-            binding_id = %id,
-            "用户尝试更新他人的绑定"
-        );
-        return Err(AppError::Unauthorized("无权修改该绑定".to_string()));
+    // 管理员可以更新所有绑定
+    if !user_ctx.is_admin {
+        // 普通用户只能更新自己的绑定
+        let user_id_str = user_ctx.user_id.as_ref()
+            .ok_or(AppError::Internal("用户ID缺失".to_string()))?;
+        
+        if binding.user_id.to_string() != *user_id_str {
+            tracing::warn!(
+                user_id = %user_id_str,
+                binding_id = %id,
+                "用户尝试更新他人的绑定"
+            );
+            return Err(AppError::Unauthorized("无权修改该绑定".to_string()));
+        }
     }
 
     // 更新通知开关
@@ -230,8 +309,14 @@ pub async fn update_notification(
         .update_notification_enabled(id, req.notification_enabled)
         .await?;
 
+    let user_info = if user_ctx.is_admin {
+        "admin".to_string()
+    } else {
+        user_ctx.user_id.as_ref().unwrap_or(&"unknown".to_string()).clone()
+    };
+    
     tracing::info!(
-        user_id = %claims.user_id,
+        user_id = %user_info,
         binding_id = %id,
         notification_enabled = req.notification_enabled,
         "更新通知开关成功"
@@ -247,7 +332,7 @@ pub async fn update_notification(
 /// 需要认证，只能删除自己的绑定（管理员除外）
 pub async fn delete_binding(
     State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
+    Extension(user_ctx): Extension<UserContext>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode> {
     let binding_repo = UserRoomBindingRepository::new(state.db_pool.clone());
@@ -258,22 +343,34 @@ pub async fn delete_binding(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    // 检查所有权
-    if !check_binding_ownership(&claims, &binding.user_id.to_string()) {
-        tracing::warn!(
-            user_id = %claims.user_id,
-            binding_id = %id,
-            "用户尝试删除他人的绑定"
-        );
-        return Err(AppError::Unauthorized("无权删除该绑定".to_string()));
+    // 管理员可以删除所有绑定
+    if !user_ctx.is_admin {
+        // 普通用户只能删除自己的绑定
+        let user_id_str = user_ctx.user_id.as_ref()
+            .ok_or(AppError::Internal("用户ID缺失".to_string()))?;
+        
+        if binding.user_id.to_string() != *user_id_str {
+            tracing::warn!(
+                user_id = %user_id_str,
+                binding_id = %id,
+                "用户尝试删除他人的绑定"
+            );
+            return Err(AppError::Unauthorized("无权删除该绑定".to_string()));
+        }
     }
 
     // 删除绑定
     let deleted = binding_repo.delete(id).await?;
 
     if deleted > 0 {
+        let user_info = if user_ctx.is_admin {
+            "admin".to_string()
+        } else {
+            user_ctx.user_id.as_ref().unwrap_or(&"unknown".to_string()).clone()
+        };
+        
         tracing::info!(
-            user_id = %claims.user_id,
+            user_id = %user_info,
             binding_id = %id,
             "删除绑定成功"
         );

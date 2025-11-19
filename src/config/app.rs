@@ -27,6 +27,9 @@ pub struct JwtConfig {
     
     /// 过期时间（小时）
     pub expiration_hours: u64,
+    
+    /// 管理员固定Token（配置文件中定义，永久有效）
+    pub admin_token: String,
 }
 
 /// 日志配置
@@ -91,17 +94,10 @@ static CONFIG: OnceLock<AppConfig> = OnceLock::new();
 impl AppConfig {
     /// 加载配置
     pub fn load() -> Result<Self, ConfigError> {
-        // 获取运行环境 (development/production)
-        let env = std::env::var("APP_ENV").unwrap_or_else(|_| "development".to_string());
-        
-        tracing::info!("Loading configuration for environment: {}", env);
-
         let config = Config::builder()
-            // 1. 加载默认配置
+            // 1. 加载 default.toml（全局唯一配置）
             .add_source(File::with_name("config/default"))
-            // 2. 根据环境加载对应配置（覆盖默认配置）
-            .add_source(File::with_name(&format!("config/{}", env)).required(false))
-            // 3. 从环境变量加载（最高优先级，前缀为APP_）
+            // 2. 从环境变量加载（最高优先级，前缀为APP_）
             .add_source(Environment::with_prefix("APP").separator("__"))
             .build()?;
 
@@ -165,6 +161,7 @@ mod tests {
             jwt: JwtConfig {
                 secret: "test-secret".to_string(),
                 expiration_hours: 24,
+                admin_token: "test-admin-token-12345".to_string(),
             },
             logging: LoggingConfig {
                 level: "info".to_string(),

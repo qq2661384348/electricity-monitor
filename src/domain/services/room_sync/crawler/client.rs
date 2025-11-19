@@ -42,9 +42,9 @@ impl RoomClient {
         })
     }
     
-    /// 获取房间树JSON数据
+    /// 获取房间树JSON数据（Level 1：校区列表）
     /// 
-    /// 带重试机制的HTTP GET请求
+    /// 带重试机制的HTTP POST请求
     /// 
     /// # 返回
     /// JSON字符串
@@ -87,27 +87,73 @@ impl RoomClient {
         Err(last_error.expect("重试循环应该至少执行一次"))
     }
     
+    /// 通用HTTP POST请求（支持参数化）
+    /// 
+    /// # 参数
+    /// - `params`: URL编码的请求参数
+    /// 
+    /// # 返回
+    /// JSON字符串
+    pub async fn fetch_tree(&self, params: &str) -> Result<String> {
+        let mut last_error = None;
+        
+        for attempt in 1..=self.max_retries {
+            match self.try_fetch_with_params(params).await {
+                Ok(data) => {
+                    if attempt > 1 {
+                        tracing::info!("第{}次重试成功", attempt);
+                    }
+                    return Ok(data);
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "第{}次请求失败: {}, 剩余重试次数: {}",
+                        attempt,
+                        e,
+                        self.max_retries - attempt
+                    );
+                    last_error = Some(e);
+                    
+                    if attempt < self.max_retries {
+                        let delay = Duration::from_secs(2_u64.pow(attempt - 1));
+                        tokio::time::sleep(delay).await;
+                    }
+                }
+            }
+        }
+        
+        Err(last_error.expect("重试循环应该至少执行一次"))
+    }
+    
     /// 尝试单次请求（内部方法）
+    /// 
+    /// 使用POST方法，参数格式为application/x-www-form-urlencoded
     async fn try_fetch(&self) -> Result<String> {
+        // Level 1：获取校区列表
+        self.try_fetch_with_params("yzm=123&Id=000&level=1").await
+    }
+    
+    /// 带参数的单次请求（私有方法）
+    async fn try_fetch_with_params(&self, params: &str) -> Result<String> {
         let response = self.client
-            .get(&self.api_url)
+            .post(&self.api_url)
+            .header("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+            .header("Accept", "application/json, text/javascript, */*; q=0.01")
+            .body(params.to_string())
             .send()
             .await
             .context("HTTP请求发送失败")?;
         
-        // 检查HTTP状态码
         let status = response.status();
         if !status.is_success() {
             anyhow::bail!("HTTP请求失败: status={}", status);
         }
         
-        // 获取响应体
         let body = response
             .text()
             .await
             .context("读取响应体失败")?;
         
-        // 检查是否为空
         if body.is_empty() {
             anyhow::bail!("响应体为空");
         }

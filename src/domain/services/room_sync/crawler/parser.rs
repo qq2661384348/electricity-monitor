@@ -38,21 +38,19 @@ pub fn safe_parse(json_str: &str) -> Result<Value> {
     // 移除BOM和前后空白
     let cleaned = json_str.trim_start_matches('\u{FEFF}').trim();
     
-    // 尝试直接解析
-    match sonic_rs::from_str(cleaned) {
-        Ok(value) => Ok(value),
-        Err(e) => {
-            // 可能是双重编码，尝试解析字符串
-            if let Ok(val) = sonic_rs::from_str::<Value>(cleaned) {
-                if let Some(inner) = val.as_str() {
-                    // 递归解析内部JSON
-                    return sonic_rs::from_str(inner)
-                        .with_context(|| format!("双重编码JSON解析失败: {}", e));
-                }
-            }
-            Err(e.into())
-        }
+    // 第一次解析
+    let value: Value = sonic_rs::from_str(cleaned)
+        .context("第一次JSON解析失败")?;
+    
+    // ⭐ 检查是否是双重编码（解析结果是字符串）
+    if let Some(inner_str) = value.as_str() {
+        tracing::debug!("检测到双重JSON编码，进行第二次解析");
+        // 第二次解析
+        return sonic_rs::from_str(inner_str)
+            .context("双重编码JSON第二次解析失败");
     }
+    
+    Ok(value)
 }
 
 /// 解析楼层节点

@@ -21,6 +21,9 @@ pub enum AppError {
     #[error("认证失败: {0}")]
     Unauthorized(String),
 
+    #[error("权限不足")]
+    Forbidden,
+
     #[error("资源未找到")]
     NotFound,
 
@@ -47,6 +50,9 @@ impl IntoResponse for AppError {
             }
             AppError::Unauthorized(ref msg) => {
                 (StatusCode::UNAUTHORIZED, msg.as_str())
+            }
+            AppError::Forbidden => {
+                (StatusCode::FORBIDDEN, "权限不足")
             }
             AppError::NotFound => {
                 (StatusCode::NOT_FOUND, "资源未找到")

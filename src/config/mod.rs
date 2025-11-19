@@ -14,7 +14,7 @@ pub mod room_sync;
 pub mod verification;
 
 pub use admin::AdminConfig;
-pub use app::AppConfig;
+pub use app::{AppConfig, JwtConfig, LoggingConfig, ServerConfig};
 pub use database::DatabaseConfig;
 pub use electricity_fetcher::ElectricityFetcherConfig;
 pub use notification::NotificationConfig;

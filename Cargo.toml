@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Electricity Monitor Team"]
 description = "高性能电力监控系统后端API - Rust实现"
+default-run = "server"
 
 [dependencies]
 # Web框架 - Axum 0.8.x (最新稳定版)
