@@ -36,15 +36,15 @@ export interface ComicModalContextValue {
  */
 export interface ComicModalRootProps {
   /** 是否打开 */
-  isOpen: boolean;
+  readonly isOpen: boolean;
   /** 关闭回调 */
-  onClose: () => void;
+  readonly onClose: () => void;
   /** 尺寸 */
-  size?: ModalSize;
+  readonly size?: ModalSize;
   /** 装饰配置 */
-  decorations?: DecorationConfig;
+  readonly decorations?: DecorationConfig;
   /** 子元素 */
-  children: ReactNode;
+  readonly children: ReactNode;
 }
 
 /**
@@ -62,11 +62,11 @@ export interface ComicModalOverlayProps {
  */
 export interface ComicModalContentProps {
   /** 子元素 */
-  children: ReactNode;
+  readonly children: ReactNode;
   /** 自定义类名 */
-  className?: string;
+  readonly className?: string;
   /** 点击内容区域时阻止冒泡（防止意外关闭） */
-  stopPropagation?: boolean;
+  readonly stopPropagation?: boolean;
 }
 
 /**
@@ -116,11 +116,11 @@ export interface ComicModalCloseProps {
  */
 export interface ComicModalProps extends Omit<ComicModalRootProps, 'children'> {
   /** 标题 */
-  title?: string;
+  readonly title?: string;
   /** 显示关闭按钮 */
-  showCloseButton?: boolean;
+  readonly showCloseButton?: boolean;
   /** 子元素（主体内容） */
-  children: ReactNode;
+  readonly children: ReactNode;
   /** 底部按钮区域 */
-  footer?: ReactNode;
+  readonly footer?: ReactNode;
 }
