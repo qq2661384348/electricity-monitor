@@ -1,0 +1,172 @@
+@import "tailwindcss";
+
+/* Tailwind v4 自定义主题 - 天空蓝波普风格 */
+@theme {
+  /* 语义化品牌色系统 */
+  --color-brand-primary: #0EA5E9; /* Sky Blue 500 - 核心主色 */
+  --color-brand-secondary: #FACC15; /* Yellow 400 - 强对比辅色 */
+  --color-brand-accent: #6366F1; /* Indigo 500 - 装饰色 */
+  --color-brand-dark: #020617; /* Slate 950 - 深邃背景 */
+  --color-brand-light: #F8FAFC; /* Slate 50 - 亮色前景 */
+  
+  /* 状态色彩 - 保持波普高饱和度 */
+  --color-status-normal: #4ADE80; /* Green 400 */
+  --color-status-warning: #FB923C; /* Orange 400 */
+  --color-status-danger: #EF4444; /* Red 500 */
+  --color-status-critical: #BE123C; /* Red 700 */
+}
+
+/* 全局样式 */
+body {
+  @apply overflow-x-hidden bg-brand-dark text-white;
+  font-family: 'Comic Neue', cursive, sans-serif;
+  font-weight: 700;
+  background-color: var(--color-brand-dark);
+  /* 更加细腻的蓝色调网点背景 */
+  background-image: 
+    radial-gradient(#1e293b 15%, transparent 16%),
+    radial-gradient(#1e293b 15%, transparent 16%);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+}
+
+html {
+  @apply scroll-smooth;
+}
+
+/* 英雄标题样式 - 封面级艺术字 */
+.hero-title {
+  font-family: 'Bangers', cursive;
+  @apply text-6xl md:text-8xl tracking-wide uppercase;
+  color: var(--color-brand-primary); /* 天空蓝标题 */
+  /* 使用四向硬投影模拟描边，边缘更锐利，不侵蚀字重 */
+  text-shadow: 
+    -2px -2px 0 #000,  
+    2px -2px 0 #000,
+    -2px 2px 0 #000,
+    2px 2px 0 #000,
+    /* 黄色大投影 */
+    6px 6px 0 var(--color-brand-secondary);
+  transform: rotate(-2deg);
+  letter-spacing: 2px;
+}
+
+/* 漫画分格容器 (Panel) */
+.comic-box {
+  @apply relative bg-slate-800 border-4 border-black;
+  box-shadow: 8px 8px 0 0 #000;
+  transition: all 0.2s cubic-bezier(0.1, 0.7, 1.0, 0.1);
+}
+
+/* 悬浮动态效果 - 工程化优化：避免位移造成布局抖动 */
+.comic-box:hover {
+  box-shadow: 10px 10px 0 0 #000;
+  border-color: var(--color-brand-primary); /* 悬浮变蓝框 */
+}
+
+/* 漫画按钮 - 扁平化且极具张力 */
+.comic-button {
+  font-family: 'Bangers', cursive;
+  @apply relative px-8 py-3 text-xl uppercase tracking-widest transition-all duration-150 cursor-pointer;
+  background-color: var(--color-brand-primary); /* 默认蓝底 */
+  color: black; /* 蓝底黑字更醒目 */
+  border: 3px solid black;
+  box-shadow: 6px 6px 0 0 black;
+  text-shadow: none;
+}
+
+.comic-button:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0 0 black;
+  background-color: #38BDF8; /* 亮蓝悬浮 */
+}
+
+.comic-button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 0 black;
+}
+
+.comic-button:disabled {
+  @apply opacity-50 cursor-not-allowed grayscale;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 漫画输入框 */
+.comic-input {
+  font-family: 'Comic Neue', cursive;
+  @apply w-full px-4 py-3 bg-white text-black font-bold border-4 border-black outline-none transition-all text-lg;
+  box-shadow: 4px 4px 0 0 rgba(0,0,0,0.5);
+}
+
+.comic-input:focus {
+  box-shadow: 8px 8px 0 0 var(--color-brand-primary);
+  transform: scale(1.02);
+}
+
+/* 漫画标签 - 高亮贴纸风格 */
+.comic-label {
+  @apply inline-block text-sm font-black text-black uppercase tracking-wider mb-1 px-2 py-0.5 border-2 border-black;
+  background-color: var(--color-brand-secondary);
+  box-shadow: 2px 2px 0 0 black;
+  transform: skewX(-5deg);
+}
+
+/* 动作文字 (Action Text) */
+.action-text {
+  font-family: 'Bangers', cursive;
+  text-shadow: 2px 2px 0 #000;
+}
+
+/* 状态指示器 */
+.status-indicator {
+  @apply w-4 h-4 border-2 border-black rounded-full;
+}
+
+.status-indicator.normal {
+  background-color: var(--color-status-normal);
+  box-shadow: 2px 2px 0 0 black;
+}
+
+.status-indicator.warning {
+  background-color: var(--color-status-warning);
+  box-shadow: 2px 2px 0 0 black;
+}
+
+.status-indicator.danger {
+  background-color: var(--color-status-danger);
+  box-shadow: 2px 2px 0 0 black;
+}
+
+/* 动画关键帧 */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+  animation: spin-slow 10s linear infinite;
+}
+
+/* 自定义美漫滚动条 */
+::-webkit-scrollbar {
+  width: 16px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--color-brand-dark);
+  border-left: 3px solid black;
+  background-image: radial-gradient(#333 20%, transparent 20%);
+  background-size: 10px 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-brand-primary);
+  border: 3px solid black;
+  border-radius: 0;
+  box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.3);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #38BDF8;
+}
+
