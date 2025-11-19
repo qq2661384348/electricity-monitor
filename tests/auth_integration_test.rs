@@ -195,6 +195,8 @@ async fn test_missing_bearer_prefix() {
     println!("测试4: 缺少Bearer前缀应该返回401");
     println!("========================================\n");
     
+    // 确保配置已初始化
+    ensure_config_init();
     let config = AppConfig::global();
     let admin_token = &config.jwt.admin_token;
     
@@ -227,6 +229,9 @@ async fn test_jwt_token_auth() {
     println!("\n========================================");
     println!("测试5: JWT token认证");
     println!("========================================\n");
+    
+    // 确保配置已初始化
+    ensure_config_init();
     
     let app = create_test_app().await;
     

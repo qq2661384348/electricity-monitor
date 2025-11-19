@@ -26,6 +26,9 @@ pub struct SendVerificationCodeRequest {
     /// QQ号（5-20位数字）
     #[validate(length(min = 5, max = 20, message = "QQ号长度必须在5-20字符之间"))]
     pub qq_number: String,
+    
+    /// 验证码Token（可选，暂时兼容不传）
+    pub captcha_token: Option<String>,
 }
 
 /// 验证并登录请求
@@ -88,8 +91,33 @@ pub async fn send_verification_code(
 
     tracing::info!(
         qq_number = %req.qq_number,
+        has_captcha_token = req.captcha_token.is_some(),
         "收到发送验证码请求"
     );
+    
+    // 如果提供了captcha_token，则验证它
+    if let Some(token) = &req.captcha_token {
+        let captcha_service = crate::domain::services::captcha_verification::CaptchaVerificationService::new(
+            state.redis_pool.clone()
+        );
+        
+        let token_valid = captcha_service
+            .verify_and_consume_token(token)
+            .await?;
+        
+        if !token_valid {
+            tracing::warn!(
+                qq_number = %req.qq_number,
+                "验证码token无效或已过期"
+            );
+            return Err(AppError::Unauthorized("验证码token无效或已过期".to_string()));
+        }
+        
+        tracing::info!(
+            qq_number = %req.qq_number,
+            "验证码token验证成功"
+        );
+    }
 
     // 创建QQ客户端
     let qq_client = crate::infrastructure::QQClient::new(AppConfig::global().qq_bot.clone())

@@ -35,6 +35,12 @@ serde_json = "1.0"
 # HTTP客户端 - reqwest (用于爬虫模块)
 reqwest = { version = "0.12", features = ["json"] }
 
+# URL编码
+urlencoding = "2.1"
+
+# LRU缓存
+lru = "0.12"
+
 # 配置管理
 config = "0.15.19"
 

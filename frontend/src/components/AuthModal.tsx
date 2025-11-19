@@ -4,6 +4,7 @@ import { X, Loader2, Zap } from 'lucide-react';
 import { authApi } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { getMarvelQuote } from '@/lib/utils';
+import { CaptchaModal } from '@/components/CaptchaModal';
 
 interface AuthModalProps {
   readonly isOpen: boolean;
@@ -18,6 +19,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [quote] = useState(getMarvelQuote());
+  const [showCaptcha, setShowCaptcha] = useState(false);
   
   const { login } = useAuthStore();
 
@@ -29,18 +31,24 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     }
   }, [countdown]);
 
-  // 发送验证码
-  const handleSendCode = async () => {
+  // 点击发送验证码，先弹出算数验证码
+  const handleSendCode = () => {
     if (!qqNumber || qqNumber.length < 5) {
       setError('请输入有效的QQ号');
       return;
     }
+    setShowCaptcha(true);
+  };
 
+  // 验证码验证成功后的回调
+  const handleCaptchaSuccess = async (token: string) => {
+    setShowCaptcha(false);
+    
     setIsLoading(true);
     setError('');
 
     try {
-      await authApi.sendVerificationCode(qqNumber);
+      await authApi.sendVerificationCode(qqNumber, token);
       setCountdown(60);
       setError('');
     } catch {
@@ -214,6 +222,13 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
           </motion.div>
         </div>
       )}
+
+      {/* 验证码弹窗 */}
+      <CaptchaModal
+        isOpen={showCaptcha}
+        onClose={() => setShowCaptcha(false)}
+        onSuccess={handleCaptchaSuccess}
+      />
     </AnimatePresence>
   );
 }

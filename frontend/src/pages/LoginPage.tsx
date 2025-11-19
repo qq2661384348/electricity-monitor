@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/services/api';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { CaptchaModal } from '@/components/CaptchaModal';
 import { motion } from 'framer-motion';
 
 // 随机漫威名言
@@ -27,6 +28,7 @@ export default function LoginPage() {
   const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [quote, setQuote] = useState(quotes[0]);
+  const [showCaptcha, setShowCaptcha] = useState(false);
 
   // 如果已登录，重定向到首页
   useEffect(() => {
@@ -47,13 +49,23 @@ export default function LoginPage() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  const handleSendCode = async () => {
-    if (!qqNumber) return;
+  // 点击发送验证码，先弹出算数验证码
+  const handleSendCode = () => {
+    if (!qqNumber) {
+      setError('请输入QQ号');
+      return;
+    }
+    setShowCaptcha(true);
+  };
+
+  // 验证码验证成功后的回调
+  const handleCaptchaSuccess = async (token: string) => {
+    setShowCaptcha(false);
     
     setIsLoading(true);
     setError(null);
     try {
-      await authApi.sendVerificationCode(qqNumber);
+      await authApi.sendVerificationCode(qqNumber, token);
       setCountdown(60);
     } catch (err: unknown) {
       let errorMessage = '发送失败，请稍后重试';
@@ -188,6 +200,13 @@ export default function LoginPage() {
             </p>
           </div>
        </motion.div>
+
+       {/* 验证码弹窗 */}
+       <CaptchaModal
+         isOpen={showCaptcha}
+         onClose={() => setShowCaptcha(false)}
+         onSuccess={handleCaptchaSuccess}
+       />
     </div>
   );
 }

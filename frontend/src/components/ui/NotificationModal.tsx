@@ -86,16 +86,16 @@ export function NotificationModal({
           <p className="text-base font-black text-black">{roomName}</p>
         </div>
 
-        {/* 选项区域 */}
-        <div className="space-y-3">
+        {/* 选项区域 - 预留hover空间 */}
+        <div className="space-y-3 px-1">
                 {/* 开启通知 */}
                 <button
                   onClick={() => setSelectedStatus(true)}
                   disabled={isSubmitting}
                   className={`w-full p-4 border-4 border-black transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                     isNotificationEnabled
-                      ? 'bg-status-normal shadow-[4px_4px_0_0_#000] scale-[1.02]'
-                      : 'bg-white shadow-[2px_2px_0_0_#000] hover:shadow-[3px_3px_0_0_#000]'
+                      ? 'bg-status-normal shadow-[4px_4px_0_0_#000]'
+                      : 'bg-white shadow-[4px_4px_0_0_#000] hover:shadow-[6px_6px_0_0_#000] hover:-translate-x-[2px] hover:-translate-y-[2px]'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -126,8 +126,8 @@ export function NotificationModal({
                   disabled={isSubmitting}
                   className={`w-full p-4 border-4 border-black transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                     isNotificationDisabled
-                      ? 'bg-gray-600 shadow-[4px_4px_0_0_#000] scale-[1.02]'
-                      : 'bg-white shadow-[2px_2px_0_0_#000] hover:shadow-[3px_3px_0_0_#000]'
+                      ? 'bg-gray-600 shadow-[4px_4px_0_0_#000]'
+                      : 'bg-white shadow-[4px_4px_0_0_#000] hover:shadow-[6px_6px_0_0_#000] hover:-translate-x-[2px] hover:-translate-y-[2px]'
                   }`}
                 >
                   <div className="flex items-center gap-3">

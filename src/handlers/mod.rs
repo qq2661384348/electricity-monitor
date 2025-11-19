@@ -4,6 +4,7 @@
 
 pub mod auth;
 pub mod binding;
+pub mod captcha;
 pub mod electricity_fetcher;
 pub mod health;
 pub mod path_tree;

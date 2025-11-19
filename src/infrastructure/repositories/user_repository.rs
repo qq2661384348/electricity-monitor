@@ -231,6 +231,60 @@ impl UserRepository {
             .await
             .map_err(AppError::Database)
     }
+
+    /// 批量查询用户（根据UUID列表）
+    /// 
+    /// # 参数
+    /// - `user_ids`: 用户UUID切片
+    /// 
+    /// # 返回
+    /// 用户列表（注意：返回顺序可能与输入顺序不同）
+    /// 
+    /// # 说明
+    /// - 使用 `IN (...)` 批量查询，性能优于逐个查询
+    /// - 自动分批处理（每批1000个ID）防止SQL过长
+    /// - 返回的用户数可能少于输入ID数（不存在的ID会被忽略）
+    /// 
+    /// # 示例
+    /// ```ignore
+    /// let user_ids = vec![uuid1, uuid2, uuid3];
+    /// let users = repo.find_by_ids(&user_ids).await?;
+    /// // 将结果转换为HashMap便于快速查找
+    /// let user_map: HashMap<Uuid, User> = users.into_iter()
+    ///     .map(|u| (u.id, u))
+    ///     .collect();
+    /// ```
+    pub async fn find_by_ids(&self, user_ids: &[Uuid]) -> Result<Vec<User>> {
+        if user_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // 分批查询（每批最多1000个ID）
+        const BATCH_SIZE: usize = 1000;
+        let mut all_users = Vec::with_capacity(user_ids.len());
+
+        for chunk in user_ids.chunks(BATCH_SIZE) {
+            let mut conn = self.get_conn().await?;
+            
+            let users = users::table
+                .filter(users::id.eq_any(chunk))
+                .select(User::as_select())
+                .load(&mut conn)
+                .await
+                .map_err(AppError::Database)?;
+            
+            all_users.extend(users);
+        }
+
+        tracing::debug!(
+            requested = user_ids.len(),
+            found = all_users.len(),
+            batches = user_ids.len().div_ceil(BATCH_SIZE),
+            "批量查询用户完成"
+        );
+
+        Ok(all_users)
+    }
 }
 
 #[cfg(test)]

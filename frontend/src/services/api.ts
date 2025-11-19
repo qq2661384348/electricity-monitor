@@ -50,9 +50,14 @@ api.interceptors.response.use(
 export const authApi = {
   /**
    * 发送验证码
+   * @param qqNumber QQ号码
+   * @param captchaToken 验证码token（可选，后续将改为必须）
    */
-  async sendVerificationCode(qqNumber: string): Promise<void> {
-    await api.post('/auth/send-verification-code', { qq_number: qqNumber });
+  async sendVerificationCode(qqNumber: string, captchaToken?: string): Promise<void> {
+    await api.post('/auth/send-verification-code', { 
+      qq_number: qqNumber,
+      captcha_token: captchaToken,
+    });
   },
 
   /**

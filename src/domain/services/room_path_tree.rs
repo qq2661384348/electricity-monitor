@@ -9,16 +9,16 @@
 //! - **查询性能**: O(depth)，depth=4
 //! 
 //! ## 使用示例
-//! ```rust
+//! ```rust,ignore
 //! use crate::domain::services::room_path_tree::RoomPathTree;
 //! use crate::domain::services::room_sync::crawler::models::RoomData;
 //! 
-//! // 从同步数据构建树
+//! // 构建路径树
+//! let rooms = vec![...];
 //! let tree = RoomPathTree::build_from_rooms(&rooms);
 //! 
-//! // 逐层查询
-//! let campuses = tree.query_children("");  // 查询校区
-//! let buildings = tree.query_children("箭盘校区");  // 查询建筑
+//! // 查询子节点
+//! let children = tree.query_children("箭盘校区").await?;
 //! 
 //! // 路径哈希反查
 //! let roomid = tree.find_roomid_by_path("箭盘校区/北区12栋/三楼/B12313");
@@ -139,7 +139,8 @@ pub struct RoomPathTree {
     /// 最后更新时间
     last_updated: Arc<RwLock<NaiveDateTime>>,
     
-    /// 路径哈希 -> roomid 映射（快速查找）
+    /// 哈希索引: key=path_hash, value=Vec<(roompath, roomid)>
+    #[allow(clippy::type_complexity)]
     hash_index: Arc<RwLock<HashMap<i64, Vec<(String, i32)>>>>,
 }
 
@@ -163,7 +164,7 @@ impl RoomPathTree {
     /// - 空间: O(n)
     /// 
     /// # 示例
-    /// ```rust
+    /// ```rust,ignore
     /// let rooms = vec![
     ///     RoomData { roomid: 101, primary_roompath: "箭盘校区/北区12栋/三楼/B12313".into(), .. },
     ///     RoomData { roomid: 102, primary_roompath: "箭盘校区/北区12栋/三楼/B12314".into(), .. },
@@ -238,9 +239,9 @@ impl RoomPathTree {
     /// 子节点列表（排序后）
     /// 
     /// # 示例
-    /// ```rust
-    /// let campuses = tree.query_children("");  // ["箭盘校区", "东环校区"]
-    /// let buildings = tree.query_children("箭盘校区");  // ["北区12栋", "南区5栋"]
+    /// ```rust,ignore
+    /// let campuses = tree.query_children("").await?;  // ["箭盘校区", "东环校区"]
+    /// let buildings = tree.query_children("箭盘校区").await?;  // ["北区12栋", "南区5栋"]
     /// ```
     pub async fn query_children(&self, parent_path: &str) -> Result<Vec<PathChildNode>> {
         let root = self.root.read().await;
