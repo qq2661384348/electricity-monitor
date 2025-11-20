@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowDownLeft } from 'lucide-react';
 
 interface CopyableQQNumberProps {
   readonly value: string;
@@ -30,7 +30,7 @@ export function CopyableQQNumber({ value }: CopyableQQNumberProps) {
         {value}
       </button>
 
-      {/* 动态箭头指示器 */}
+      {/* 动态箭头指示器 + 提示文字 */}
       <motion.div
         animate={{
           y: [0, -6, 0],
@@ -41,12 +41,15 @@ export function CopyableQQNumber({ value }: CopyableQQNumberProps) {
           repeat: Infinity,
           ease: 'easeInOut',
         }}
-        className="absolute -top-3 -right-3 md:-top-4 md:-right-4 pointer-events-none"
+        className="absolute -top-3 -right-3 md:-top-4 md:-right-4 pointer-events-none flex flex-col items-center gap-0.5"
       >
-        <ArrowUpRight 
+        <ArrowDownLeft 
           className="w-4 h-4 md:w-5 md:h-5 text-brand-primary drop-shadow-[0_2px_2px_rgba(0,0,0,0.3)]" 
           strokeWidth={3}
         />
+        <span className="text-[8px] md:text-[10px] font-black text-brand-primary whitespace-nowrap drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]">
+          点我复制
+        </span>
       </motion.div>
 
       {/* 复制成功提示 */}
