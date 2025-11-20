@@ -136,7 +136,7 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
             className="relative w-full max-w-3xl max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative overflow-visible p-8 border-4 border-black shadow-[10px_10px_0_0_#000] text-black bg-linear-to-br from-[#fff4c7] via-[#ffe173] to-[#ffc93c] h-full flex flex-col">
+            <div className="relative p-8 border-4 border-black shadow-[10px_10px_0_0_#000] text-black bg-linear-to-br from-[#fff4c7] via-[#ffe173] to-[#ffc93c] h-full flex flex-col">
               {/* 漫画半调纹理 */}
               <div
                 className="absolute inset-0 opacity-15 pointer-events-none"
@@ -164,6 +164,47 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
               >
                 绑定房间
               </h3>
+
+              {/* 步骤5预览（移到滚动容器外，避免 READY 标签被裁剪） */}
+              {currentStep === 5 && finalRoom && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="relative z-10 mb-6"
+                >
+                  <div className="relative overflow-visible border-4 border-black bg-linear-to-br from-yellow-200 via-yellow-100 to-white p-5 shadow-[6px_6px_0_0_#000] text-black">
+                    <div className="absolute -top-3 -right-3 px-3 py-1 bg-brand-secondary border-2 border-black text-xs font-black uppercase tracking-[0.2em] shadow-[3px_3px_0_0_#000]">
+                      READY!
+                    </div>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-status-normal rounded-full border-2 border-black flex items-center justify-center shadow-[3px_3px_0_0_#000]">
+                        <Check className="w-5 h-5 text-black" strokeWidth={3} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-600">Bingo!</p>
+                        <span className="block text-2xl font-black uppercase italic" style={{ textShadow: '2px 2px 0 #FACC15' }}>
+                          找到房间!
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-3 text-sm border-t-2 border-dashed border-black/40 pt-3">
+                      <div className="flex justify-between items-center">
+                        <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">名称</span>
+                        <span className="font-black text-base text-black">{finalRoom.room_name}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">位置</span>
+                        <span className="font-black text-sm text-right max-w-[65%] text-black">{finalRoom.primary_roompath}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">剩余电量</span>
+                        <span className="font-black text-base text-brand-primary">{finalRoom.electricity_fee.toFixed(2)} kWh</span>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
               {/* 内容区域 */}
               <div className="relative z-10 space-y-6 flex-1 overflow-y-auto pr-1">
@@ -322,47 +363,6 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
                   )}
                 </div>
               </div>
-
-              {/* 最终预览（步骤5） - 移到内容区域外部，避免 overflow-y-auto 裁剪 */}
-              {currentStep === 5 && finalRoom && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3 }}
-                  className="absolute inset-0 flex items-center justify-center p-4 z-20"
-                >
-                  <div className="relative border-4 border-black bg-linear-to-br from-yellow-200 via-yellow-100 to-white p-5 shadow-[6px_6px_0_0_#000] text-black max-w-md w-full">
-                    <div className="absolute -top-3 -right-3 px-3 py-1 bg-brand-secondary border-2 border-black text-xs font-black uppercase tracking-[0.2em] shadow-[3px_3px_0_0_#000]">
-                      READY!
-                    </div>
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-status-normal rounded-full border-2 border-black flex items-center justify-center shadow-[3px_3px_0_0_#000]">
-                        <Check className="w-5 h-5 text-black" strokeWidth={3} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-widest text-gray-600">Bingo!</p>
-                        <span className="block text-2xl font-black uppercase italic" style={{ textShadow: '2px 2px 0 #FACC15' }}>
-                          找到房间!
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-3 text-sm border-t-2 border-dashed border-black/40 pt-3">
-                      <div className="flex justify-between items-center">
-                        <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">名称</span>
-                        <span className="font-black text-base text-black">{finalRoom.room_name}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">位置</span>
-                        <span className="font-black text-sm text-right max-w-[65%] text-black">{finalRoom.primary_roompath}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">剩余电量</span>
-                        <span className="font-black text-base text-brand-primary">{finalRoom.electricity_fee.toFixed(2)} kWh</span>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
             </div>
           </motion.div>
         </div>
