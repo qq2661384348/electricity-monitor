@@ -26,3 +26,6 @@ Thumbs.db
 
 # 日志文件
 *.log
+
+# Git 元数据（显式忽略）
+.git/
