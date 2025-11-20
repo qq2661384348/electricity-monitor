@@ -139,9 +139,18 @@ pub struct RoomPathTree {
     /// 最后更新时间
     last_updated: Arc<RwLock<NaiveDateTime>>,
     
-    /// 哈希索引: key=path_hash, value=Vec<(roompath, roomid)>
-    #[allow(clippy::type_complexity)]
-    hash_index: Arc<RwLock<HashMap<i64, Vec<(String, i32)>>>>,
+    /// 哈希索引: key=path_hash, value=路径-房间ID映射列表
+    hash_index: Arc<RwLock<HashIndex>>,
+}
+
+type HashIndex = HashMap<i64, Vec<PathHashEntry>>;
+
+#[derive(Debug, Clone, PartialEq)]
+struct PathHashEntry {
+    /// 房间路径
+    roompath: String,
+    /// 房间ID
+    roomid: i32,
 }
 
 impl RoomPathTree {
@@ -174,7 +183,7 @@ impl RoomPathTree {
     /// ```
     pub fn build_from_rooms(rooms: &[RoomData]) -> Self {
         let mut mutable_root = MutablePathNode::new(String::new(), false);
-        let mut hash_map = HashMap::new();
+        let mut hash_map = HashIndex::new();
         
         tracing::info!("开始构建路径树：共 {} 个房间", rooms.len());
         
@@ -205,7 +214,10 @@ impl RoomPathTree {
             hash_map
                 .entry(hash)
                 .or_insert_with(Vec::new)
-                .push((path.clone(), room.roomid));
+                .push(PathHashEntry {
+                    roompath: room.primary_roompath.clone(),
+                    roomid: room.roomid,
+                });
         }
         
         // 转换为不可变树
@@ -336,8 +348,8 @@ impl RoomPathTree {
                 // 精确匹配路径（防止哈希冲突）
                 entries
                     .iter()
-                    .find(|(stored_path, _)| stored_path == path)
-                    .map(|(_, roomid)| *roomid)
+                    .find(|entry| entry.roompath == path)
+                    .map(|entry| entry.roomid)
             }
             None => None,
         }

@@ -111,6 +111,7 @@ export function CaptchaModal({ isOpen, onClose, onSuccess }: CaptchaModalProps) 
       size="sm"
       title="安全验证"
       showCloseButton
+      overflowVisible
       footer={
         <div className="flex gap-3 w-full">
           <Button

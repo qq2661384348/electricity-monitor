@@ -75,8 +75,6 @@ export interface ComicModalContentProps {
 export interface ComicModalHeaderProps {
   /** 子元素 */
   children: ReactNode;
-  /** 是否显示关闭按钮 */
-  showCloseButton?: boolean;
   /** 自定义类名 */
   className?: string;
 }
@@ -89,6 +87,8 @@ export interface ComicModalBodyProps {
   children: ReactNode;
   /** 自定义类名 */
   className?: string;
+  /** 是否允许内容溢出（用于绝对定位元素突出边界） */
+  overflowVisible?: boolean;
 }
 
 /**
@@ -123,4 +123,6 @@ export interface ComicModalProps extends Omit<ComicModalRootProps, 'children'> {
   readonly children: ReactNode;
   /** 底部按钮区域 */
   readonly footer?: ReactNode;
+  /** 是否允许内容溢出（用于绝对定位元素突出边界） */
+  readonly overflowVisible?: boolean;
 }

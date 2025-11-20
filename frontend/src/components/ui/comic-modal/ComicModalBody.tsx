@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import type { ComicModalBodyProps } from './types';
 
 /**
@@ -15,9 +16,16 @@ import type { ComicModalBodyProps } from './types';
 export function ComicModalBody({
   children,
   className = '',
+  overflowVisible = false,
 }: Readonly<ComicModalBodyProps>) {
   return (
-    <div className={`relative z-10 flex-1 overflow-y-auto pr-1 ${className}`}>
+    <div
+      className={cn(
+        "relative z-10 flex-1 pr-1",
+        overflowVisible ? "overflow-visible" : "overflow-y-auto",
+        className
+      )}
+    >
       {children}
     </div>
   );

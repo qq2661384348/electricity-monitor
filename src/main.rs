@@ -16,7 +16,10 @@ use std::sync::Arc;
 
 use electricity_monitor_backend::{
     config::AppConfig,
-    domain::services::{ElectricityFetcherService, ElectricityService, NotificationService, RateLimiter, RoomSyncCache},
+    domain::services::{
+        spawn_recovery_monitor, ElectricityFetcherService, ElectricityService,
+        NotificationGate, NotificationService, RateLimiter, RoomSyncCache,
+    },
     infrastructure::{database::create_pool, redis::create_redis_pool, repositories::RoomRepository},
     middleware::logger::create_trace_layer,
     routes::create_routes,
@@ -227,17 +230,43 @@ fn spawn_background_services(state: AppState) {
     match electricity_monitor_backend::infrastructure::QQClient::new(config.qq_bot.clone()) {
         Ok(qq_client) => {
             let qq_client = Arc::new(qq_client);
+            
+            // 创建通知门控器（防抖观察期：1小时）
+            let notification_gate = Arc::new(NotificationGate::new(
+                Some(std::time::Duration::from_secs(config.notification.debounce_period_secs))
+            ));
+            tracing::info!(
+                "NotificationGate created (debounce_period: {}s)",
+                config.notification.debounce_period_secs
+            );
+            
+            // 启动房间恢复监控任务
+            let _recovery_monitor_handle = spawn_recovery_monitor(
+                room_repository.clone(),
+                notification_gate.clone(),
+                config.notification.recovery_monitor_interval_secs,
+            );
+            tracing::info!(
+                "Recovery monitor started (interval: {}s)",
+                config.notification.recovery_monitor_interval_secs
+            );
+            
+            // 创建通知服务
             let notification_service = NotificationService::new(
                 room_repository.clone(),
                 user_repository,
                 binding_repository,
                 qq_client,
                 rate_limiter.clone(),
-                Some(60),
-                Some(10),
+                notification_gate,
+                &config.notification,
             );
             notification_service.spawn_worker();
-            tracing::info!("Notification service started (interval: 60s, concurrent: 10)");
+            tracing::info!(
+                "Notification service started (interval: {}s, concurrent: {})",
+                config.notification.query_interval_secs,
+                config.notification.concurrent_send_limit
+            );
         }
         Err(e) => {
             tracing::error!("QQ客户端初始化失败，通知服务未启动: {}", e);

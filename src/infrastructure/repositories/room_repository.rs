@@ -378,6 +378,26 @@ impl RoomRepository {
             .map_err(AppError::Database)
     }
 
+    /// 查询电费已恢复的房间（>= threshold）
+    /// 
+    /// # 返回
+    /// 电费已恢复到阈值以上的房间列表
+    /// 
+    /// # 说明
+    /// - 查询条件：electricity_fee >= threshold
+    /// - 用于房间恢复监控任务
+    /// - 返回的房间处于"恢复中"状态，用于防抖观察期逻辑
+    pub async fn find_rooms_recovering(&self) -> Result<Vec<Room>> {
+        let mut conn = self.get_conn().await?;
+
+        rooms::table
+            .filter(rooms::electricity_fee.ge(rooms::threshold))
+            .select(Room::as_select())
+            .load(&mut conn)
+            .await
+            .map_err(AppError::Database)
+    }
+
     /// 查询所有房间（分页）
     /// 
     /// # 参数

@@ -16,7 +16,7 @@ use futures::stream::{self, StreamExt};
 use uuid::Uuid;
 
 use crate::domain::models::Room;
-use crate::domain::services::{NotificationCache, RateLimitOperation, RateLimiter};
+use crate::domain::services::{NotificationCache, NotificationGate, RateLimitOperation, RateLimiter};
 use crate::errors::{AppError, Result};
 use crate::infrastructure::repositories::{RoomRepository, UserRepository, UserRoomBindingRepository};
 use crate::infrastructure::QQClient;
@@ -78,6 +78,9 @@ pub struct NotificationService {
     /// 内存缓存
     cache: Arc<NotificationCache>,
     
+    /// 通知门控器（防抖+去重）
+    gate: Arc<NotificationGate>,
+    
     /// 查询间隔（秒）
     query_interval_secs: u64,
     
@@ -94,16 +97,19 @@ impl NotificationService {
     /// - `binding_repository`: 绑定仓储
     /// - `qq_client`: QQ客户端
     /// - `rate_limiter`: 限流器
-    /// - `query_interval_secs`: 查询间隔（秒），默认60秒
-    /// - `concurrent_limit`: 并发发送限制，默认10
+    /// - `gate`: 通知门控器（防抖+去重）
+    /// - `config`: 通知配置（包含查询间隔、并发限制等）
+    /// 
+    /// # 设计理念
+    /// 使用配置对象模式减少参数数量，提高代码可维护性
     pub fn new(
         room_repository: RoomRepository,
         user_repository: UserRepository,
         binding_repository: UserRoomBindingRepository,
         qq_client: Arc<QQClient>,
         rate_limiter: Arc<RateLimiter>,
-        query_interval_secs: Option<u64>,
-        concurrent_limit: Option<usize>,
+        gate: Arc<NotificationGate>,
+        config: &crate::config::NotificationConfig,
     ) -> Self {
         // 创建缓存（用户1000个，绑定500个，TTL=300秒）
         let cache = Arc::new(NotificationCache::new(Some(1000), Some(500), Some(300)));
@@ -115,8 +121,9 @@ impl NotificationService {
             qq_client,
             rate_limiter,
             cache,
-            query_interval_secs: query_interval_secs.unwrap_or(60),
-            concurrent_limit: concurrent_limit.unwrap_or(10),
+            gate,
+            query_interval_secs: config.query_interval_secs,
+            concurrent_limit: config.concurrent_send_limit,
         }
     }
 
@@ -136,6 +143,7 @@ impl NotificationService {
         let qq_client = self.qq_client;
         let rate_limiter = self.rate_limiter;
         let cache = self.cache;
+        let gate = self.gate;
         let query_interval_secs = self.query_interval_secs;
         let concurrent_limit = self.concurrent_limit;
         
@@ -167,6 +175,7 @@ impl NotificationService {
                 let binding_repo = binding_repository.clone();
                 let client = Arc::clone(&qq_client);
                 let cache_clone = Arc::clone(&cache);
+                let gate_clone = Arc::clone(&gate);
                 
                 let handle = tokio::spawn(async move {
                     Self::process_notifications_internal(
@@ -175,6 +184,7 @@ impl NotificationService {
                         binding_repo,
                         client,
                         cache_clone,
+                        gate_clone,
                         concurrent_limit,
                     ).await
                 });
@@ -221,6 +231,7 @@ impl NotificationService {
         binding_repository: &UserRoomBindingRepository,
         qq_client: &Arc<QQClient>,
         cache: &Arc<NotificationCache>,
+        gate: &Arc<NotificationGate>,
         concurrent_limit: usize,
     ) -> Result<NotificationStats> {
         let start_time = Instant::now();
@@ -302,12 +313,14 @@ impl NotificationService {
                 let bindings_by_room = Arc::clone(&bindings_by_room);
                 let user_map = Arc::clone(&user_map);
                 let qq_client = Arc::clone(qq_client);
+                let gate_clone = Arc::clone(gate);
                 async move {
                     Self::send_room_notifications_optimized(
                         &room,
                         bindings_by_room.get(&room.roomid),
                         &user_map,
                         &qq_client,
+                        &gate_clone,
                     ).await
                 }
             })
@@ -365,6 +378,7 @@ impl NotificationService {
         binding_repository: UserRoomBindingRepository,
         qq_client: Arc<QQClient>,
         cache: Arc<NotificationCache>,
+        gate: Arc<NotificationGate>,
         concurrent_limit: usize,
     ) -> Result<()> {
         tracing::debug!("开始查询需要通知的房间（定时任务）");
@@ -386,6 +400,7 @@ impl NotificationService {
             &binding_repository,
             &qq_client,
             &cache,
+            &gate,
             concurrent_limit,
         ).await?;
 
@@ -412,6 +427,7 @@ impl NotificationService {
         bindings_opt: Option<&Vec<crate::domain::models::UserRoomBinding>>,
         user_map: &HashMap<Uuid, crate::domain::models::User>,
         qq_client: &Arc<QQClient>,
+        gate: &Arc<NotificationGate>,
     ) -> Result<usize> {
         tracing::debug!(
             "开始处理房间通知（优化版）: room_id={}, roomid={}, room_name={}",
@@ -453,6 +469,8 @@ impl NotificationService {
                 let qq_client = Arc::clone(qq_client);
                 let message = message.clone();
                 let user_map = Arc::clone(&user_map_arc);
+                let gate_clone = Arc::clone(gate);
+                let room_clone = room.clone();
                 async move {
                     // 从内存Map中查找用户
                     let user = match user_map.get(&binding.user_id) {
@@ -477,7 +495,17 @@ impl NotificationService {
                         return Ok(());
                     }
 
-                    // 发送通知（使用正确的方法名）
+                    // ⭐ 门控检查：防抖+去重
+                    if !gate_clone.should_notify(user.id, &room_clone).await {
+                        tracing::debug!(
+                            user_id = %user.id,
+                            roomid = room_clone.roomid,
+                            "通知被门控阻止（等待恢复观察期或已发送）"
+                        );
+                        return Ok(());
+                    }
+
+                    // 发送通知
                     if let Err(e) = qq_client.send_private_message(&user.qq_number, &message).await {
                         tracing::error!(
                             "发送通知失败: qq_number={}, error={}",
@@ -487,9 +515,14 @@ impl NotificationService {
                         return Err(AppError::Internal(format!("发送通知失败: {}", e)));
                     }
                     
-                    tracing::debug!(
-                        "通知发送成功: qq_number={}",
-                        user.qq_number
+                    // ⭐ 标记已发送
+                    gate_clone.mark_notified(user.id, room_clone.roomid).await;
+                    
+                    tracing::info!(
+                        user_id = %user.id,
+                        roomid = room_clone.roomid,
+                        qq_number = &user.qq_number,
+                        "通知发送成功"
                     );
                     Ok(())
                 }
@@ -541,6 +574,7 @@ impl NotificationService {
             &self.binding_repository,
             &self.qq_client,
             &self.cache,
+            &self.gate,
             self.concurrent_limit,
         ).await
     }

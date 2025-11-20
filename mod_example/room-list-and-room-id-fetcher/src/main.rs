@@ -112,6 +112,8 @@ fn print_statistics(rooms: &[models::RoomInfo], duration: std::time::Duration) {
     println!("⏱️  总耗时:       {duration:.2?}");
 
     if !rooms.is_empty() {
+        // Safety: 房间数量实际不会超过 2^53 (约 9 * 10^15)，
+        // 在统计展示场景下精度损失可以接受
         #[allow(clippy::cast_precision_loss)]
         let avg_time = duration.as_secs_f64() / rooms.len() as f64;
         println!("📊 平均速度:     {avg_time:.2} 秒/房间");

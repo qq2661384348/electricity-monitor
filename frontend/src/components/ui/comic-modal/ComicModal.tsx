@@ -46,6 +46,7 @@ export function ComicModal({
   showCloseButton = true,
   children,
   footer,
+  overflowVisible = false,
 }: Readonly<ComicModalProps>) {
   return (
     <ComicModalRoot isOpen={isOpen} onClose={onClose} size={size} decorations={decorations}>
@@ -53,13 +54,13 @@ export function ComicModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <ComicModalOverlay />
           <ComicModalContent>
+            {showCloseButton && <ComicModalClose />}
             {title && (
-              <ComicModalHeader showCloseButton={showCloseButton}>
+              <ComicModalHeader>
                 {title}
               </ComicModalHeader>
             )}
-            {!title && showCloseButton && <ComicModalClose />}
-            <ComicModalBody>{children}</ComicModalBody>
+            <ComicModalBody overflowVisible={overflowVisible}>{children}</ComicModalBody>
             {footer && <ComicModalFooter>{footer}</ComicModalFooter>}
           </ComicModalContent>
         </div>

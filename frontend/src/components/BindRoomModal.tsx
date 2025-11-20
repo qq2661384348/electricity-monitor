@@ -200,27 +200,33 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
                 {/* 选项网格（去除整体进场动画，避免内容在步骤切换时闪动） */}
                 {currentStep < 5 && !isLoading && options.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-80 overflow-y-auto">
-                    {options.map((option) => (
-                      <motion.button
-                        key={option.name}
-                        onClick={() => handleSelectOption(option)}
-                        className="p-4 bg-white border-2 border-black hover:border-brand-primary hover:bg-brand-light transition-all duration-500 shadow-[4px_4px_0_0_#000] hover:shadow-[6px_6px_0_0_#000] text-left group"
-                        whileHover={isTouchDevice ? undefined : {
-                          y: -2,
-                          transition: { duration: 0.5, delay: 0.1 }
-                        }}
-                        whileTap={isTouchDevice ? undefined : { scale: 0.95 }}
-                      >
-                        <div className="font-black text-base mb-1 text-black group-hover:text-brand-primary transition-colors">
-                          {option.name}
-                        </div>
-                        {!option.is_leaf && (
-                          <div className="text-xs text-gray-500 font-bold">
-                            {option.room_count} 个房间
+                    {options.map((option) => {
+                      // 使用完整路径作为 key，确保唯一性
+                      // 避免不同层级间出现重复名称（如不同建筑都有"一楼"）
+                      const fullPath = [...selectedPath, option.name].join('/');
+                      
+                      return (
+                        <motion.button
+                          key={fullPath}
+                          onClick={() => handleSelectOption(option)}
+                          className="p-4 bg-white border-2 border-black hover:border-brand-primary hover:bg-brand-light transition-all duration-500 shadow-[4px_4px_0_0_#000] hover:shadow-[6px_6px_0_0_#000] text-left group"
+                          whileHover={isTouchDevice ? undefined : {
+                            y: -2,
+                            transition: { duration: 0.5, delay: 0.1 }
+                          }}
+                          whileTap={isTouchDevice ? undefined : { scale: 0.95 }}
+                        >
+                          <div className="font-black text-base mb-1 text-black group-hover:text-brand-primary transition-colors">
+                            {option.name}
                           </div>
-                        )}
-                      </motion.button>
-                    ))}
+                          {!option.is_leaf && (
+                            <div className="text-xs text-gray-500 font-bold">
+                              {option.room_count} 个房间
+                            </div>
+                          )}
+                        </motion.button>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -237,15 +243,14 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
                   </motion.div>
                 )}
 
-                {/* 最终预览（步骤5） */}
-                <AnimatePresence>
-                  {currentStep === 5 && finalRoom && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                    >
-                      <div className="relative border-4 border-black bg-linear-to-br from-yellow-200 via-yellow-100 to-white p-5 shadow-[6px_6px_0_0_#000] text-black">
+                {/* 最终预览（步骤5） - 移除嵌套的 AnimatePresence，由外层管理动画 */}
+                {currentStep === 5 && finalRoom && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <div className="relative border-4 border-black bg-linear-to-br from-yellow-200 via-yellow-100 to-white p-5 shadow-[6px_6px_0_0_#000] text-black">
                         <div className="absolute -top-3 -right-3 px-3 py-1 bg-brand-secondary border-2 border-black text-xs font-black uppercase tracking-[0.2em] shadow-[3px_3px_0_0_#000]">
                           READY!
                         </div>
@@ -275,9 +280,8 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
                           </div>
                         </div>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                  </motion.div>
+                )}
 
                 {/* 错误提示 - 包含重试按钮 */}
                 {(error || queryError) && (

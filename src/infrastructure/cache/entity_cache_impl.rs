@@ -309,8 +309,8 @@ mod tests {
         
         // 检查统计
         let stats = cache.stats();
-        assert_eq!(stats.l1_hits, 1);
-        assert_eq!(stats.l1_misses, 1);
-        assert_eq!(stats.loads, 1);
+        assert_eq!(stats.l1_hits, 1);  // 第二次请求命中
+        assert_eq!(stats.l1_misses, 1);  // 第一次请求未命中
+        assert_eq!(stats.loads, 2);  // 总请求数 = hits + misses
     }
 }

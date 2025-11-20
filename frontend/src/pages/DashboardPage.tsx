@@ -111,7 +111,7 @@ export default function DashboardPage() {
       
       return (
         <RoomCard
-          key={room.id}
+          key={room.bindingId}
           room={room}
           binding={binding}
           index={index}
