@@ -1,5 +1,6 @@
 //! 房间同步API处理器
 
+use std::sync::Arc;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -108,6 +109,7 @@ pub async fn trigger_sync(
         
         // 创建同步服务
         let sync_service = RoomSyncService::new(
+            Arc::new(db_pool.clone()),
             repository.clone(),
             fetcher,
             room_sync_cache,

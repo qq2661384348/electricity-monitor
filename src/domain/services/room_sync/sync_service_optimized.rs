@@ -6,16 +6,17 @@
 use std::sync::Arc;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use crate::domain::models::{NewRoom, NewRoomPath};
+use crate::domain::models::{NewRoom, NewRoomPath, RoomAggregate};
 use crate::domain::services::RoomSyncCache;
 use crate::errors::{AppError, Result};
 use crate::infrastructure::repositories::RoomRepository;
 use crate::utils::hash::calculate_roompath_hash;
 use crate::infrastructure::DbPool;
 
-use diesel_async::{AsyncPgConnection, AsyncConnection};
+use diesel::Connection;
+use diesel_async::{AsyncPgConnection, RunQueryDsl};
 
 use super::crawler::{RoomData, RoomFetcher};
 
@@ -75,7 +76,7 @@ impl SyncStats {
 }
 
 /// 房间更新操作
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct RoomUpdateOps {
     /// 房间ID
     roomid: i32,
@@ -105,78 +106,6 @@ pub struct RoomSyncService {
     
     /// 默认电费阈值
     default_threshold: f32,
-}
-
-/// 静态函数：执行房间更新操作（在事务中）
-/// 
-/// # 参数
-/// - `conn`: 数据库连接（事务中）
-/// - `ops`: 更新操作
-async fn execute_room_update_ops_static(
-    conn: &mut AsyncPgConnection,
-    ops: &RoomUpdateOps,
-) -> std::result::Result<(), diesel::result::Error> {
-    use crate::infrastructure::database::schema::{rooms, room_paths};
-    use diesel::prelude::*;
-    
-    // 1. 更新主路径（如果需要）
-    if let Some((ref new_path, hash)) = ops.new_primary_path {
-        diesel_async::RunQueryDsl::execute(
-            diesel::update(rooms::table)
-                .filter(rooms::roomid.eq(ops.roomid))
-                .set((
-                    rooms::primary_roompath.eq(new_path),
-                    rooms::primary_roompath_hash.eq(hash),
-                )),
-            conn
-        )
-        .await?;
-        
-        tracing::debug!("更新主路径: roomid={}", ops.roomid);
-    }
-    
-    // 2. 添加新路径
-    if !ops.paths_to_add.is_empty() {
-        diesel_async::RunQueryDsl::execute(
-            diesel::insert_into(room_paths::table)
-                .values(&ops.paths_to_add)
-                .on_conflict_do_nothing(),
-            conn
-        )
-        .await?;
-        
-        tracing::debug!("添加 {} 条新路径: roomid={}", ops.paths_to_add.len(), ops.roomid);
-    }
-    
-    // 3. 删除旧路径
-    for path in &ops.paths_to_remove {
-        diesel_async::RunQueryDsl::execute(
-            diesel::delete(room_paths::table)
-                .filter(room_paths::roomid.eq(ops.roomid))
-                .filter(room_paths::roompath.eq(path)),
-            conn
-        )
-        .await?;
-    }
-    
-    if !ops.paths_to_remove.is_empty() {
-        tracing::debug!("删除 {} 条旧路径: roomid={}", ops.paths_to_remove.len(), ops.roomid);
-    }
-    
-    // 4. 更新has_additional_paths标志
-    if let Some(has_additional) = ops.has_additional_paths {
-        diesel_async::RunQueryDsl::execute(
-            diesel::update(rooms::table)
-                .filter(rooms::roomid.eq(ops.roomid))
-                .set(rooms::has_additional_paths.eq(has_additional)),
-            conn
-        )
-        .await?;
-        
-        tracing::debug!("更新has_additional_paths: roomid={}, value={}", ops.roomid, has_additional);
-    }
-    
-    Ok(())
 }
 
 impl RoomSyncService {
@@ -309,7 +238,7 @@ impl RoomSyncService {
         let mut update_ops_batch = Vec::new();
         
         for room_data in &rooms_to_update {
-            match self.prepare_room_update_ops(room_data).await {
+            match self.prepare_room_update_ops(&room_data).await {
                 Ok(ops) => update_ops_batch.push(ops),
                 Err(e) => {
                     tracing::error!("准备更新操作失败: roomid={}, error={}", room_data.roomid, e);
@@ -322,9 +251,6 @@ impl RoomSyncService {
             return Ok((0, failed_count));
         }
         
-        // 保存批量操作数量
-        let batch_size = update_ops_batch.len();
-        
         // 执行批量事务更新
         let mut conn = self.db_pool.get().await
             .map_err(|e| AppError::Database(diesel::result::Error::DatabaseError(
@@ -335,13 +261,12 @@ impl RoomSyncService {
         // 开始事务
         let transaction_result = conn
             .transaction::<_, diesel::result::Error, _>(|conn| {
-                let ops_to_process = update_ops_batch.clone();
                 Box::pin(async move {
-                    for ops in &ops_to_process {
+                    for ops in &update_ops_batch {
                         // 执行单个房间的所有更新操作
-                        execute_room_update_ops_static(conn, ops).await?;
+                        self.execute_room_update_ops(conn, ops).await?;
                     }
-                    Ok(batch_size)
+                    Ok(update_ops_batch.len())
                 })
             })
             .await;
@@ -353,7 +278,7 @@ impl RoomSyncService {
             }
             Err(e) => {
                 tracing::error!("批量事务失败: {}", e);
-                failed_count += batch_size;
+                failed_count += update_ops_batch.len();
             }
         }
         
@@ -431,6 +356,71 @@ impl RoomSyncService {
         }
         
         Ok(ops)
+    }
+    
+    /// 执行房间更新操作（在事务中）
+    /// 
+    /// # 参数
+    /// - `conn`: 数据库连接（事务中）
+    /// - `ops`: 更新操作
+    async fn execute_room_update_ops(
+        &self,
+        conn: &mut AsyncPgConnection,
+        ops: &RoomUpdateOps,
+    ) -> Result<(), diesel::result::Error> {
+        use crate::infrastructure::database::schema::{rooms, room_paths};
+        use diesel::prelude::*;
+        
+        // 1. 更新主路径（如果需要）
+        if let Some((ref new_path, hash)) = ops.new_primary_path {
+            diesel::update(rooms::table)
+                .filter(rooms::roomid.eq(ops.roomid))
+                .set((
+                    rooms::primary_roompath.eq(new_path),
+                    rooms::primary_roompath_hash.eq(hash),
+                ))
+                .execute(conn)
+                .await?;
+            
+            tracing::debug!("更新主路径: roomid={}", ops.roomid);
+        }
+        
+        // 2. 添加新路径
+        if !ops.paths_to_add.is_empty() {
+            diesel::insert_into(room_paths::table)
+                .values(&ops.paths_to_add)
+                .on_conflict_do_nothing()
+                .execute(conn)
+                .await?;
+            
+            tracing::debug!("添加 {} 条新路径: roomid={}", ops.paths_to_add.len(), ops.roomid);
+        }
+        
+        // 3. 删除旧路径
+        for path in &ops.paths_to_remove {
+            diesel::delete(room_paths::table)
+                .filter(room_paths::roomid.eq(ops.roomid))
+                .filter(room_paths::roompath.eq(path))
+                .execute(conn)
+                .await?;
+        }
+        
+        if !ops.paths_to_remove.is_empty() {
+            tracing::debug!("删除 {} 条旧路径: roomid={}", ops.paths_to_remove.len(), ops.roomid);
+        }
+        
+        // 4. 更新has_additional_paths标志
+        if let Some(has_additional) = ops.has_additional_paths {
+            diesel::update(rooms::table)
+                .filter(rooms::roomid.eq(ops.roomid))
+                .set(rooms::has_additional_paths.eq(has_additional))
+                .execute(conn)
+                .await?;
+            
+            tracing::debug!("更新has_additional_paths: roomid={}, value={}", ops.roomid, has_additional);
+        }
+        
+        Ok(())
     }
     
     /// 检查房间是否需要更新

@@ -16,7 +16,7 @@ import type { ComicModalFooterProps } from './types';
 export function ComicModalFooter({
   children,
   className = '',
-}: ComicModalFooterProps) {
+}: Readonly<ComicModalFooterProps>) {
   return (
     <div className={`relative z-20 mt-6 flex gap-3 ${className}`}>
       {children}

@@ -15,7 +15,7 @@ import type { ComicModalBodyProps } from './types';
 export function ComicModalBody({
   children,
   className = '',
-}: ComicModalBodyProps) {
+}: Readonly<ComicModalBodyProps>) {
   return (
     <div className={`relative z-10 flex-1 overflow-y-auto pr-1 ${className}`}>
       {children}

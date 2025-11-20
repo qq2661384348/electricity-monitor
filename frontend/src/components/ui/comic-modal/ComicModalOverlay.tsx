@@ -18,7 +18,7 @@ import type { ComicModalOverlayProps } from './types';
 export function ComicModalOverlay({
   closeOnClick = true,
   className = '',
-}: ComicModalOverlayProps) {
+}: Readonly<ComicModalOverlayProps>) {
   const { onClose } = useComicModalContext();
 
   return (

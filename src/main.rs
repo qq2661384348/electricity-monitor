@@ -83,6 +83,7 @@ async fn main() -> anyhow::Result<()> {
             
             // 创建同步服务
             let sync_service = RoomSyncService::new(
+                Arc::new(db_pool.clone()),
                 Arc::new(room_repo.clone()),
                 fetcher,
                 room_sync_cache,

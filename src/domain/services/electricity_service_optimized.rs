@@ -46,7 +46,7 @@ pub struct ElectricityData {
 
 /// 批量处理统计
 #[derive(Debug, Default)]
-pub struct BatchStats {
+struct BatchStats {
     /// 处理的批次数
     pub batch_count: u64,
     /// 处理的总记录数

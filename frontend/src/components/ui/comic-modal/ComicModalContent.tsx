@@ -20,7 +20,7 @@ export function ComicModalContent({
   children,
   className = '',
   stopPropagation = true,
-}: ComicModalContentProps) {
+}: Readonly<ComicModalContentProps>) {
   const { size, decorations } = useComicModalContext();
 
   return (

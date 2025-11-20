@@ -23,7 +23,7 @@ export function ComicModalRoot({
   size = 'md',
   decorations = DEFAULT_DECORATIONS,
   children,
-}: ComicModalRootProps) {
+}: Readonly<ComicModalRootProps>) {
   const contextValue = useMemo(
     () => ({
       isOpen,

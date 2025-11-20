@@ -18,7 +18,7 @@ interface ComicModalPortalProps {
  * </ComicModalPortal>
  * ```
  */
-export function ComicModalPortal({ children }: ComicModalPortalProps) {
+export function ComicModalPortal({ children }: Readonly<ComicModalPortalProps>) {
   if (typeof document === 'undefined') {
     return null;
   }

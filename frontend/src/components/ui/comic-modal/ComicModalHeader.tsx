@@ -18,7 +18,7 @@ export function ComicModalHeader({
   children,
   showCloseButton = true,
   className = '',
-}: ComicModalHeaderProps) {
+}: Readonly<ComicModalHeaderProps>) {
   return (
     <div className={`relative z-20 mb-6 ${className}`}>
       {showCloseButton && <ComicModalClose />}

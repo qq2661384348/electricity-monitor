@@ -16,7 +16,7 @@ import type { ComicModalCloseProps } from './types';
 export function ComicModalClose({
   className = '',
   'aria-label': ariaLabel = '关闭',
-}: ComicModalCloseProps) {
+}: Readonly<ComicModalCloseProps>) {
   const { onClose } = useComicModalContext();
 
   return (

@@ -1,24 +1,63 @@
 //! 房间数据爬取器
 //!
 //! 负责从外部API获取房间数据，并实现1:N合并逻辑
+//! 支持并发处理以提升性能
 
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::sync::Arc;
+use futures::{stream, StreamExt, TryStreamExt};
+use tokio::sync::Semaphore;
 
 use super::client::RoomClient;
 use super::models::{ApiResponse, MergeStatistics, RoomComponent, RoomData, RoomInfo};
 use super::parser;
 
 /// 房间数据爬取器
+/// 
+/// 支持并发处理，通过Semaphore控制并发数
+#[derive(Clone)]
 pub struct RoomFetcher {
+    /// HTTP客户端
     client: Arc<RoomClient>,
+    /// 全局并发控制信号量
+    semaphore: Arc<Semaphore>,
+    /// 校区并发数
+    campus_concurrency: usize,
+    /// 建筑并发数
+    building_concurrency: usize,
 }
 
 impl RoomFetcher {
-    /// 创建新的爬取器实例
+    /// 创建新的爬取器实例（默认配置）
     pub fn new(client: Arc<RoomClient>) -> Self {
-        Self { client }
+        Self::with_config(
+            client,
+            20,  // 默认最大并发数
+            3,   // 默认校区并发数
+            10,  // 默认建筑并发数
+        )
+    }
+    
+    /// 创建带自定义配置的爬取器实例
+    /// 
+    /// # 参数
+    /// - `client`: HTTP客户端
+    /// - `max_concurrent`: 最大并发请求数
+    /// - `campus_concurrency`: 校区处理并发数
+    /// - `building_concurrency`: 建筑处理并发数
+    pub fn with_config(
+        client: Arc<RoomClient>,
+        max_concurrent: usize,
+        campus_concurrency: usize,
+        building_concurrency: usize,
+    ) -> Self {
+        Self {
+            client,
+            semaphore: Arc::new(Semaphore::new(max_concurrent)),
+            campus_concurrency,
+            building_concurrency,
+        }
     }
     
     /// 获取所有房间数据（已合并）
@@ -46,38 +85,44 @@ impl RoomFetcher {
             return Ok(Vec::new());
         }
         
-        // 2. Level 2-4: 顺序处理每个校区（避免服务器过载）
-        let mut all_rooms = Vec::new();
+        // 2. Level 2-4: 并发处理校区（通过信号量控制并发数）
+        let fetcher = self.clone();
         
-        for (idx, campus) in campuses.iter().enumerate() {
-            tracing::info!(
-                "→ 处理校区 {}/{}: {} (ID: {})",
-                idx + 1,
-                campuses.len(),
-                campus.dep_name,
-                campus.room_dep_id
-            );
-            
-            match self.fetch_campus_rooms(campus).await {
-                Ok(rooms) => {
+        let all_rooms: Vec<RoomInfo> = stream::iter(campuses)
+            .enumerate()
+            .map(move |(idx, campus)| {
+                let fetcher = fetcher.clone();
+                async move {
                     tracing::info!(
-                        "  ✓ 校区 \"{}\" 完成：获取到 {} 个房间",
+                        "→ 并发处理校区 {}: {} (ID: {})",
+                        idx + 1,
                         campus.dep_name,
-                        rooms.len()
+                        campus.room_dep_id
                     );
-                    all_rooms.extend(rooms);
+                    
+                    match fetcher.fetch_campus_rooms(&campus).await {
+                        Ok(rooms) => {
+                            tracing::info!(
+                                "  ✓ 校区 \"{}\" 完成：获取到 {} 个房间",
+                                campus.dep_name,
+                                rooms.len()
+                            );
+                            Ok::<Vec<RoomInfo>, anyhow::Error>(rooms)
+                        }
+                        Err(e) => {
+                            tracing::error!("  ✗ 校区 \"{}\" 失败: {:?}", campus.dep_name, e);
+                            // 继续处理其他校区（优雅降级）
+                            Ok::<Vec<RoomInfo>, anyhow::Error>(Vec::new())
+                        }
+                    }
                 }
-                Err(e) => {
-                    tracing::error!("  ✗ 校区 \"{}\" 失败: {:?}", campus.dep_name, e);
-                    // 继续处理其他校区（优雅降级）
-                }
-            }
-            
-            // ⭐ 避免过快请求，每个校区间延迟200ms
-            if idx + 1 < campuses.len() {
-                tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-            }
-        }
+            })
+            .buffer_unordered(self.campus_concurrency)
+            .try_fold(Vec::new(), |mut acc, rooms| async {
+                acc.extend(rooms);
+                Ok(acc)
+            })
+            .await?;
         
         tracing::info!("获取到 {} 条原始记录", all_rooms.len());
         
@@ -202,6 +247,8 @@ impl RoomFetcher {
     }
     
     /// 处理单个校区（获取其下所有房间）
+    /// 
+    /// 使用并发处理建筑，提升性能
     async fn fetch_campus_rooms(&self, campus: &RoomComponent) -> Result<Vec<RoomInfo>> {
         // Level 2: 获取建筑列表
         let buildings = self.fetch_buildings(&campus.room_dep_id).await?;
@@ -216,33 +263,54 @@ impl RoomFetcher {
             return Ok(Vec::new());
         }
         
-        // Level 3-4: 顺序处理每个建筑（避免过多并发）
-        let mut rooms = Vec::new();
+        // 并发处理建筑
+        let campus_name = campus.dep_name.clone();
+        let fetcher = self.clone();
         
-        for (idx, building) in buildings.iter().enumerate() {
-            tracing::debug!(
-                "    → 处理建筑 {}/{}: {} (ID: {})",
-                idx + 1,
-                buildings.len(),
-                building.dep_name,
-                building.room_dep_id
-            );
-            
-            match self.fetch_building_rooms(&campus.dep_name, building).await {
-                Ok(building_rooms) => {
-                    rooms.extend(building_rooms);
+        let rooms: Vec<RoomInfo> = stream::iter(buildings)
+            .map(|building| {
+                let fetcher = fetcher.clone();
+                let campus_name = campus_name.clone();
+                async move {
+                    // 获取信号量许可
+                    let _permit = fetcher.semaphore.acquire().await
+                        .map_err(|e| anyhow::anyhow!("获取信号量失败: {}", e))?;
+                    
+                    tracing::debug!(
+                        "    → 并发处理建筑: {} (ID: {})",
+                        building.dep_name,
+                        building.room_dep_id
+                    );
+                    
+                    match fetcher.fetch_building_rooms(&campus_name, &building).await {
+                        Ok(building_rooms) => {
+                            tracing::debug!(
+                                "    ✓ 建筑 \"{}\" 完成：{} 个房间",
+                                building.dep_name,
+                                building_rooms.len()
+                            );
+                            Ok(building_rooms)
+                        }
+                        Err(e) => {
+                            tracing::warn!("    ✗ 建筑处理失败: {:?}", e);
+                            // 返回空列表，继续处理其他建筑
+                            Ok::<Vec<RoomInfo>, anyhow::Error>(Vec::new())
+                        }
+                    }
                 }
-                Err(e) => {
-                    tracing::warn!("    ✗ 建筑处理失败: {:?}", e);
-                    // 继续处理其他建筑
-                }
-            }
-            
-            // ⭐ 避免过快请求，每个建筑间延迟100ms
-            if idx + 1 < buildings.len() {
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            }
-        }
+            })
+            .buffer_unordered(self.building_concurrency)
+            .try_fold(Vec::new(), |mut acc, rooms| async {
+                acc.extend(rooms);
+                Ok(acc)
+            })
+            .await?;
+        
+        tracing::debug!(
+            "  ✓ 校区 \"{}\" 完成：获取到 {} 个房间",
+            campus.dep_name,
+            rooms.len()
+        );
         
         Ok(rooms)
     }

@@ -46,7 +46,7 @@ export function ComicModal({
   showCloseButton = true,
   children,
   footer,
-}: ComicModalProps) {
+}: Readonly<ComicModalProps>) {
   return (
     <ComicModalRoot isOpen={isOpen} onClose={onClose} size={size} decorations={decorations}>
       <ComicModalPortal>
