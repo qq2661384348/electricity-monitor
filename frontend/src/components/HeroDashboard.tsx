@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, UserPlus, LogIn, Link2, Settings, Bell, ChevronDown, ChevronUp } from 'lucide-react';
+import { CopyableQQNumber } from './CopyableQQNumber';
 
 interface TutorialStep {
   id: number;
@@ -160,9 +161,7 @@ export function HeroDashboard() {
                       <span key={`${step.id}-desc-${i}`}>
                         {part}
                         {i < arr.length - 1 && step.highlight && (
-                          <span className="inline-block bg-brand-secondary px-2 py-1 md:px-3 md:py-1.5 border border-black font-black text-black mx-1 md:mx-1.5 text-sm md:text-base lg:text-lg">
-                            {step.highlight}
-                          </span>
+                          <CopyableQQNumber value={step.highlight} />
                         )}
                       </span>
                     ))}
