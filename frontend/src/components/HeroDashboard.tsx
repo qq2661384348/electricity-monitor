@@ -89,16 +89,11 @@ export function HeroDashboard() {
     >
       {/* 标题区域 */}
       <div className="text-center mb-6">
-        <div className="inline-block relative mb-4">
+        <div className="inline-block relative">
           <div className="absolute inset-0 bg-brand-secondary transform translate-x-2 translate-y-2 border-2 border-black" />
           <h2 className="relative bg-linear-to-br from-[#ffe173] to-[#ffd966] px-4 py-2 md:px-6 md:py-3 text-black border-4 border-black shadow-[4px_4px_0_0_#000] font-black text-xl md:text-2xl lg:text-3xl">
             🎓 面向校园宿舍场景的电费提醒系统
           </h2>
-        </div>
-        <div className="inline-block bg-white border-2 border-black px-3 py-1.5 md:px-4 md:py-2 shadow-[2px_2px_0_0_#000]">
-          <p className="font-bold text-xs md:text-sm lg:text-base">
-            📱 使用方法（仅支持QQ好友通知）
-          </p>
         </div>
       </div>
 
@@ -156,16 +151,16 @@ export function HeroDashboard() {
                     <div className="w-8 h-8 md:w-10 md:h-10 bg-brand-secondary border-2 border-black flex items-center justify-center shadow-[2px_2px_0_0_#000]">
                       {step.icon}
                     </div>
-                    <h3 className="font-black text-lg md:text-xl text-black">{step.title}</h3>
+                    <h3 className="font-black text-xl md:text-2xl lg:text-3xl text-black">{step.title}</h3>
                   </div>
 
                   {/* 描述 */}
-                  <p className="text-xs md:text-sm text-gray-700 font-bold mb-3 md:mb-4 leading-relaxed">
+                  <p className="text-sm md:text-base lg:text-lg text-gray-700 font-bold mb-3 md:mb-4 leading-relaxed">
                     {step.description.split(step.highlight || '').map((part, i, arr) => (
                       <span key={`${step.id}-desc-${i}`}>
                         {part}
                         {i < arr.length - 1 && step.highlight && (
-                          <span className="inline-block bg-brand-secondary px-1.5 py-0.5 md:px-2 border border-black font-black text-black mx-0.5 md:mx-1 text-xs md:text-sm">
+                          <span className="inline-block bg-brand-secondary px-1.5 py-0.5 md:px-2 border border-black font-black text-black mx-0.5 md:mx-1 text-sm md:text-base lg:text-lg">
                             {step.highlight}
                           </span>
                         )}
@@ -180,7 +175,6 @@ export function HeroDashboard() {
                         src={step.image}
                         alt={`步骤${step.id}示例`}
                         className="w-full h-auto object-cover"
-                        loading="lazy"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.style.display = 'none';
