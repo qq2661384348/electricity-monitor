@@ -156,7 +156,7 @@ export function HeroDashboard() {
                   </div>
 
                   {/* 描述 */}
-                  <p className="text-sm md:text-base lg:text-lg text-gray-700 font-bold mb-3 md:mb-4 leading-relaxed">
+                  <div className="text-sm md:text-base lg:text-lg text-gray-700 font-bold mb-3 md:mb-4 leading-relaxed">
                     {step.description.split(step.highlight || '').map((part, i, arr) => (
                       <span key={`${step.id}-desc-${i}`}>
                         {part}
@@ -165,7 +165,7 @@ export function HeroDashboard() {
                         )}
                       </span>
                     ))}
-                  </p>
+                  </div>
 
                   {/* 图片 */}
                   {step.image && (
