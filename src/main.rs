@@ -130,14 +130,20 @@ async fn main() -> anyhow::Result<()> {
             service_arc.clone(),
             config.electricity_fetcher.fetch_interval_minutes,
             config.electricity_fetcher.history_interval_hours,
+            config.electricity_fetcher.max_retries,
+            config.electricity_fetcher.retry_delay_seconds,
+            config.electricity_fetcher.retry_backoff_multiplier,
         )
         .await?;
         
         scheduler.start().await?;
         tracing::info!(
-            "Electricity Fetcher Service started (fetch: {}min, history: {}h)",
+            "Electricity Fetcher Service started (fetch: {}min, history: {}h, retries: {}, delay: {}s, backoff: {}x)",
             config.electricity_fetcher.fetch_interval_minutes,
-            config.electricity_fetcher.history_interval_hours
+            config.electricity_fetcher.history_interval_hours,
+            config.electricity_fetcher.max_retries,
+            config.electricity_fetcher.retry_delay_seconds,
+            config.electricity_fetcher.retry_backoff_multiplier
         );
         
         Some(service_arc)

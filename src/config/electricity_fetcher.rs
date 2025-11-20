@@ -15,6 +15,27 @@ pub struct ElectricityFetcherConfig {
     pub history_interval_hours: u64,
     /// 历史数据保留天数
     pub history_retention_days: i64,
+    /// 最大重试次数
+    #[serde(default = "default_max_retries")]
+    pub max_retries: u32,
+    /// 重试间隔（秒）
+    #[serde(default = "default_retry_delay_seconds")]
+    pub retry_delay_seconds: u64,
+    /// 重试退避倍数（指数退避）
+    #[serde(default = "default_retry_backoff_multiplier")]
+    pub retry_backoff_multiplier: f64,
+}
+
+fn default_max_retries() -> u32 {
+    2
+}
+
+fn default_retry_delay_seconds() -> u64 {
+    30
+}
+
+fn default_retry_backoff_multiplier() -> f64 {
+    2.0
 }
 
 impl Default for ElectricityFetcherConfig {
@@ -25,6 +46,9 @@ impl Default for ElectricityFetcherConfig {
             fetch_interval_minutes: 5,
             history_interval_hours: 1,
             history_retention_days: 8,
+            max_retries: 2,
+            retry_delay_seconds: 30,
+            retry_backoff_multiplier: 2.0,
         }
     }
 }
@@ -56,6 +80,11 @@ impl ElectricityFetcherConfig {
         // 验证保留天数
         if self.history_retention_days < 1 {
             return Err("history_retention_days必须至少为1天".to_string());
+        }
+        
+        // 验证重试配置
+        if self.retry_backoff_multiplier < 1.0 {
+            return Err("retry_backoff_multiplier必须大于等于1.0".to_string());
         }
         
         Ok(())

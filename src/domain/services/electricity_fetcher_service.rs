@@ -235,30 +235,65 @@ impl ElectricityFetcherService {
         service: Arc<ElectricityFetcherService>,
         fetch_interval_minutes: u64,
         history_interval_hours: u64,
+        max_retries: u32,
+        retry_delay_seconds: u64,
+        retry_backoff_multiplier: f64,
     ) -> Result<JobScheduler> {
         let scheduler = JobScheduler::new()
             .await
             .map_err(|e| crate::errors::AppError::Internal(format!("创建调度器失败: {}", e)))?;
 
-        // 任务1: 电费获取（每N分钟）
+        // 任务1: 电费获取（每N分钟）- 带重试逻辑
         let fetch_service = service.clone();
         let fetch_cron = format!("0 */{} * * * *", fetch_interval_minutes);
         let fetch_job = Job::new_async(fetch_cron.as_str(), move |_uuid, _lock| {
             let service = fetch_service.clone();
             Box::pin(async move {
                 tracing::info!("开始定时电费获取任务");
-                match service.run_fetch_task().await {
-                    Ok(stats) => {
-                        tracing::info!(
-                            success = stats.success_count,
-                            failure = stats.failure_count,
-                            updated = stats.updated_count,
-                            duration_ms = stats.duration_ms,
-                            "定时电费获取任务完成"
-                        );
-                    }
-                    Err(e) => {
-                        tracing::error!("定时电费获取任务失败: {}", e);
+                
+                let mut attempt = 0;
+                let mut delay = std::time::Duration::from_secs(retry_delay_seconds);
+                
+                loop {
+                    attempt += 1;
+                    
+                    match service.run_fetch_task().await {
+                        Ok(stats) => {
+                            tracing::info!(
+                                success = stats.success_count,
+                                failure = stats.failure_count,
+                                updated = stats.updated_count,
+                                duration_ms = stats.duration_ms,
+                                attempt = attempt,
+                                "定时电费获取任务完成"
+                            );
+                            break;
+                        }
+                        Err(e) => {
+                            if attempt > max_retries {
+                                tracing::error!(
+                                    error = %e,
+                                    attempts = attempt,
+                                    "定时电费获取任务失败，已达最大重试次数"
+                                );
+                                break;
+                            }
+                            
+                            tracing::warn!(
+                                error = %e,
+                                attempt = attempt,
+                                max_retries = max_retries,
+                                retry_delay_secs = delay.as_secs(),
+                                "定时电费获取任务失败，准备重试"
+                            );
+                            
+                            tokio::time::sleep(delay).await;
+                            
+                            // 指数退避
+                            delay = std::time::Duration::from_secs(
+                                (delay.as_secs() as f64 * retry_backoff_multiplier) as u64
+                            );
+                        }
                     }
                 }
             })
@@ -301,7 +336,10 @@ impl ElectricityFetcherService {
         tracing::info!(
             fetch_interval = fetch_interval_minutes,
             history_interval = history_interval_hours,
-            "电费获取定时任务已配置"
+            max_retries = max_retries,
+            retry_delay_seconds = retry_delay_seconds,
+            retry_backoff_multiplier = retry_backoff_multiplier,
+            "电费获取定时任务已配置（带重试机制）"
         );
 
         Ok(scheduler)
