@@ -28,11 +28,15 @@ impl MessageBuilder {
     /// 
     /// # 返回
     /// 格式化的预警消息文本
+    /// 
+    /// # 消息格式
+    /// - 使用 emoji 增强视觉层次
+    /// - 显示房间路径（primary_roompath）而非房间名称
+    /// - 不显示内部 roomid，提升用户体验
     pub fn build_electricity_alert_message(room: &Room) -> String {
         format!(
-            "【电量预警提醒】\n\n房间: {}\n房间ID: {}\n当前剩余电量: {:.2} kWh\n预警阈值: {:.2} kWh\n\n您的电量已低于预警阈值，请及时充值！",
-            room.room_name,
-            room.roomid,
+            "⚡ 【电量预警提醒】\n\n📍 房间位置: {}\n🔋 当前剩余: {:.2} kWh\n⚠️  预警阈值: {:.2} kWh\n\n💡 您的电量已低于预警阈值，请及时充值！",
+            room.primary_roompath,
             room.electricity_fee,
             room.threshold
         )
@@ -76,7 +80,7 @@ mod tests {
             send_flag: true,
             threshold: 10.0,
             room_name: "测试房间".to_string(),
-            primary_roompath: "测试/路径".to_string(),
+            primary_roompath: "南校区/1号楼/101".to_string(),
             primary_roompath_hash: 12345678,
             has_additional_paths: false,
             is_active: true,
@@ -88,10 +92,25 @@ mod tests {
         };
         
         let message = MessageBuilder::build_electricity_alert_message(&room);
-        assert!(message.contains("测试房间"));
-        assert!(message.contains("101"));
+        
+        // 检查 emoji 存在
+        assert!(message.contains("⚡"));
+        assert!(message.contains("📍"));
+        assert!(message.contains("🔋"));
+        assert!(message.contains("⚠️"));
+        assert!(message.contains("💡"));
+        
+        // 检查房间路径（而非房间名称）
+        assert!(message.contains("南校区/1号楼/101"));
+        assert!(!message.contains("测试房间")); // 不应该包含 room_name
+        
+        // 检查电量数据
         assert!(message.contains("5.50"));
         assert!(message.contains("10.00"));
+        
+        // 确认不显示 "roomid" 或 "房间ID" 字样
+        assert!(!message.contains("roomid"));
+        assert!(!message.contains("房间ID"));
     }
 
     #[test]
