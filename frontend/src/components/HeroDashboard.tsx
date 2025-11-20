@@ -89,7 +89,7 @@ export function HeroDashboard() {
     >
       {/* 标题区域 */}
       <div className="text-center mb-6">
-        <div className="inline-block relative">
+        <div className="inline-block relative mb-4">
           <div className="absolute inset-0 bg-brand-secondary transform translate-x-2 translate-y-2 border-2 border-black" />
           <h2 className="relative bg-linear-to-br from-[#ffe173] to-[#ffd966] px-4 py-2 md:px-6 md:py-3 text-black border-4 border-black shadow-[4px_4px_0_0_#000] font-black text-xl md:text-2xl lg:text-3xl">
             🎓 面向校园宿舍场景的电费提醒系统
@@ -160,7 +160,7 @@ export function HeroDashboard() {
                       <span key={`${step.id}-desc-${i}`}>
                         {part}
                         {i < arr.length - 1 && step.highlight && (
-                          <span className="inline-block bg-brand-secondary px-1.5 py-0.5 md:px-2 border border-black font-black text-black mx-0.5 md:mx-1 text-sm md:text-base lg:text-lg">
+                          <span className="inline-block bg-brand-secondary px-2 py-1 md:px-3 md:py-1.5 border border-black font-black text-black mx-1 md:mx-1.5 text-sm md:text-base lg:text-lg">
                             {step.highlight}
                           </span>
                         )}
