@@ -46,7 +46,6 @@ const tutorialSteps: TutorialStep[] = [
     title: '设置阈值',
     description: '开启通知并设定阈值（如100kWh），低于阈值时会通知',
     image: 'https://cdn4.winhlb.com/2025/11/20/691f2b1c42564.png',
-    highlight: '100kWh',
   },
   {
     id: 6,
