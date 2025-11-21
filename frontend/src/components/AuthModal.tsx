@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Zap } from 'lucide-react';
+import { AxiosError } from 'axios';
 import { authApi } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { getMarvelQuote } from '@/lib/utils';
@@ -52,19 +53,21 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
       setCountdown(60);
       setError('');
     } catch (err: unknown) {
-      // 识别特定错误类型
-      if (err && typeof err === 'object' && 'response' in err) {
-        const response = (err as { response?: { data?: { error?: string; message?: string; qq_bot?: string } } }).response;
-        if (response?.data?.error === 'USER_NOT_FRIEND') {
-          setError(`请先添加 ${response.data.qq_bot || '100000002'} 为QQ好友后再发送验证码`);
-        } else if (response?.data?.message) {
-          setError(response.data.message);
-        } else {
-          setError('发送失败，请稍后重试');
+      // 使用 AxiosError 类型进行错误处理
+      let errorMessage = '发送失败，请稍后重试';
+      
+      if (err instanceof AxiosError && err.response?.data) {
+        const data = err.response.data as { error?: string; message?: string; qq_bot?: string };
+        
+        if (data.error === 'USER_NOT_FRIEND') {
+          errorMessage = data.message || `请先添加 ${data.qq_bot || '100000002'} 为QQ好友后再发送验证码`;
+        } else if (data.message) {
+          errorMessage = data.message;
         }
-      } else {
-        setError('发送失败，请稍后重试');
       }
+      
+      setError(errorMessage);
+      console.error('验证码发送失败:', err);
     } finally {
       setIsLoading(false);
     }
