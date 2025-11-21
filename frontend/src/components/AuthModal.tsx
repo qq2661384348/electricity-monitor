@@ -32,6 +32,20 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     }
   }, [countdown]);
 
+  // 监听 error 状态变化
+  useEffect(() => {
+    console.log('=== Error 状态变化 ===');
+    console.log('error:', error);
+    console.log('error.length:', error.length);
+    console.log('Boolean(error):', Boolean(error));
+  }, [error]);
+
+  // 监听 isOpen 状态变化
+  useEffect(() => {
+    console.log('=== isOpen 状态变化 ===');
+    console.log('isOpen:', isOpen);
+  }, [isOpen]);
+
   // 点击发送验证码，先弹出算数验证码
   const handleSendCode = () => {
     if (!qqNumber || qqNumber.length < 5) {
@@ -155,7 +169,12 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/90 backdrop-blur-sm"
-              onClick={onClose}
+              onClick={() => {
+                // 当有错误时，不允许点击背景关闭，确保用户看到错误提示
+                if (!error) {
+                  onClose();
+                }
+              }}
             />
 
             {/* 模态框内容 - 漫画对话框风格 */}
