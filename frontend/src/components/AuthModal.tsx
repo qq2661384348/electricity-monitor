@@ -50,14 +50,12 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     
     // 类型检查
     if (!(err instanceof AxiosError)) {
-      console.warn('非 AxiosError 类型错误:', err);
       return DEFAULT_MESSAGE;
     }
     
     // 响应数据检查
     const data = err.response?.data;
     if (!data) {
-      console.warn('无响应数据');
       return DEFAULT_MESSAGE;
     }
     
@@ -65,19 +63,15 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     if (data.error === 'USER_NOT_FRIEND') {
       const message = data.message?.trim();
       const qqBot = data.qq_bot || '100000002';
-      const finalMessage = message || `请先添加 ${qqBot} 为QQ好友后再发送验证码`;
-      console.log('USER_NOT_FRIEND 错误:', finalMessage);
-      return finalMessage;
+      return message || `请先添加 ${qqBot} 为QQ好友后再发送验证码`;
     }
     
     // 通用错误处理
     const message = data.message?.trim();
     if (message) {
-      console.log('通用错误消息:', message);
       return message;
     }
     
-    console.warn('无有效错误消息');
     return DEFAULT_MESSAGE;
   };
 
@@ -100,9 +94,6 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
       
       // 设置错误状态
       setError(errorMessage);
-      
-      // 详细日志 - 已简化
-      console.error('=== 验证码发送失败 ===', err);
     } finally {
       setIsLoading(false);
     }
