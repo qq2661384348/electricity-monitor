@@ -246,7 +246,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
-                      className="bg-[#FACC15] text-black font-black px-4 py-3 border-4 border-black text-center text-base shadow-[4px_4px_0_0_#000]"
+                      className="bg-brand-secondary text-black font-black px-4 py-3 border-4 border-black text-center text-base shadow-[4px_4px_0_0_#000]"
                     >
                       {error.toUpperCase()}!
                     </motion.div>
