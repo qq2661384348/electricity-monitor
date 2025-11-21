@@ -67,17 +67,11 @@ impl VerificationCodeService {
         let code = self.generate_code();
         
         // 2. 通过QQ机器人发送验证码
+        // 直接使用 ? 操作符，让 From<NotificationError> trait 自动转换
+        // 这样可以保留 UserNotFriend 等特定错误类型，而不是强制转换为 Internal
         self.qq_client
             .send_verification_code(qq_number, &code)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    qq_number = qq_number,
-                    error = %e,
-                    "验证码发送失败"
-                );
-                AppError::Internal(format!("验证码发送失败: {}", e))
-            })?;
+            .await?;
         
         tracing::info!(
             qq_number = qq_number,
