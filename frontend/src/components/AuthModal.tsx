@@ -32,19 +32,8 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     }
   }, [countdown]);
 
-  // 监听 error 状态变化
-  useEffect(() => {
-    console.log('=== Error 状态变化 ===');
-    console.log('error:', error);
-    console.log('error.length:', error.length);
-    console.log('Boolean(error):', Boolean(error));
-  }, [error]);
-
-  // 监听 isOpen 状态变化
-  useEffect(() => {
-    console.log('=== isOpen 状态变化 ===');
-    console.log('isOpen:', isOpen);
-  }, [isOpen]);
+  // 监听 error 状态变化 - 已移除调试日志
+  // 监听 isOpen 状态变化 - 已移除调试日志
 
   // 点击发送验证码，先弹出算数验证码
   const handleSendCode = () => {
@@ -55,7 +44,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     setShowCaptcha(true);
   };
 
-  // 提取错误消息的辅助函数
+  // 提取错误消息的辅助函数 - 日志已简化
   const extractErrorMessage = (err: unknown): string => {
     const DEFAULT_MESSAGE = '发送失败，请稍后重试';
     
@@ -71,8 +60,6 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
       console.warn('无响应数据');
       return DEFAULT_MESSAGE;
     }
-    
-    console.log('=== 响应数据 ===', JSON.stringify(data, null, 2));
     
     // 特殊错误处理: USER_NOT_FRIEND
     if (data.error === 'USER_NOT_FRIEND') {
@@ -90,7 +77,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
       return message;
     }
     
-    console.warn('无有有效错误消息');
+    console.warn('无有效错误消息');
     return DEFAULT_MESSAGE;
   };
 
@@ -114,12 +101,8 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
       // 设置错误状态
       setError(errorMessage);
       
-      // 详细日志
-      console.error('=== 验证码发送失败 ===');
-      console.error('错误对象:', err);
-      console.error('提取的错误消息:', errorMessage);
-      console.error('错误消息长度:', errorMessage.length);
-      console.error('错误消息是否为 truthy:', Boolean(errorMessage));
+      // 详细日志 - 已简化
+      console.error('=== 验证码发送失败 ===', err);
     } finally {
       setIsLoading(false);
     }
@@ -263,7 +246,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
-                      className="bg-brand-danger text-white font-bold px-4 py-2 border-2 border-black text-center text-sm shadow-[2px_2px_0_0_#000]"
+                      className="bg-[#FACC15] text-black font-black px-4 py-3 border-4 border-black text-center text-base shadow-[4px_4px_0_0_#000]"
                     >
                       {error.toUpperCase()}!
                     </motion.div>
