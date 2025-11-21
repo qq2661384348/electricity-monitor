@@ -71,8 +71,13 @@ export default function LoginPage() {
       let errorMessage = '发送失败，请稍后重试';
       if (err instanceof AxiosError && err.response?.data) {
         const data = err.response.data as Record<string, unknown>;
-        if (typeof data.detail === 'string') {
+        // 识别 USER_NOT_FRIEND 错误
+        if (data.error === 'USER_NOT_FRIEND' && typeof data.message === 'string') {
+          errorMessage = data.message;
+        } else if (typeof data.detail === 'string') {
           errorMessage = data.detail;
+        } else if (typeof data.message === 'string') {
+          errorMessage = data.message;
         }
       }
       setError(errorMessage);

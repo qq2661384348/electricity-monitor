@@ -51,8 +51,20 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
       await authApi.sendVerificationCode(qqNumber, token);
       setCountdown(60);
       setError('');
-    } catch {
-      setError('发送失败，请稍后重试');
+    } catch (err: unknown) {
+      // 识别特定错误类型
+      if (err && typeof err === 'object' && 'response' in err) {
+        const response = (err as { response?: { data?: { error?: string; message?: string; qq_bot?: string } } }).response;
+        if (response?.data?.error === 'USER_NOT_FRIEND') {
+          setError(`请先添加 ${response.data.qq_bot || '100000002'} 为QQ好友后再发送验证码`);
+        } else if (response?.data?.message) {
+          setError(response.data.message);
+        } else {
+          setError('发送失败，请稍后重试');
+        }
+      } else {
+        setError('发送失败，请稍后重试');
+      }
     } finally {
       setIsLoading(false);
     }

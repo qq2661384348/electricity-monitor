@@ -116,6 +116,22 @@ impl QQClient {
                 message = ?api_response.message,
                 "QQ API返回错误"
             );
+            
+            // 特殊处理: retcode=200 且消息包含"无法获取用户信息" -> 用户未添加好友
+            if api_response.retcode == 200 {
+                if let Some(ref msg) = api_response.message {
+                    if msg.contains("无法获取用户信息") {
+                        tracing::warn!(
+                            user_id = user_id,
+                            "用户未添加机器人为好友"
+                        );
+                        return Err(NotificationError::UserNotFriend {
+                            qq_number: user_id.to_string(),
+                        });
+                    }
+                }
+            }
+            
             return Err(NotificationError::ApiError {
                 status: api_response.status.clone(),
                 retcode: api_response.retcode,

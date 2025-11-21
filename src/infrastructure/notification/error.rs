@@ -9,6 +9,12 @@ pub enum NotificationError {
     #[error("HTTP请求失败: {0}")]
     HttpError(#[from] reqwest::Error),
     
+    /// 用户未添加机器人为好友
+    #[error("用户 {qq_number} 未添加机器人为好友")]
+    UserNotFriend {
+        qq_number: String,
+    },
+    
     /// QQ机器人API返回错误
     #[error("QQ机器人API返回错误: status={status}, retcode={retcode}, message={message}")]
     ApiError {
