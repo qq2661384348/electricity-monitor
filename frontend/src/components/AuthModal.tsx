@@ -44,11 +44,10 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
   // 验证码验证成功后的回调
   const handleCaptchaSuccess = async (token: string) => {
     setIsLoading(true);
-    setError('');
 
     try {
       await authApi.sendVerificationCode(qqNumber, token);
-      // 只有成功时才关闭验证码模态框
+      // 只有成功时才关闭验证码模态框并清空错误
       setShowCaptcha(false);
       setCountdown(60);
       setError('');
