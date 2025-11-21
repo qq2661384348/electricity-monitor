@@ -41,6 +41,45 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     setShowCaptcha(true);
   };
 
+  // 提取错误消息的辅助函数
+  const extractErrorMessage = (err: unknown): string => {
+    const DEFAULT_MESSAGE = '发送失败，请稍后重试';
+    
+    // 类型检查
+    if (!(err instanceof AxiosError)) {
+      console.warn('非 AxiosError 类型错误:', err);
+      return DEFAULT_MESSAGE;
+    }
+    
+    // 响应数据检查
+    const data = err.response?.data;
+    if (!data) {
+      console.warn('无响应数据');
+      return DEFAULT_MESSAGE;
+    }
+    
+    console.log('=== 响应数据 ===', JSON.stringify(data, null, 2));
+    
+    // 特殊错误处理: USER_NOT_FRIEND
+    if (data.error === 'USER_NOT_FRIEND') {
+      const message = data.message?.trim();
+      const qqBot = data.qq_bot || '100000002';
+      const finalMessage = message || `请先添加 ${qqBot} 为QQ好友后再发送验证码`;
+      console.log('USER_NOT_FRIEND 错误:', finalMessage);
+      return finalMessage;
+    }
+    
+    // 通用错误处理
+    const message = data.message?.trim();
+    if (message) {
+      console.log('通用错误消息:', message);
+      return message;
+    }
+    
+    console.warn('无有有效错误消息');
+    return DEFAULT_MESSAGE;
+  };
+
   // 验证码验证成功后的回调
   const handleCaptchaSuccess = async (token: string) => {
     setIsLoading(true);
@@ -52,25 +91,21 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
       setCountdown(60);
       setError('');
     } catch (err: unknown) {
-      // 失败时关闭验证码模态框，但保留错误信息在 AuthModal 中显示
+      // 失败时关闭验证码模态框
       setShowCaptcha(false);
       
-      // 使用 AxiosError 类型进行错误处理
-      let errorMessage = '发送失败，请稍后重试';
+      // 提取错误消息
+      const errorMessage = extractErrorMessage(err);
       
-      if (err instanceof AxiosError && err.response?.data) {
-        const data = err.response.data as { error?: string; message?: string; qq_bot?: string };
-        
-        if (data.error === 'USER_NOT_FRIEND') {
-          errorMessage = data.message || `请先添加 ${data.qq_bot || '100000002'} 为QQ好友后再发送验证码`;
-        } else if (data.message) {
-          errorMessage = data.message;
-        }
-      }
-      
+      // 设置错误状态
       setError(errorMessage);
-      console.log('设置错误消息:', errorMessage);
-      console.error('验证码发送失败:', err);
+      
+      // 详细日志
+      console.error('=== 验证码发送失败 ===');
+      console.error('错误对象:', err);
+      console.error('提取的错误消息:', errorMessage);
+      console.error('错误消息长度:', errorMessage.length);
+      console.error('错误消息是否为 truthy:', Boolean(errorMessage));
     } finally {
       setIsLoading(false);
     }
