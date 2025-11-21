@@ -43,16 +43,19 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
 
   // 验证码验证成功后的回调
   const handleCaptchaSuccess = async (token: string) => {
-    setShowCaptcha(false);
-    
     setIsLoading(true);
     setError('');
 
     try {
       await authApi.sendVerificationCode(qqNumber, token);
+      // 只有成功时才关闭验证码模态框
+      setShowCaptcha(false);
       setCountdown(60);
       setError('');
     } catch (err: unknown) {
+      // 失败时关闭验证码模态框，但保留错误信息在 AuthModal 中显示
+      setShowCaptcha(false);
+      
       // 使用 AxiosError 类型进行错误处理
       let errorMessage = '发送失败，请稍后重试';
       
@@ -67,6 +70,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
       }
       
       setError(errorMessage);
+      console.log('设置错误消息:', errorMessage);
       console.error('验证码发送失败:', err);
     } finally {
       setIsLoading(false);
