@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 
 use super::{
     AdminConfig, DatabaseConfig, ElectricityFetcherConfig, NotificationConfig, QQBotConfig,
-    RateLimitConfig, RedisConfig, RoomSyncConfig, VerificationConfig,
+    RateLimitConfig, RedisConfig, RoomSyncConfig, StaticFilesConfig, VerificationConfig,
 };
 
 /// 服务器配置
@@ -86,6 +86,10 @@ pub struct AppConfig {
     /// 管理员配置
     #[serde(default)]
     pub admin: AdminConfig,
+    
+    /// 静态文件服务配置
+    #[serde(default)]
+    pub static_files: StaticFilesConfig,
 }
 
 /// 全局配置单例
@@ -184,6 +188,7 @@ mod tests {
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
             admin: AdminConfig::default(),
+            static_files: StaticFilesConfig::default(),
         };
 
         assert_eq!(config.server_addr(), "127.0.0.1:8000");

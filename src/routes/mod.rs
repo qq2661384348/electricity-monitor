@@ -1,6 +1,6 @@
 //! 路由定义
 //!
-//! 定义所有API路由
+//! 定义所有API路由和静态文件服务
 
 use axum::Router;
 use crate::state::AppState;
@@ -12,6 +12,9 @@ pub mod captcha;
 pub mod electricity_fetcher;
 pub mod room;
 pub mod room_sync;
+pub mod static_files;
+
+pub use static_files::create_static_service;
 
 /// 创建应用路由
 pub fn create_routes() -> Router<AppState> {

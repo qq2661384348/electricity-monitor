@@ -6,6 +6,11 @@ target/
 node_modules/
 frontend/node_modules/
 
+# 前端构建产物
+frontend/dist/
+static/*
+!static/.gitkeep
+
 # 开发临时文件
 todo
 

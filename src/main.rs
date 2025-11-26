@@ -9,7 +9,10 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 use axum::Router;
 use std::net::SocketAddr;
 use tower::ServiceBuilder;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::{
+    compression::CompressionLayer,
+    cors::{Any, CorsLayer},
+};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use std::sync::Arc;
@@ -22,7 +25,7 @@ use electricity_monitor_backend::{
     },
     infrastructure::{database::create_pool, redis::create_redis_pool, repositories::RoomRepository},
     middleware::logger::create_trace_layer,
-    routes::create_routes,
+    routes::{create_routes, create_static_service},
     state::AppState,
 };
 
@@ -333,21 +336,44 @@ fn spawn_background_services(state: AppState) {
 
 /// 创建Axum应用
 fn create_app(state: AppState) -> Router {
+    let config = AppConfig::global();
+    
     // CORS配置
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // 构建路由
-    Router::new()
+    // 构建基础路由（API）
+    let mut app = Router::new()
         .merge(create_routes())
-        .layer(
-            ServiceBuilder::new()
-                .layer(create_trace_layer())  // 日志跟踪
-                .layer(cors)                   // CORS
-        )
-        .with_state(state)
+        .with_state(state);
+    
+    // 如果启用静态文件服务，添加 fallback
+    if config.static_files.enabled {
+        if config.static_files.directory_exists() {
+            let static_service = create_static_service(&config.static_files);
+            app = app.fallback_service(static_service);
+            tracing::info!(
+                "Static file service enabled: directory={}, index={}",
+                config.static_files.directory,
+                config.static_files.index_file
+            );
+        } else {
+            tracing::warn!(
+                "Static file service enabled but directory '{}' does not exist, skipping",
+                config.static_files.directory
+            );
+        }
+    }
+    
+    // 添加全局中间件
+    app.layer(
+        ServiceBuilder::new()
+            .layer(CompressionLayer::new())    // Gzip/Brotli 压缩
+            .layer(create_trace_layer())       // 日志跟踪
+            .layer(cors)                       // CORS
+    )
 }
 
 /// 初始化日志追踪

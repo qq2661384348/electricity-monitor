@@ -12,7 +12,7 @@ axum = { version = "0.8", features = ["macros"] }
 tokio = { version = "1.45", features = ["full"] }
 tokio-cron-scheduler = "0.15.1"
 tower = { version = "0.5", features = ["full"] }
-tower-http = { version = "0.6", features = ["trace", "cors", "compression-full"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "compression-full", "fs", "set-header"] }
 
 # 数据库 - Diesel + diesel-async
 # 注意：开发环境仅启用postgres，需要mysql时取消注释mysql feature

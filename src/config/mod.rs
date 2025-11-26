@@ -11,6 +11,7 @@ pub mod qq_bot;
 pub mod rate_limit;
 pub mod redis;
 pub mod room_sync;
+pub mod static_files;
 pub mod verification;
 
 pub use admin::AdminConfig;
@@ -22,4 +23,5 @@ pub use qq_bot::QQBotConfig;
 pub use rate_limit::RateLimitConfig;
 pub use redis::RedisConfig;
 pub use room_sync::{CrawlerConfig, RoomSyncConfig};
+pub use static_files::StaticFilesConfig;
 pub use verification::VerificationConfig;

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:prod": "pnpm build && pnpm copy-static",
+    "copy-static": "node -e \"const fs=require('fs');const path=require('path');const src='dist';const dest='../static';fs.rmSync(dest,{recursive:true,force:true});fs.cpSync(src,dest,{recursive:true});console.log('Copied dist to static/')\"",
     "lint": "eslint .",
     "preview": "vite preview"
   },
