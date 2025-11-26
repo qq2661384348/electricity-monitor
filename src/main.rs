@@ -17,7 +17,7 @@ use std::sync::Arc;
 use electricity_monitor_backend::{
     config::AppConfig,
     domain::services::{
-        spawn_recovery_monitor, ElectricityFetcherService, ElectricityService,
+        spawn_recovery_monitor_persistent, ElectricityFetcherService, ElectricityService,
         NotificationGate, NotificationService, RateLimiter, RoomSyncCache,
     },
     infrastructure::{database::create_pool, redis::create_redis_pool, repositories::RoomRepository},
@@ -246,16 +246,33 @@ fn spawn_background_services(state: AppState) {
                 config.notification.debounce_period_secs
             );
             
-            // 启动房间恢复监控任务
-            let _recovery_monitor_handle = spawn_recovery_monitor(
-                room_repository.clone(),
-                notification_gate.clone(),
-                config.notification.recovery_monitor_interval_secs,
-            );
-            tracing::info!(
-                "Recovery monitor started (interval: {}s)",
-                config.notification.recovery_monitor_interval_secs
-            );
+            // 异步初始化：从数据库加载历史状态并启动监控任务
+            let gate_for_init = notification_gate.clone();
+            let binding_repo_for_init = binding_repository.clone();
+            let room_repo_for_init = room_repository.clone();
+            let recovery_interval = config.notification.recovery_monitor_interval_secs;
+            
+            tokio::spawn(async move {
+                // 从数据库加载历史通知状态（防止重启后重复通知）
+                if let Err(e) = gate_for_init.load_from_database(&binding_repo_for_init, &room_repo_for_init).await {
+                    tracing::error!("Failed to load notification history from database: {}", e);
+                    // 继续执行，不中断服务启动
+                } else {
+                    tracing::info!("Notification history loaded from database");
+                }
+                
+                // 启动房间恢复监控任务（带持久化）
+                let _recovery_monitor_handle = spawn_recovery_monitor_persistent(
+                    room_repo_for_init,
+                    binding_repo_for_init,
+                    gate_for_init,
+                    recovery_interval,
+                );
+                tracing::info!(
+                    "Recovery monitor started with persistence (interval: {}s)",
+                    recovery_interval
+                );
+            });
             
             // 创建通知服务
             let notification_service = NotificationService::new(

@@ -6,21 +6,25 @@
 //! 1. 防止向同一用户重复发送同一房间的通知
 //! 2. 实现1小时防抖观察期，避免电费抖动导致的重复通知
 //! 3. 自动清理已恢复超过观察期的房间状态
+//! 4. **持久化支持**: 通知状态持久化到数据库，重启后可恢复
 //! 
 //! # 设计理念
-//! - 纯内存实现，零数据库改动
+//! - 内存缓存 + 数据库持久化的混合模式
+//! - 启动时从数据库加载历史状态到内存
+//! - 写入时双写（内存 + 数据库）
 //! - 使用 RwLock 实现读写分离
-//! - RAII 风格，自动释放锁
 //! - 独立组件，可插拔设计
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::RwLock;
 use uuid::Uuid;
+use chrono::{NaiveDateTime, Utc};
 
 use crate::domain::models::Room;
-use crate::infrastructure::repositories::RoomRepository;
+use crate::errors::Result;
+use crate::infrastructure::repositories::{RoomRepository, UserRoomBindingRepository};
 
 /// 通知门控器
 /// 
@@ -28,33 +32,41 @@ use crate::infrastructure::repositories::RoomRepository;
 /// 1. 管理用户-房间级别的通知发送状态
 /// 2. 实现防抖观察期逻辑
 /// 3. 自动清理过期状态
+/// 4. 持久化状态到数据库，支持重启恢复
+/// 
+/// # 数据存储
+/// - **内存层**: `HashMap` 快速查询，启动时从数据库加载
+/// - **持久层**: 数据库字段 `user_room_bindings.last_notified_at` 和 `rooms.last_recovered_at`
 /// 
 /// # 示例
 /// ```ignore
 /// let gate = NotificationGate::new(Some(Duration::from_secs(3600)));
 /// 
+/// // 启动时加载历史状态
+/// gate.load_from_database(&binding_repo, &room_repo).await?;
+/// 
 /// // 检查是否应该发送通知
 /// if gate.should_notify(user_id, &room).await {
 ///     // 发送通知
 ///     send_notification(user_id, &room).await?;
-///     // 标记已发送
-///     gate.mark_notified(user_id, room.roomid).await;
+///     // 标记已发送（持久化）
+///     gate.mark_notified_persistent(user_id, room.roomid, &binding_repo).await?;
 /// }
 /// ```
 pub struct NotificationGate {
     /// (user_id, roomid) -> 最后通知时间
     /// 
     /// 记录每个用户对每个房间的最后一次通知时间
-    /// 用于防止重复发送通知
-    notification_history: Arc<RwLock<HashMap<(Uuid, i32), Instant>>>,
+    /// 使用 NaiveDateTime 支持持久化
+    notification_history: Arc<RwLock<HashMap<(Uuid, i32), NaiveDateTime>>>,
     
     /// roomid -> 电费恢复时间
     /// 
     /// 记录房间电费恢复到 >= threshold 的时间
-    /// 用于实现防抖观察期
-    room_recovery_time: Arc<RwLock<HashMap<i32, Instant>>>,
+    /// 使用 NaiveDateTime 支持持久化
+    room_recovery_time: Arc<RwLock<HashMap<i32, NaiveDateTime>>>,
     
-    /// 防抖观察期（秒）
+    /// 防抖观察期
     /// 
     /// 当房间电费恢复后，需要等待此时长才能重置通知状态
     /// 默认: 3600秒（1小时）
@@ -146,8 +158,9 @@ impl NotificationGate {
         
         match recovery_map.get(&roomid) {
             Some(recovery_time) => {
-                let elapsed = Instant::now().duration_since(*recovery_time);
-                elapsed >= self.debounce_period
+                let now = Utc::now().naive_utc();
+                let elapsed = now.signed_duration_since(*recovery_time);
+                elapsed >= chrono::Duration::from_std(self.debounce_period).unwrap_or(chrono::Duration::hours(1))
             }
             None => {
                 // 房间未记录恢复时间，说明仍在预警状态或刚恢复未被监控任务捕获
@@ -156,7 +169,7 @@ impl NotificationGate {
         }
     }
     
-    /// 标记已发送通知
+    /// 标记已发送通知（仅内存，不持久化）
     /// 
     /// # 参数
     /// - `user_id`: 用户UUID
@@ -164,27 +177,60 @@ impl NotificationGate {
     /// 
     /// # 说明
     /// 在成功发送通知后调用此方法，记录发送时间
-    /// 
-    /// # 示例
-    /// ```ignore
-    /// // 发送通知
-    /// send_notification(user_id, &room).await?;
-    /// 
-    /// // 标记已发送
-    /// gate.mark_notified(user_id, room.roomid).await;
-    /// ```
+    /// **注意**: 此方法仅更新内存，不持久化到数据库
+    /// 如需持久化，请使用 `mark_notified_persistent` 方法
     pub async fn mark_notified(&self, user_id: Uuid, roomid: i32) {
+        let now = Utc::now().naive_utc();
         let mut history = self.notification_history.write().await;
-        history.insert((user_id, roomid), Instant::now());
+        history.insert((user_id, roomid), now);
         
         tracing::debug!(
             user_id = %user_id,
             roomid = roomid,
-            "标记通知已发送"
+            "标记通知已发送（仅内存）"
         );
     }
     
-    /// 更新房间恢复状态
+    /// 标记已发送通知并持久化到数据库
+    /// 
+    /// # 参数
+    /// - `user_id`: 用户UUID
+    /// - `roomid`: 房间业务ID
+    /// - `binding_repo`: 绑定仓储（用于持久化）
+    /// 
+    /// # 返回
+    /// 成功时返回 Ok(())，失败时返回错误
+    /// 
+    /// # 说明
+    /// 双写模式：同时更新内存和数据库，确保重启后状态可恢复
+    pub async fn mark_notified_persistent(
+        &self,
+        user_id: Uuid,
+        roomid: i32,
+        binding_repo: &UserRoomBindingRepository,
+    ) -> Result<()> {
+        let now = Utc::now().naive_utc();
+        
+        // 1. 更新内存
+        {
+            let mut history = self.notification_history.write().await;
+            history.insert((user_id, roomid), now);
+        }
+        
+        // 2. 持久化到数据库
+        binding_repo.update_last_notified(user_id, roomid, now).await?;
+        
+        tracing::debug!(
+            user_id = %user_id,
+            roomid = roomid,
+            time = %now,
+            "标记通知已发送（已持久化）"
+        );
+        
+        Ok(())
+    }
+    
+    /// 更新房间恢复状态（仅内存，不持久化）
     /// 
     /// # 参数
     /// - `recovering_rooms`: 电费已恢复（>= threshold）的房间列表
@@ -192,18 +238,14 @@ impl NotificationGate {
     /// # 说明
     /// 由监控任务定期调用，更新房间恢复时间
     /// 仅在首次恢复时记录时间，避免重复更新
-    /// 
-    /// # 工作流程
-    /// 1. 遍历恢复的房间列表
-    /// 2. 对每个房间，如果未记录恢复时间，则记录当前时间
-    /// 3. 如果已记录恢复时间，保持不变（避免重复更新）
+    /// **注意**: 此方法仅更新内存，如需持久化请使用 `update_recovery_state_persistent`
     pub async fn update_recovery_state(&self, recovering_rooms: &[Room]) {
         if recovering_rooms.is_empty() {
             return;
         }
         
         let mut recovery_map = self.room_recovery_time.write().await;
-        let now = Instant::now();
+        let now = Utc::now().naive_utc();
         let mut new_recoveries = 0;
         
         for room in recovering_rooms {
@@ -214,7 +256,7 @@ impl NotificationGate {
                 tracing::debug!(
                     roomid = room.roomid,
                     room_name = &room.room_name,
-                    "记录房间恢复时间"
+                    "记录房间恢复时间（仅内存）"
                 );
             }
         }
@@ -228,7 +270,62 @@ impl NotificationGate {
         }
     }
     
-    /// 清理已恢复超过观察期的房间状态
+    /// 更新房间恢复状态并持久化到数据库
+    /// 
+    /// # 参数
+    /// - `recovering_rooms`: 电费已恢复（>= threshold）的房间列表
+    /// - `room_repo`: 房间仓储（用于持久化）
+    /// 
+    /// # 返回
+    /// 成功时返回 Ok(())，失败时返回错误
+    /// 
+    /// # 说明
+    /// 双写模式：同时更新内存和数据库，确保重启后状态可恢复
+    pub async fn update_recovery_state_persistent(
+        &self,
+        recovering_rooms: &[Room],
+        room_repo: &RoomRepository,
+    ) -> Result<()> {
+        if recovering_rooms.is_empty() {
+            return Ok(());
+        }
+        
+        let now = Utc::now().naive_utc();
+        let mut new_recoveries = Vec::new();
+        
+        // 1. 更新内存并记录新恢复的房间
+        {
+            let mut recovery_map = self.room_recovery_time.write().await;
+            for room in recovering_rooms {
+                // 仅在首次恢复时记录时间
+                if recovery_map.insert(room.roomid, now).is_none() {
+                    new_recoveries.push(room.roomid);
+                    
+                    tracing::debug!(
+                        roomid = room.roomid,
+                        room_name = &room.room_name,
+                        "记录房间恢复时间"
+                    );
+                }
+            }
+        }
+        
+        // 2. 持久化新恢复的房间到数据库
+        for roomid in &new_recoveries {
+            room_repo.update_last_recovered(*roomid, now).await?;
+        }
+        
+        if !new_recoveries.is_empty() {
+            tracing::info!(
+                new_recoveries = new_recoveries.len(),
+                "更新房间恢复状态（已持久化）"
+            );
+        }
+        
+        Ok(())
+    }
+    
+    /// 清理已恢复超过观察期的房间状态（仅内存）
     /// 
     /// # 返回
     /// 清理的通知记录数量
@@ -242,7 +339,9 @@ impl NotificationGate {
     /// 由定期清理任务调用，防止内存泄漏
     /// 清理后，这些房间的通知状态将重置，允许新一轮通知
     pub async fn cleanup_recovered(&self) -> usize {
-        let now = Instant::now();
+        let now = Utc::now().naive_utc();
+        let debounce_chrono = chrono::Duration::from_std(self.debounce_period)
+            .unwrap_or(chrono::Duration::hours(1));
         let mut cleaned_count = 0;
         
         // 1. 找出已过观察期的房间
@@ -250,7 +349,7 @@ impl NotificationGate {
         let expired_rooms: Vec<i32> = recovery_map
             .iter()
             .filter(|(_, recovery_time)| {
-                now.duration_since(**recovery_time) >= self.debounce_period
+                now.signed_duration_since(**recovery_time) >= debounce_chrono
             })
             .map(|(roomid, _)| *roomid)
             .collect();
@@ -285,6 +384,68 @@ impl NotificationGate {
         cleaned_count
     }
     
+    /// 清理已恢复超过观察期的房间状态并持久化
+    /// 
+    /// # 参数
+    /// - `binding_repo`: 绑定仓储（用于清理通知历史）
+    /// - `room_repo`: 房间仓储（用于清理恢复时间）
+    /// 
+    /// # 返回
+    /// 清理的房间数量
+    pub async fn cleanup_recovered_persistent(
+        &self,
+        binding_repo: &UserRoomBindingRepository,
+        room_repo: &RoomRepository,
+    ) -> Result<usize> {
+        let now = Utc::now().naive_utc();
+        let debounce_chrono = chrono::Duration::from_std(self.debounce_period)
+            .unwrap_or(chrono::Duration::hours(1));
+        
+        // 1. 找出已过观察期的房间
+        let expired_rooms: Vec<i32>;
+        {
+            let recovery_map = self.room_recovery_time.read().await;
+            expired_rooms = recovery_map
+                .iter()
+                .filter(|(_, recovery_time)| {
+                    now.signed_duration_since(**recovery_time) >= debounce_chrono
+                })
+                .map(|(roomid, _)| *roomid)
+                .collect();
+        }
+        
+        if expired_rooms.is_empty() {
+            return Ok(0);
+        }
+        
+        // 2. 清除内存中的通知历史和恢复记录
+        {
+            let mut recovery_map = self.room_recovery_time.write().await;
+            let mut history = self.notification_history.write().await;
+            
+            history.retain(|(_, roomid), _| !expired_rooms.contains(roomid));
+            
+            for roomid in &expired_rooms {
+                recovery_map.remove(roomid);
+            }
+        }
+        
+        // 3. 持久化清理到数据库
+        for roomid in &expired_rooms {
+            // 重置所有用户的通知时间
+            binding_repo.reset_last_notified_by_roomid(*roomid).await?;
+            // 重置房间恢复时间
+            room_repo.reset_last_recovered(*roomid).await?;
+        }
+        
+        tracing::info!(
+            expired_rooms = expired_rooms.len(),
+            "清理已恢复房间的通知状态（已持久化）"
+        );
+        
+        Ok(expired_rooms.len())
+    }
+    
     /// 获取当前状态统计（用于监控和调试）
     /// 
     /// # 返回
@@ -294,6 +455,56 @@ impl NotificationGate {
         let recovery = self.room_recovery_time.read().await;
         
         (history.len(), recovery.len())
+    }
+    
+    // ==================== 持久化加载方法 ====================
+    
+    /// 从数据库加载历史状态
+    /// 
+    /// # 参数
+    /// - `binding_repo`: 绑定仓储（用于加载通知历史）
+    /// - `room_repo`: 房间仓储（用于加载恢复时间）
+    /// 
+    /// # 返回
+    /// 成功时返回 Ok(())，失败时返回错误
+    /// 
+    /// # 说明
+    /// 服务器启动时调用此方法，从数据库恢复历史状态到内存
+    /// 这确保了重启后通知状态不会丢失
+    pub async fn load_from_database(
+        &self,
+        binding_repo: &UserRoomBindingRepository,
+        room_repo: &RoomRepository,
+    ) -> Result<()> {
+        // 1. 加载通知历史
+        let notification_records = binding_repo.find_all_with_notification_history().await?;
+        let notification_count = notification_records.len();
+        
+        {
+            let mut history = self.notification_history.write().await;
+            for (user_id, roomid, time) in notification_records {
+                history.insert((user_id, roomid), time);
+            }
+        }
+        
+        // 2. 加载房间恢复时间
+        let recovery_records = room_repo.find_all_with_recovery_time().await?;
+        let recovery_count = recovery_records.len();
+        
+        {
+            let mut recovery_map = self.room_recovery_time.write().await;
+            for (roomid, time) in recovery_records {
+                recovery_map.insert(roomid, time);
+            }
+        }
+        
+        tracing::info!(
+            notification_history = notification_count,
+            recovery_rooms = recovery_count,
+            "从数据库加载通知门控状态完成"
+        );
+        
+        Ok(())
     }
 }
 
@@ -318,6 +529,7 @@ mod tests {
             is_active: true,
             external_id: None,
             last_synced_at: None,
+            last_recovered_at: None,
             created_at: chrono::Utc::now().naive_utc(),
             updated_at: chrono::Utc::now().naive_utc(),
         }
@@ -429,15 +641,16 @@ mod tests {
     }
 }
 
-/// 启动房间恢复状态监控任务
+/// 启动房间恢复状态监控任务（带持久化）
 /// 
 /// # 职责
 /// 1. 定期查询电费已恢复（>= threshold）的房间
-/// 2. 更新 NotificationGate 的恢复时间记录
-/// 3. 定期清理已过观察期的状态
+/// 2. 更新 NotificationGate 的恢复时间记录（持久化到数据库）
+/// 3. 定期清理已过观察期的状态（持久化清理）
 /// 
 /// # 参数
-/// - `room_repo`: 房间仓储（用于查询恢复状态）
+/// - `room_repo`: 房间仓储（用于查询恢复状态和持久化）
+/// - `binding_repo`: 绑定仓储（用于持久化通知历史清理）
 /// - `gate`: 通知门控器
 /// - `interval_secs`: 监控间隔（秒），默认300秒（5分钟）
 /// 
@@ -447,8 +660,8 @@ mod tests {
 /// # 工作流程
 /// 1. 每隔 interval_secs 秒执行一次
 /// 2. 查询所有电费 >= threshold 的房间
-/// 3. 调用 gate.update_recovery_state() 更新恢复状态
-/// 4. 调用 gate.cleanup_recovered() 清理过期状态
+/// 3. 调用 gate.update_recovery_state_persistent() 更新恢复状态并持久化
+/// 4. 调用 gate.cleanup_recovered_persistent() 清理过期状态并持久化
 /// 
 /// # 错误处理
 /// - 查询失败会记录错误日志，但不会导致任务退出
@@ -459,17 +672,19 @@ mod tests {
 /// use std::sync::Arc;
 /// use tokio::time::Duration;
 /// 
-/// let room_repo = RoomRepository::new(db_pool);
+/// let room_repo = RoomRepository::new(db_pool.clone());
+/// let binding_repo = UserRoomBindingRepository::new(db_pool);
 /// let gate = Arc::new(NotificationGate::new(None));
 /// 
-/// // 启动监控任务（每5分钟）
-/// let handle = spawn_recovery_monitor(room_repo, gate, 300);
+/// // 启动监控任务（每5分钟，带持久化）
+/// let handle = spawn_recovery_monitor_persistent(room_repo, binding_repo, gate, 300);
 /// 
 /// // 需要停止时
 /// handle.abort();
 /// ```
-pub fn spawn_recovery_monitor(
+pub fn spawn_recovery_monitor_persistent(
     room_repo: RoomRepository,
+    binding_repo: UserRoomBindingRepository,
     gate: Arc<NotificationGate>,
     interval_secs: u64,
 ) -> tokio::task::JoinHandle<()> {
@@ -478,7 +693,7 @@ pub fn spawn_recovery_monitor(
         
         tracing::info!(
             interval_secs = interval_secs,
-            "房间恢复监控任务已启动"
+            "房间恢复监控任务已启动（带持久化）"
         );
         
         loop {
@@ -493,8 +708,13 @@ pub fn spawn_recovery_monitor(
                             "检测到恢复中的房间"
                         );
                         
-                        // 2. 更新恢复状态
-                        gate.update_recovery_state(&recovering_rooms).await;
+                        // 2. 更新恢复状态（持久化）
+                        if let Err(e) = gate.update_recovery_state_persistent(&recovering_rooms, &room_repo).await {
+                            tracing::error!(
+                                "更新房间恢复状态失败: {}",
+                                e
+                            );
+                        }
                     }
                 }
                 Err(e) => {
@@ -506,7 +726,77 @@ pub fn spawn_recovery_monitor(
                 }
             }
             
-            // 3. 清理已过观察期的状态
+            // 3. 清理已过观察期的状态（持久化）
+            match gate.cleanup_recovered_persistent(&binding_repo, &room_repo).await {
+                Ok(cleaned) if cleaned > 0 => {
+                    tracing::info!(
+                        cleaned = cleaned,
+                        "清理了已恢复房间的通知状态（已持久化）"
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "清理过期状态失败: {}",
+                        e
+                    );
+                }
+                _ => {}
+            }
+            
+            // 4. 记录状态统计（用于监控）
+            let (history_count, recovery_count) = gate.stats().await;
+            tracing::debug!(
+                notification_history = history_count,
+                recovering_rooms = recovery_count,
+                "通知门控状态统计"
+            );
+        }
+    })
+}
+
+/// 启动房间恢复状态监控任务（仅内存，兼容旧版本）
+/// 
+/// # 说明
+/// 此版本不持久化状态，仅用于兼容或测试场景
+/// 生产环境建议使用 `spawn_recovery_monitor_persistent`
+pub fn spawn_recovery_monitor(
+    room_repo: RoomRepository,
+    gate: Arc<NotificationGate>,
+    interval_secs: u64,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
+        
+        tracing::info!(
+            interval_secs = interval_secs,
+            "房间恢复监控任务已启动（仅内存）"
+        );
+        
+        loop {
+            interval.tick().await;
+            
+            // 1. 查询已恢复的房间（电费 >= 阈值）
+            match room_repo.find_rooms_recovering().await {
+                Ok(recovering_rooms) => {
+                    if !recovering_rooms.is_empty() {
+                        tracing::debug!(
+                            count = recovering_rooms.len(),
+                            "检测到恢复中的房间"
+                        );
+                        
+                        // 2. 更新恢复状态（仅内存）
+                        gate.update_recovery_state(&recovering_rooms).await;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "查询恢复中的房间失败: {}",
+                        e
+                    );
+                }
+            }
+            
+            // 3. 清理已过观察期的状态（仅内存）
             let cleaned = gate.cleanup_recovered().await;
             if cleaned > 0 {
                 tracing::info!(
@@ -515,7 +805,7 @@ pub fn spawn_recovery_monitor(
                 );
             }
             
-            // 4. 记录状态统计（用于监控）
+            // 4. 记录状态统计
             let (history_count, recovery_count) = gate.stats().await;
             tracing::debug!(
                 notification_history = history_count,

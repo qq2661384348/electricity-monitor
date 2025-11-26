@@ -58,6 +58,13 @@ pub struct Room {
     
     /// 最后同步时间
     pub last_synced_at: Option<NaiveDateTime>,
+    
+    /// 最后恢复时间（电费恢复到阈值以上的时间）
+    /// 
+    /// 用于通知防抖逻辑，记录房间电费恢复到阈值以上的时间点。
+    /// 当房间电费恢复后，需要等待防抖观察期才能重置通知状态。
+    /// 服务器重启后可从数据库恢复此状态。
+    pub last_recovered_at: Option<NaiveDateTime>,
 }
 
 /// 创建新房间的DTO
@@ -107,6 +114,10 @@ pub struct NewRoom {
     /// 最后同步时间（创建时不需要）
     #[serde(default)]
     pub last_synced_at: Option<NaiveDateTime>,
+    
+    /// 最后恢复时间（创建时不需要）
+    #[serde(default)]
+    pub last_recovered_at: Option<NaiveDateTime>,
 }
 
 // === 默认值函数 ===
@@ -155,4 +166,15 @@ impl Default for ResetSendFlag {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// 更新最后恢复时间DTO
+/// 
+/// 用于在房间电费恢复到阈值以上时更新恢复时间，
+/// 实现防抖状态的持久化存储。
+#[derive(Debug, Clone, AsChangeset)]
+#[diesel(table_name = rooms)]
+pub struct UpdateLastRecovered {
+    /// 最后恢复时间
+    pub last_recovered_at: Option<NaiveDateTime>,
 }

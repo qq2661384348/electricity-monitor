@@ -18,7 +18,7 @@ pub mod verification_code;
 pub use electricity_fetcher_service::{ElectricityFetcherService, FetchStatistics};
 pub use electricity_service::{ElectricityData, ElectricityService};
 pub use notification_cache::{CacheStats, NotificationCache};
-pub use notification_gate::{spawn_recovery_monitor, NotificationGate};
+pub use notification_gate::{spawn_recovery_monitor, spawn_recovery_monitor_persistent, NotificationGate};
 pub use notification_service::{NotificationService, NotificationStats};
 pub use rate_limiter::{RateLimiter, RateLimitOperation};
 pub use room_path_tree::{PathChildNode, RoomPathTree};

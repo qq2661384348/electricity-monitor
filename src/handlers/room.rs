@@ -140,6 +140,7 @@ pub async fn create_room(
         source_type: "manual".to_string(),
         external_id: None,
         last_synced_at: None,
+        last_recovered_at: None,
     };
 
     let room = repository.create(new_room).await?;

@@ -6,9 +6,10 @@ use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use uuid::Uuid;
 
+use chrono::NaiveDateTime;
 use crate::domain::models::{
     NewRoom, NewRoomPath, ResetSendFlag, Room, RoomAggregate, RoomPath,
-    UpdateElectricityFee, UpdateThreshold,
+    UpdateElectricityFee, UpdateLastRecovered, UpdateThreshold,
 };
 use crate::errors::{AppError, Result};
 use crate::infrastructure::database::schema::{room_paths, rooms};
@@ -810,6 +811,121 @@ impl RoomRepository {
             .await
             .map_err(AppError::Database)
     }
+
+    // ==================== 恢复时间持久化方法 ====================
+
+    /// 更新房间的最后恢复时间
+    /// 
+    /// # 参数
+    /// - `roomid`: 房间业务ID
+    /// - `time`: 恢复时间
+    /// 
+    /// # 返回
+    /// 更新的行数
+    /// 
+    /// # 说明
+    /// 用于在房间电费恢复到阈值以上时持久化恢复时间，
+    /// 防止服务器重启后防抖观察期逻辑失效
+    pub async fn update_last_recovered(
+        &self,
+        roomid: i32,
+        time: NaiveDateTime,
+    ) -> Result<usize> {
+        let mut conn = self.get_conn().await?;
+
+        let update = UpdateLastRecovered {
+            last_recovered_at: Some(time),
+        };
+
+        let affected_rows = diesel::update(
+            rooms::table.filter(rooms::roomid.eq(roomid))
+        )
+        .set(&update)
+        .execute(&mut conn)
+        .await
+        .map_err(AppError::Database)?;
+
+        if affected_rows > 0 {
+            tracing::debug!(
+                roomid = roomid,
+                time = %time,
+                "更新房间恢复时间成功"
+            );
+        }
+
+        Ok(affected_rows)
+    }
+
+    /// 重置房间的最后恢复时间（设为NULL）
+    /// 
+    /// # 参数
+    /// - `roomid`: 房间业务ID
+    /// 
+    /// # 返回
+    /// 更新的行数
+    /// 
+    /// # 说明
+    /// 用于在房间恢复观察期结束后重置状态
+    pub async fn reset_last_recovered(&self, roomid: i32) -> Result<usize> {
+        let mut conn = self.get_conn().await?;
+
+        let update = UpdateLastRecovered {
+            last_recovered_at: None,
+        };
+
+        let affected_rows = diesel::update(
+            rooms::table.filter(rooms::roomid.eq(roomid))
+        )
+        .set(&update)
+        .execute(&mut conn)
+        .await
+        .map_err(AppError::Database)?;
+
+        if affected_rows > 0 {
+            tracing::debug!(
+                roomid = roomid,
+                "重置房间恢复时间成功"
+            );
+        }
+
+        Ok(affected_rows)
+    }
+
+    /// 加载所有有恢复时间记录的房间
+    /// 
+    /// # 返回
+    /// 包含 `(roomid, last_recovered_at)` 的元组列表
+    /// 
+    /// # 说明
+    /// 用于服务器启动时从数据库恢复房间恢复时间状态到内存
+    pub async fn find_all_with_recovery_time(&self) -> Result<Vec<(i32, NaiveDateTime)>> {
+        let mut conn = self.get_conn().await?;
+
+        let results: Vec<(i32, Option<NaiveDateTime>)> = rooms::table
+            .filter(rooms::last_recovered_at.is_not_null())
+            .select((
+                rooms::roomid,
+                rooms::last_recovered_at,
+            ))
+            .load(&mut conn)
+            .await
+            .map_err(AppError::Database)?;
+
+        // 过滤掉 None 值
+        let filtered: Vec<(i32, NaiveDateTime)> = results
+            .into_iter()
+            .filter_map(|(roomid, time_opt)| {
+                time_opt.map(|time| (roomid, time))
+            })
+            .collect();
+
+        tracing::info!(
+            count = filtered.len(),
+            "加载房间恢复时间记录"
+        );
+
+        Ok(filtered)
+    }
 }
 
 #[cfg(test)]
@@ -851,6 +967,7 @@ mod tests {
             source_type: "test".to_string(),
             external_id: None,
             last_synced_at: None,
+            last_recovered_at: None,
         };
 
         let result = repo.create(new_room).await;

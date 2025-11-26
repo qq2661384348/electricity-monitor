@@ -72,6 +72,7 @@ mod tests {
             source_type: "manual".to_string(),
             external_id: None,
             last_synced_at: None,
+            last_recovered_at: None,
         }
     }
 

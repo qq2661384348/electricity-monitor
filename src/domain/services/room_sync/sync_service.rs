@@ -476,6 +476,7 @@ impl RoomSyncService {
                     source_type: "api_sync".to_string(),
                     external_id: None,
                     last_synced_at: Some(Utc::now().naive_utc()),
+                    last_recovered_at: None,
                 }
             })
             .collect();

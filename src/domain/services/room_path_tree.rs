@@ -213,7 +213,7 @@ impl RoomPathTree {
             let hash = calculate_roompath_hash(path);
             hash_map
                 .entry(hash)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(PathHashEntry {
                     roompath: room.primary_roompath.clone(),
                     roomid: room.roomid,

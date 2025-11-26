@@ -27,6 +27,12 @@ pub struct UserRoomBinding {
     
     /// 更新时间
     pub updated_at: NaiveDateTime,
+    
+    /// 最后通知时间（用于防止重复通知）
+    /// 
+    /// 记录最后一次成功发送通知的时间，服务器重启后可从数据库恢复此状态，
+    /// 用于防止因内存丢失导致的重复通知问题。
+    pub last_notified_at: Option<NaiveDateTime>,
 }
 
 /// 新建用户-房间绑定DTO
@@ -50,6 +56,17 @@ pub struct NewUserRoomBinding {
 pub struct UpdateNotificationEnabled {
     /// 通知开关
     pub notification_enabled: bool,
+}
+
+/// 更新最后通知时间DTO
+/// 
+/// 用于在发送通知后更新绑定记录的最后通知时间，
+/// 实现通知状态的持久化存储。
+#[derive(Debug, AsChangeset)]
+#[diesel(table_name = crate::infrastructure::database::schema::user_room_bindings)]
+pub struct UpdateLastNotified {
+    /// 最后通知时间
+    pub last_notified_at: Option<NaiveDateTime>,
 }
 
 /// 默认值为 true

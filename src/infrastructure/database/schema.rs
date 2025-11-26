@@ -62,6 +62,7 @@ diesel::table! {
         #[max_length = 100]
         external_id -> Nullable<Varchar>,
         last_synced_at -> Nullable<Timestamp>,
+        last_recovered_at -> Nullable<Timestamp>,
     }
 }
 
@@ -73,6 +74,7 @@ diesel::table! {
         notification_enabled -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        last_notified_at -> Nullable<Timestamp>,
     }
 }
 

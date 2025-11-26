@@ -304,7 +304,7 @@ impl NotificationService {
         // 9. 更新绑定缓存
         cache.set_bindings_batch(bindings_by_room.clone()).await;
 
-        // 10. 并发发送通知（使用内存数据）
+        // 10. 并发发送通知（使用内存数据，带持久化）
         let bindings_by_room = Arc::new(bindings_by_room);
         let user_map = Arc::new(user_map);
         
@@ -314,6 +314,7 @@ impl NotificationService {
                 let user_map = Arc::clone(&user_map);
                 let qq_client = Arc::clone(qq_client);
                 let gate_clone = Arc::clone(gate);
+                let binding_repo = binding_repository.clone();
                 async move {
                     Self::send_room_notifications_optimized(
                         &room,
@@ -321,6 +322,7 @@ impl NotificationService {
                         &user_map,
                         &qq_client,
                         &gate_clone,
+                        &binding_repo,
                     ).await
                 }
             })
@@ -407,18 +409,20 @@ impl NotificationService {
         Ok(())
     }
 
-    /// 发送房间的所有通知（优化版：使用内存数据）
+    /// 发送房间的所有通知（优化版：使用内存数据，带持久化）
     /// 
     /// # 参数
     /// - `room`: 需要通知的房间
     /// - `bindings_opt`: 房间的绑定关系（已从内存获取）
     /// - `user_map`: 用户映射表（已从内存获取）
+    /// - `binding_repository`: 绑定仓储（用于持久化通知状态）
     /// 
     /// # 返回
     /// 成功发送的通知数量
     /// 
     /// # 说明
     /// 此方法使用已经批量查询并缓存的数据，避免重复数据库查询
+    /// 通知状态会持久化到数据库，防止重启后重复通知
     /// 
     /// # 工程化设计
     /// 使用静态方法避免生命周期问题，明确传递所需参数
@@ -428,6 +432,7 @@ impl NotificationService {
         user_map: &HashMap<Uuid, crate::domain::models::User>,
         qq_client: &Arc<QQClient>,
         gate: &Arc<NotificationGate>,
+        binding_repository: &UserRoomBindingRepository,
     ) -> Result<usize> {
         tracing::debug!(
             "开始处理房间通知（优化版）: room_id={}, roomid={}, room_name={}",
@@ -458,7 +463,7 @@ impl NotificationService {
             room.roomid
         );
 
-        // 并发发送通知给所有用户（使用内存中的用户数据）
+        // 并发发送通知给所有用户（使用内存中的用户数据，带持久化）
         // 工程化设计：克隆所有数据以完全避免生命周期问题
         let message = MessageBuilder::build_electricity_alert_message(room);
         let user_map_arc = Arc::new(user_map.clone());
@@ -471,6 +476,7 @@ impl NotificationService {
                 let user_map = Arc::clone(&user_map_arc);
                 let gate_clone = Arc::clone(gate);
                 let room_clone = room.clone();
+                let binding_repo = binding_repository.clone();
                 async move {
                     // 从内存Map中查找用户
                     let user = match user_map.get(&binding.user_id) {
@@ -515,14 +521,22 @@ impl NotificationService {
                         return Err(AppError::Internal(format!("发送通知失败: {}", e)));
                     }
                     
-                    // ⭐ 标记已发送
-                    gate_clone.mark_notified(user.id, room_clone.roomid).await;
+                    // ⭐ 标记已发送（持久化到数据库）
+                    if let Err(e) = gate_clone.mark_notified_persistent(user.id, room_clone.roomid, &binding_repo).await {
+                        // 持久化失败不影响通知发送，仅记录警告
+                        tracing::warn!(
+                            user_id = %user.id,
+                            roomid = room_clone.roomid,
+                            error = %e,
+                            "标记通知状态持久化失败，内存状态已更新"
+                        );
+                    }
                     
                     tracing::info!(
                         user_id = %user.id,
                         roomid = room_clone.roomid,
                         qq_number = &user.qq_number,
-                        "通知发送成功"
+                        "通知发送成功（已持久化）"
                     );
                     Ok(())
                 }

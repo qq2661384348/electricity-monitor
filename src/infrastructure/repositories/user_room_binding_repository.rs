@@ -6,7 +6,8 @@ use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use uuid::Uuid;
 
-use crate::domain::models::{NewUserRoomBinding, UpdateNotificationEnabled, UserRoomBinding};
+use chrono::NaiveDateTime;
+use crate::domain::models::{NewUserRoomBinding, UpdateLastNotified, UpdateNotificationEnabled, UserRoomBinding};
 use crate::errors::{AppError, Result};
 use crate::infrastructure::database::schema::user_room_bindings;
 use crate::infrastructure::DbPool;
@@ -341,6 +342,171 @@ impl UserRoomBindingRepository {
         );
 
         Ok(affected_rows)
+    }
+
+    // ==================== 通知状态持久化方法 ====================
+
+    /// 更新用户-房间绑定的最后通知时间
+    /// 
+    /// # 参数
+    /// - `user_id`: 用户UUID
+    /// - `roomid`: 房间ID
+    /// - `time`: 通知时间
+    /// 
+    /// # 返回
+    /// 更新的行数
+    /// 
+    /// # 说明
+    /// 用于在发送通知后持久化通知状态，防止服务器重启后重复通知
+    pub async fn update_last_notified(
+        &self,
+        user_id: Uuid,
+        roomid: i32,
+        time: NaiveDateTime,
+    ) -> Result<usize> {
+        let mut conn = self.get_conn().await?;
+
+        let update = UpdateLastNotified {
+            last_notified_at: Some(time),
+        };
+
+        let affected_rows = diesel::update(
+            user_room_bindings::table
+                .filter(user_room_bindings::user_id.eq(user_id))
+                .filter(user_room_bindings::roomid.eq(roomid))
+        )
+        .set(&update)
+        .execute(&mut conn)
+        .await
+        .map_err(AppError::Database)?;
+
+        if affected_rows > 0 {
+            tracing::debug!(
+                user_id = %user_id,
+                roomid = roomid,
+                time = %time,
+                "更新最后通知时间成功"
+            );
+        }
+
+        Ok(affected_rows)
+    }
+
+    /// 重置用户-房间绑定的最后通知时间（设为NULL）
+    /// 
+    /// # 参数
+    /// - `user_id`: 用户UUID
+    /// - `roomid`: 房间ID
+    /// 
+    /// # 返回
+    /// 更新的行数
+    /// 
+    /// # 说明
+    /// 用于在房间电费恢复且过了观察期后重置通知状态
+    pub async fn reset_last_notified(
+        &self,
+        user_id: Uuid,
+        roomid: i32,
+    ) -> Result<usize> {
+        let mut conn = self.get_conn().await?;
+
+        let update = UpdateLastNotified {
+            last_notified_at: None,
+        };
+
+        let affected_rows = diesel::update(
+            user_room_bindings::table
+                .filter(user_room_bindings::user_id.eq(user_id))
+                .filter(user_room_bindings::roomid.eq(roomid))
+        )
+        .set(&update)
+        .execute(&mut conn)
+        .await
+        .map_err(AppError::Database)?;
+
+        if affected_rows > 0 {
+            tracing::debug!(
+                user_id = %user_id,
+                roomid = roomid,
+                "重置最后通知时间成功"
+            );
+        }
+
+        Ok(affected_rows)
+    }
+
+    /// 批量重置房间的所有绑定的最后通知时间
+    /// 
+    /// # 参数
+    /// - `roomid`: 房间ID
+    /// 
+    /// # 返回
+    /// 更新的行数
+    /// 
+    /// # 说明
+    /// 用于在房间电费恢复且过了观察期后批量重置该房间所有用户的通知状态
+    pub async fn reset_last_notified_by_roomid(&self, roomid: i32) -> Result<usize> {
+        let mut conn = self.get_conn().await?;
+
+        let update = UpdateLastNotified {
+            last_notified_at: None,
+        };
+
+        let affected_rows = diesel::update(
+            user_room_bindings::table
+                .filter(user_room_bindings::roomid.eq(roomid))
+        )
+        .set(&update)
+        .execute(&mut conn)
+        .await
+        .map_err(AppError::Database)?;
+
+        if affected_rows > 0 {
+            tracing::info!(
+                roomid = roomid,
+                affected_rows = affected_rows,
+                "批量重置房间的最后通知时间"
+            );
+        }
+
+        Ok(affected_rows)
+    }
+
+    /// 加载所有有通知历史的绑定记录
+    /// 
+    /// # 返回
+    /// 包含 `(user_id, roomid, last_notified_at)` 的元组列表
+    /// 
+    /// # 说明
+    /// 用于服务器启动时从数据库恢复通知历史状态到内存
+    pub async fn find_all_with_notification_history(&self) -> Result<Vec<(Uuid, i32, NaiveDateTime)>> {
+        let mut conn = self.get_conn().await?;
+
+        let results: Vec<(Uuid, i32, Option<NaiveDateTime>)> = user_room_bindings::table
+            .filter(user_room_bindings::last_notified_at.is_not_null())
+            .select((
+                user_room_bindings::user_id,
+                user_room_bindings::roomid,
+                user_room_bindings::last_notified_at,
+            ))
+            .load(&mut conn)
+            .await
+            .map_err(AppError::Database)?;
+
+        // 过滤掉 None 值（虽然 IS NOT NULL 已经过滤，但 Diesel 返回 Option）
+        let filtered: Vec<(Uuid, i32, NaiveDateTime)> = results
+            .into_iter()
+            .filter_map(|(user_id, roomid, time_opt)| {
+                time_opt.map(|time| (user_id, roomid, time))
+            })
+            .collect();
+
+        tracing::info!(
+            count = filtered.len(),
+            "加载通知历史记录"
+        );
+
+        Ok(filtered)
     }
 }
 
