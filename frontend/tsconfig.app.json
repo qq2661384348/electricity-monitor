@@ -7,9 +7,6 @@
     "module": "ESNext",
     "types": ["vite/client", "node"],
     "skipLibCheck": true,
-    
-    /* TypeScript 6.0 弃用警告静音 - baseUrl/paths 在 TS 7.0 前仍然必需 */
-    "ignoreDeprecations": "6.0",
 
     /* Bundler mode */
     "moduleResolution": "bundler",
