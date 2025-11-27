@@ -16,8 +16,7 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Path Mapping */
-    "baseUrl": ".",
+    /* Path Mapping - 使用相对路径避免 baseUrl 弃用警告 */
     "paths": {
       "@/*": ["./src/*"]
     },
