@@ -68,7 +68,7 @@ export function ConfirmModal({
         </div>
       }
     >
-      <div className="text-center space-y-6">
+      <div className="text-center space-y-4 sm:space-y-6">
         {isDestructive && (
           <div className="flex items-center justify-center">
             <div className="p-3 bg-status-danger border-2 border-black shadow-[3px_3px_0_0_#000] rounded-full">
@@ -77,12 +77,12 @@ export function ConfirmModal({
           </div>
         )}
         <h3
-          className="text-2xl font-black uppercase italic text-black"
+          className="text-xl sm:text-2xl font-black uppercase italic text-black"
           style={{ textShadow: '2px 2px 0 #FACC15' }}
         >
           {title}
         </h3>
-        <p className="text-base font-bold text-black leading-relaxed">
+        <p className="text-sm sm:text-base font-bold text-black leading-relaxed">
           {message}
         </p>
       </div>

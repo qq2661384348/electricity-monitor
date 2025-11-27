@@ -133,10 +133,10 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.5 }}
             transition={{ type: 'spring', damping: 15 }}
-            className="relative w-full max-w-3xl max-h-[90vh]"
+            className="relative w-full max-w-[calc(100%-1rem)] sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative p-8 border-4 border-black shadow-[10px_10px_0_0_#000] text-black bg-linear-to-br from-[#fff4c7] via-[#ffe173] to-[#ffc93c] h-full flex flex-col">
+            <div className="relative p-4 sm:p-6 md:p-8 border-4 border-black shadow-[6px_6px_0_0_#000] sm:shadow-[8px_8px_0_0_#000] md:shadow-[10px_10px_0_0_#000] text-black bg-linear-to-br from-[#fff4c7] via-[#ffe173] to-[#ffc93c] h-full flex flex-col">
               {/* 漫画半调纹理 */}
               <div
                 className="absolute inset-0 opacity-15 pointer-events-none"
@@ -157,10 +157,10 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
                 <X size={16} strokeWidth={3} />
               </button>
 
-              {/* 标题 */}
+              {/* 标题 - 响应式设计 */}
               <h3
-                className="relative z-20 text-3xl font-black uppercase italic mb-6 text-black"
-                style={{ textShadow: '3px 3px 0 #FACC15' }}
+                className="relative z-20 text-xl sm:text-2xl md:text-3xl font-black uppercase italic mb-4 sm:mb-6 text-black"
+                style={{ textShadow: '2px 2px 0 #FACC15' }}
               >
                 绑定房间
               </h3>
@@ -183,7 +183,7 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
                       </div>
                       <div>
                         <p className="text-xs font-black uppercase tracking-widest text-gray-600">Bingo!</p>
-                        <span className="block text-2xl font-black uppercase italic" style={{ textShadow: '2px 2px 0 #FACC15' }}>
+                        <span className="block text-lg sm:text-xl md:text-2xl font-black uppercase italic" style={{ textShadow: '2px 2px 0 #FACC15' }}>
                           找到房间!
                         </span>
                       </div>
@@ -206,8 +206,8 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
                 </motion.div>
               )}
 
-              {/* 内容区域 */}
-              <div className="relative z-10 space-y-6 flex-1 overflow-y-auto pr-1">
+              {/* 内容区域 - 响应式间距 */}
+              <div className="relative z-10 space-y-4 sm:space-y-6 flex-1 overflow-y-auto pr-1">
                 {/* 面包屑导航 */}
                 {selectedPath.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap text-sm">

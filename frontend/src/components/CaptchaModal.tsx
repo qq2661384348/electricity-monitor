@@ -136,7 +136,7 @@ export function CaptchaModal({ isOpen, onClose, onSuccess }: CaptchaModalProps) 
         </div>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* 说明文字 */}
         <div className="text-center">
           <p className="text-sm font-bold text-gray-700">
@@ -211,7 +211,7 @@ export function CaptchaModal({ isOpen, onClose, onSuccess }: CaptchaModalProps) 
             className={cn(
               "w-full px-4 py-3",
               "bg-white border-4 border-black shadow-[4px_4px_0_0_#000]",
-              "text-2xl font-black text-center tracking-wider",
+              "text-xl sm:text-2xl font-black text-center tracking-wider",
               "placeholder:text-gray-400 placeholder:font-normal placeholder:text-base",
               "focus:outline-none focus:shadow-[6px_6px_0_0_#000]",
               "disabled:opacity-50 disabled:cursor-not-allowed",
