@@ -132,6 +132,26 @@ cmd_clean() {
     success "清理完成"
 }
 
+# 导出镜像
+cmd_export() {
+    local output="${1:-electricity-monitor.tar}"
+    
+    separator
+    echo -e "${GREEN}📦 导出镜像${NC}"
+    separator
+    
+    info "导出镜像到: $output"
+    docker save -o "$output" "${IMAGE_NAME}:latest"
+    
+    local size=$(du -h "$output" | cut -f1)
+    success "导出完成: $output ($size)"
+    echo ""
+    echo "部署到服务器:"
+    echo "  1. 上传 $output 和 deploy.sh 到服务器"
+    echo "  2. chmod +x deploy.sh"
+    echo "  3. ./deploy.sh"
+}
+
 # 帮助信息
 cmd_help() {
     echo "电力监控系统 - Docker 运维脚本"
@@ -145,12 +165,14 @@ cmd_help() {
     echo "  restart         重启服务"
     echo "  logs [SERVICE]  查看日志（app 或 redis）"
     echo "  status          查看服务状态"
+    echo "  export [FILE]   导出镜像为 tar 文件"
     echo "  clean           清理未使用的镜像"
     echo "  help            显示帮助信息"
     echo ""
     echo "示例:"
-    echo "  ./build.sh build v1.0.0    # 构建 v1.0.0 版本"
+    echo "  ./build.sh build           # 构建镜像"
     echo "  ./build.sh up              # 启动所有服务"
+    echo "  ./build.sh export          # 导出镜像用于部署"
     echo "  ./build.sh logs app        # 只看应用日志"
 }
 
@@ -168,6 +190,7 @@ main() {
         restart) cmd_restart ;;
         logs)    cmd_logs "$@" ;;
         status)  cmd_status ;;
+        export)  cmd_export "$@" ;;
         clean)   cmd_clean ;;
         help|--help|-h) cmd_help ;;
         *)       error "未知命令: $cmd（使用 ./build.sh help 查看帮助）" ;;
