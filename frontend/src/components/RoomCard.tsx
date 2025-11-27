@@ -185,8 +185,8 @@ export function RoomCard({
                 >
                   <span className="flex items-center justify-center gap-1 sm:gap-2">
                     <span className="text-lg sm:text-xl" aria-hidden>✏️</span>
-                    <span className="hidden xs:inline sm:inline">修改阈值</span>
-                    <span className="xs:hidden sm:hidden">阈值</span>
+                    <span className="sm:hidden">阈值</span>
+                    <span className="hidden sm:inline">修改阈值</span>
                   </span>
                 </button>
               )}
@@ -207,6 +207,7 @@ export function RoomCard({
                     <span className="text-lg sm:text-xl" aria-hidden>
                       {binding?.notification_enabled ? '🔔' : '🔕'}
                     </span>
+                    <span className="sm:hidden">通知</span>
                     <span className="hidden sm:inline">{binding?.notification_enabled ? '已开启' : '已关闭'}</span>
                   </span>
                 </button>
@@ -222,7 +223,7 @@ export function RoomCard({
                 >
                   <span className="flex items-center justify-center gap-1 sm:gap-2">
                     <span className="text-lg sm:text-xl" aria-hidden>🗑️</span>
-                    <span className="hidden sm:inline">删除</span>
+                    <span>删除</span>
                   </span>
                 </button>
               )}

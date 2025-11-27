@@ -133,10 +133,10 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.5 }}
             transition={{ type: 'spring', damping: 15 }}
-            className="relative w-full max-w-[calc(100%-1rem)] sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[90vh]"
+            className="relative w-full max-w-[calc(100%-1rem)] sm:max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[85dvh] sm:max-h-[90dvh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative p-4 sm:p-6 md:p-8 border-4 border-black shadow-[6px_6px_0_0_#000] sm:shadow-[8px_8px_0_0_#000] md:shadow-[10px_10px_0_0_#000] text-black bg-linear-to-br from-[#fff4c7] via-[#ffe173] to-[#ffc93c] h-full flex flex-col">
+            <div className="relative p-4 sm:p-6 md:p-8 border-4 border-black shadow-[6px_6px_0_0_#000] sm:shadow-[8px_8px_0_0_#000] md:shadow-[10px_10px_0_0_#000] text-black bg-linear-to-br from-[#fff4c7] via-[#ffe173] to-[#ffc93c] flex-1 min-h-0 flex flex-col overflow-hidden">
               {/* 漫画半调纹理 */}
               <div
                 className="absolute inset-0 opacity-15 pointer-events-none"
