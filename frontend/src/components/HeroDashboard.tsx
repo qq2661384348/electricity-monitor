@@ -146,8 +146,8 @@ export function HeroDashboard() {
                     <span className="font-black text-xl md:text-2xl text-black">{step.id}</span>
                   </div>
 
-                  {/* 图标 */}
-                  <div className="mb-3 md:mb-4 flex items-center gap-2 md:gap-3">
+                  {/* 图标和标题 - 添加左边距避开徽章 */}
+                  <div className="mb-3 md:mb-4 flex items-center gap-2 md:gap-3 ml-8 md:ml-10">
                     <div className="w-8 h-8 md:w-10 md:h-10 bg-brand-secondary border-2 border-black flex items-center justify-center shadow-[2px_2px_0_0_#000]">
                       {step.icon}
                     </div>
@@ -190,6 +190,20 @@ export function HeroDashboard() {
                   )}
                 </motion.div>
               ))}
+
+              {/* 底部收起按钮 - 改善用户体验 */}
+              <motion.div
+                variants={itemVariants}
+                className="col-span-1 sm:col-span-2 lg:col-span-3 flex justify-center pt-2"
+              >
+                <button
+                  onClick={() => setIsExpanded(false)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-white text-black border-4 border-black shadow-[4px_4px_0_0_#000] hover:shadow-[6px_6px_0_0_#000] hover:-translate-y-1 active:translate-y-0 active:shadow-[2px_2px_0_0_#000] transition-all font-black text-base md:text-lg uppercase"
+                >
+                  <ChevronUp className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />
+                  <span>收起教程</span>
+                </button>
+              </motion.div>
             </motion.div>
           </motion.div>
         )}
