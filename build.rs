@@ -14,7 +14,9 @@
 //!
 //! 参考: https://www.edu4rdshl.dev/posts/rust-binaries-with-diesel-and-postgres-static-linking-on-2025/
 
+#[cfg(target_os = "windows")]
 use std::env;
+#[cfg(target_os = "windows")]
 use std::path::PathBuf;
 
 fn main() {

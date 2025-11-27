@@ -1,0 +1,71 @@
+# =============================================================================
+# 电力监控系统 - Docker Compose 配置
+# =============================================================================
+#
+# 启动命令:
+#   docker compose up -d
+#
+# 查看日志:
+#   docker compose logs -f
+#
+# 停止服务:
+#   docker compose down
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Redis 服务（纯内存模式，无持久化）
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: electricity-redis
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # 应用服务
+  # ---------------------------------------------------------------------------
+  app:
+    image: electricity-monitor:latest
+    container_name: electricity-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "11451:8000"
+    volumes:
+      # 挂载配置文件（只读）
+      - ./config:/app/config:ro
+    environment:
+      # 覆盖 Redis 地址（连接到 compose 内部的 redis 服务）
+      - APP__REDIS__HOST=redis
+      - APP__REDIS__PORT=6379
+      # 生产环境标识
+      - APP_ENV=production
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+# -----------------------------------------------------------------------------
+# 网络配置
+# -----------------------------------------------------------------------------
+networks:
+  internal:
+    driver: bridge
