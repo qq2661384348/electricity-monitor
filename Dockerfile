@@ -101,12 +101,13 @@ WORKDIR /app
 COPY --from=builder /app/server /app/server
 COPY --from=builder /app/migrate /app/migrate
 
-# 复制配置和静态文件
+# 复制配置、迁移和静态文件
 COPY config ./config
 COPY migrations ./migrations
+COPY static ./static
 
-# 创建静态文件目录（运行时挂载或复制）
-RUN mkdir -p static && chown -R app:app /app
+# 设置权限
+RUN chown -R app:app /app
 
 # 切换到非 root 用户
 USER app

@@ -62,28 +62,38 @@ config/
 2. `config/{APP_ENV}.toml` — 环境配置覆盖
 3. 环境变量 `APP__XXX__YYY` — 最高优先级
 
-### 配置文件挂载
+### 镜像自包含
 
-Docker Compose 将本地 `./config` 目录挂载到容器内：
+镜像内已打包所有必要文件：
+- `config/*.toml` — 配置文件
+- `static/` — 前端静态文件
+- `migrations/` — 数据库迁移
+
+**无需挂载任何目录**，镜像可独立运行。
+
+### 环境变量覆盖
+
+敏感配置通过环境变量覆盖（优先级最高）：
 
 ```yaml
-volumes:
-  - ./config:/app/config:ro  # 只读挂载
+environment:
+  - APP_ENV=production
+  - APP__DATABASE__HOST=your-db-host
+  - APP__DATABASE__PASSWORD=your-password
+  - APP__JWT__SECRET=your-jwt-secret
 ```
 
-**特点**：
-- 配置文件在宿主机上，便于编辑
-- 修改配置后只需重启，无需重新构建镜像
-- 只读模式（`:ro`）确保容器不会修改配置
+**命名规则**：`APP__<SECTION>__<KEY>`（双下划线分隔）
 
 ### 修改配置
 
 ```bash
-# 1. 编辑配置文件
-vim config/production.toml
+# 方式1：编辑 docker-compose.yml 中的 environment
+vim docker-compose.yml
 
-# 2. 重启服务（配置立即生效）
-./build.sh restart
+# 方式2：修改 config/*.toml 后重新构建
+vim config/production.toml
+./build.sh up  # 重新构建并启动
 ```
 
 ## 服务架构
@@ -96,12 +106,15 @@ vim config/production.toml
 │  │       app         │◄──►│      redis       │  │
 │  │   (Rust 后端)     │    │   (纯内存模式)   │  │
 │  │   :8000 → :11451  │    │                  │  │
+│  │                   │    │                  │  │
+│  │  内置: config/    │    │                  │  │
+│  │        static/    │    │                  │  │
 │  └───────────────────┘    └──────────────────┘  │
-│           ▲                                      │
-│           │ 挂载                                 │
-└───────────│─────────────────────────────────────┘
-            │
-    ./config/*.toml
+│                                                  │
+└─────────────────────────────────────────────────┘
+           ▲
+           │ 环境变量覆盖敏感配置
+           │ APP__DATABASE__PASSWORD=xxx
 ```
 
 ### 端口映射

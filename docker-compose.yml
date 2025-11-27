@@ -42,15 +42,17 @@ services:
     restart: unless-stopped
     ports:
       - "11451:8000"
-    volumes:
-      # 挂载配置文件（只读）
-      - ./config:/app/config:ro
     environment:
-      # 覆盖 Redis 地址（连接到 compose 内部的 redis 服务）
-      - APP__REDIS__HOST=redis
-      - APP__REDIS__PORT=6379
       # 生产环境标识
       - APP_ENV=production
+      # Redis 地址（连接到 compose 内部的 redis 服务）
+      - APP__REDIS__HOST=redis
+      - APP__REDIS__PORT=6379
+      # 以下为可选覆盖项，取消注释并填写实际值
+      # - APP__DATABASE__HOST=your-db-host
+      # - APP__DATABASE__PASSWORD=your-password
+      # - APP__JWT__SECRET=your-jwt-secret
+      # - APP__LOGGING__LEVEL=info
     depends_on:
       redis:
         condition: service_healthy
