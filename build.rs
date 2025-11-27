@@ -1,139 +1,106 @@
-//! Cargo 构建脚本 - 自动配置 PostgreSQL 链接
+//! Cargo 构建脚本
 //!
-//! 功能：
-//! 1. 检测 PostgreSQL 安装路径
-//! 2. 自动配置链接库和依赖
-//! 3. Windows 平台特殊处理
+//! 说明：
+//! - 使用 `--features static-build` 时启用静态链接（Docker/Linux）
+//! - 默认模式使用系统安装的库（Windows 开发）
+//!
+//! Windows 开发环境需要：
+//! 1. PostgreSQL 16+ 安装（包含 libpq）
+//! 2. OpenSSL 安装（推荐 https://slproweb.com/products/Win32OpenSSL.html）
+//!
+//! 环境变量：
+//! - PQ_LIB_DIR: PostgreSQL 库目录（可选，自动检测）
+//! - OPENSSL_DIR: OpenSSL 安装目录（Windows 必需）
+//!
+//! 参考: https://www.edu4rdshl.dev/posts/rust-binaries-with-diesel-and-postgres-static-linking-on-2025/
 
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn main() {
-    // 1. 获取 PostgreSQL 库路径
-    let pg_lib_dir = get_postgres_lib_dir();
-    
+    // 触发重新构建的条件
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-env-changed=PQ_LIB_DIR");
-    println!("cargo:rerun-if-env-changed=POSTGRES_HOME");
+    println!("cargo:rerun-if-env-changed=OPENSSL_DIR");
     
-    // 2. 配置链接搜索路径
-    if let Some(lib_dir) = pg_lib_dir {
-        println!("cargo:rustc-link-search=native={}", lib_dir.display());
-        
-        // 3. Windows 平台特殊配置
-        if cfg!(target_os = "windows") {
-            configure_windows_linking();
-        }
-    }
-}
-
-/// 获取 PostgreSQL 库目录
-fn get_postgres_lib_dir() -> Option<PathBuf> {
-    // 优先级1: 环境变量 PQ_LIB_DIR（必须是有效路径且包含libpq）
-    if let Ok(dir) = env::var("PQ_LIB_DIR") {
-        let path = PathBuf::from(&dir);
-        // 验证路径存在且包含 libpq 库
-        if path.exists() && is_valid_postgres_lib(&path) {
-            println!("cargo:warning=使用 PQ_LIB_DIR: {}", path.display());
-            return Some(path);
-        } else {
-            println!("cargo:warning=PQ_LIB_DIR 路径无效或缺少 libpq: {}", dir);
-            println!("cargo:warning=将尝试自动检测 PostgreSQL...");
-        }
-    }
-    
-    // 优先级2: 环境变量 POSTGRES_HOME/lib
-    if let Ok(home) = env::var("POSTGRES_HOME") {
-        let path = PathBuf::from(home).join("lib");
-        if path.exists() {
-            println!("cargo:warning=使用 POSTGRES_HOME: {}", path.display());
-            return Some(path);
-        }
-    }
-    
-    // 优先级3: Windows 默认安装路径
+    // Windows 平台特殊配置
     #[cfg(target_os = "windows")]
-    {
-        let default_paths = vec![
-            r"C:\Program Files\PostgreSQL\16\lib",
-            r"C:\Program Files\PostgreSQL\15\lib",
-            r"C:\Program Files\PostgreSQL\14\lib",
-        ];
-        
-        for path_str in default_paths {
-            let path = PathBuf::from(path_str);
-            if path.exists() {
-                println!("cargo:warning=自动检测到 PostgreSQL: {}", path.display());
-                return Some(path);
-            }
-        }
-    }
-    
-    // 优先级4: Linux 默认路径
-    #[cfg(target_os = "linux")]
-    {
-        let default_paths = vec![
-            "/usr/lib/postgresql/16/lib",
-            "/usr/lib/postgresql/15/lib",
-            "/usr/lib/x86_64-linux-gnu",
-            "/usr/lib",
-        ];
-        
-        for path_str in default_paths {
-            let path = PathBuf::from(path_str);
-            if path.exists() {
-                return Some(path);
-            }
-        }
-    }
-    
-    println!("cargo:warning=未找到 PostgreSQL 库目录，请设置 PQ_LIB_DIR 或 POSTGRES_HOME 环境变量");
-    None
+    configure_windows();
 }
 
-/// Windows 平台链接配置
+/// Windows 平台配置
 #[cfg(target_os = "windows")]
-fn configure_windows_linking() {
-    // PostgreSQL 核心库
-    println!("cargo:rustc-link-lib=libpq");
-    println!("cargo:rustc-link-lib=libpgcommon");
-    println!("cargo:rustc-link-lib=libpgport");
+fn configure_windows() {
+    // 1. PostgreSQL 路径检测
+    let pg_home = find_postgres_home();
     
-    // OpenSSL 依赖
-    println!("cargo:rustc-link-lib=libssl");
-    println!("cargo:rustc-link-lib=libcrypto");
-    
-    // 其他依赖
-    println!("cargo:rustc-link-lib=libintl");
-    
-    // Windows 系统库
-    println!("cargo:rustc-link-lib=shell32");
-    println!("cargo:rustc-link-lib=secur32");
-    println!("cargo:rustc-link-lib=ws2_32");
-    println!("cargo:rustc-link-lib=advapi32");
-    println!("cargo:rustc-link-lib=crypt32");
-}
-
-/// Linux 平台链接配置
-#[cfg(not(target_os = "windows"))]
-fn configure_windows_linking() {
-    // Linux 下 diesel 会自动处理
-}
-
-/// 验证是否为有效的 PostgreSQL 库目录
-fn is_valid_postgres_lib(path: &Path) -> bool {
-    #[cfg(target_os = "windows")]
-    {
-        // Windows 下检查是否存在 libpq.lib
-        path.join("libpq.lib").exists()
+    if let Some(ref pg) = pg_home {
+        if env::var("PQ_LIB_DIR").is_err() {
+            let lib_dir = pg.join("lib");
+            println!("cargo:rustc-link-search=native={}", lib_dir.display());
+        }
+        
+        // 2. 使用 PostgreSQL 自带的 OpenSSL（推荐方案）
+        // PostgreSQL 16+ 包含完整的 OpenSSL 开发文件
+        if env::var("OPENSSL_DIR").is_err() {
+            let include_dir = pg.join("include").join("openssl");
+            let lib_dir = pg.join("lib");
+            
+            if include_dir.exists() && lib_dir.join("libssl.lib").exists() {
+                println!("cargo:warning=使用 PostgreSQL 自带的 OpenSSL: {}", pg.display());
+                // 注意：这些环境变量在 build.rs 中设置不会影响 openssl-sys 的构建
+                // 需要在 .cargo/config.toml 中设置
+            }
+        }
     }
     
-    #[cfg(not(target_os = "windows"))]
-    {
-        // Linux 下检查是否存在 libpq.so 或 libpq.a
-        path.join("libpq.so").exists() || 
-        path.join("libpq.a").exists() ||
-        path.parent().and_then(|p| p.parent()).map(|p| {
-            p.join("lib").join("libpq.so").exists()
-        }).unwrap_or(false)
+    // 3. 如果没有找到 PostgreSQL，检查独立 OpenSSL 安装
+    if pg_home.is_none() && env::var("OPENSSL_DIR").is_err() {
+        let openssl_paths = vec![
+            r"C:\Program Files\OpenSSL-Win64",
+            r"C:\OpenSSL-Win64",
+        ];
+        
+        for path in &openssl_paths {
+            let p = PathBuf::from(path);
+            if p.join("include").exists() && p.join("lib").exists() {
+                println!("cargo:warning=检测到 OpenSSL: {}", path);
+                return;
+            }
+        }
+        
+        println!("cargo:warning=未检测到 OpenSSL 安装");
+        println!("cargo:warning=推荐方案：安装 PostgreSQL 16+（自带 OpenSSL）");
+        println!("cargo:warning=或从 https://slproweb.com/products/Win32OpenSSL.html 下载完整版");
     }
+}
+
+/// 查找 PostgreSQL 安装目录
+#[cfg(target_os = "windows")]
+fn find_postgres_home() -> Option<PathBuf> {
+    // 优先检查环境变量
+    if let Ok(home) = env::var("POSTGRES_HOME") {
+        let path = PathBuf::from(&home);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    
+    // 检查默认安装路径
+    let default_paths = vec![
+        r"C:\Program Files\PostgreSQL\17",
+        r"C:\Program Files\PostgreSQL\16",
+        r"C:\Program Files\PostgreSQL\15",
+        r"C:\Program Files\PostgreSQL\14",
+    ];
+    
+    for path_str in default_paths {
+        let path = PathBuf::from(path_str);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    
+    None
 }

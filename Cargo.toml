@@ -22,6 +22,18 @@ deadpool-diesel = { version = "0.6", features = ["postgres"] }
 diesel_migrations = "2.3"
 futures-util = "0.3"
 
+# =============================================================================
+# 跨平台静态链接支持 (Windows → Linux Docker 兼容)
+# =============================================================================
+# 通过 feature 控制是否使用静态链接：
+# - 默认（Windows 开发）: 使用系统安装的库
+# - Docker 构建: cargo build --features static-build
+# 参考: https://www.edu4rdshl.dev/posts/rust-binaries-with-diesel-and-postgres-static-linking-on-2025/
+
+# 基础依赖（不带 bundled/vendored）
+pq-sys = "0.7"
+openssl-sys = "0.9"
+
 # Redis - 缓存与限流
 # 注意：deadpool-redis 0.22 使用 redis 0.32，版本需要匹配
 redis = { version = "0.32.7", features = ["tokio-comp", "connection-manager"] }
@@ -81,6 +93,16 @@ bincode = "2.0.1"
 [dev-dependencies]
 # 测试工具
 tokio-test = "0.4"
+
+# =============================================================================
+# Feature 定义
+# =============================================================================
+[features]
+default = []
+
+# 静态链接模式（Docker/Linux 构建使用）
+# 用法: cargo build --release --features static-build
+static-build = ["pq-sys/bundled", "openssl-sys/vendored"]
 
 [profile.release]
 opt-level = 3
