@@ -869,14 +869,12 @@ impl RoomRepository {
     pub async fn reset_last_recovered(&self, roomid: i32) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
-        let update = UpdateLastRecovered {
-            last_recovered_at: None,
-        };
-
+        // 直接使用 DSL 设置 NULL，避免 AsChangeset 结构体的 None 跳过行为
+        // 参考: https://github.com/diesel-rs/diesel/issues/885
         let affected_rows = diesel::update(
             rooms::table.filter(rooms::roomid.eq(roomid))
         )
-        .set(&update)
+        .set(rooms::last_recovered_at.eq(None::<NaiveDateTime>))
         .execute(&mut conn)
         .await
         .map_err(AppError::Database)?;

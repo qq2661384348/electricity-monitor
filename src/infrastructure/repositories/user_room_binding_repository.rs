@@ -410,16 +410,14 @@ impl UserRoomBindingRepository {
     ) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
-        let update = UpdateLastNotified {
-            last_notified_at: None,
-        };
-
+        // 直接使用 DSL 设置 NULL，避免 AsChangeset 结构体的 None 跳过行为
+        // 参考: https://github.com/diesel-rs/diesel/issues/885
         let affected_rows = diesel::update(
             user_room_bindings::table
                 .filter(user_room_bindings::user_id.eq(user_id))
                 .filter(user_room_bindings::roomid.eq(roomid))
         )
-        .set(&update)
+        .set(user_room_bindings::last_notified_at.eq(None::<NaiveDateTime>))
         .execute(&mut conn)
         .await
         .map_err(AppError::Database)?;
@@ -448,15 +446,13 @@ impl UserRoomBindingRepository {
     pub async fn reset_last_notified_by_roomid(&self, roomid: i32) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
-        let update = UpdateLastNotified {
-            last_notified_at: None,
-        };
-
+        // 直接使用 DSL 设置 NULL，避免 AsChangeset 结构体的 None 跳过行为
+        // 参考: https://github.com/diesel-rs/diesel/issues/885
         let affected_rows = diesel::update(
             user_room_bindings::table
                 .filter(user_room_bindings::roomid.eq(roomid))
         )
-        .set(&update)
+        .set(user_room_bindings::last_notified_at.eq(None::<NaiveDateTime>))
         .execute(&mut conn)
         .await
         .map_err(AppError::Database)?;
