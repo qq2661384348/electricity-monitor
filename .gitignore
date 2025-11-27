@@ -34,3 +34,7 @@ Thumbs.db
 
 # Git 元数据（显式忽略）
 .git/
+
+# python打包脚本
+build_zip.py
+*.zip
