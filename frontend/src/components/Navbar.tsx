@@ -20,24 +20,24 @@ export function Navbar({ onLoginClick }: NavbarProps) {
       animate={{ y: 0 }}
       className="fixed top-0 left-0 right-0 z-40 bg-linear-to-r from-[#ffe173] via-[#ffd966] to-[#ffcc33] border-b-4 border-black shadow-[0_4px_0_0_#000]"
     >
-      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-        {/* Logo */}
-        <div className="flex items-center gap-3 group cursor-pointer">
-          <div className="relative p-2 bg-brand-primary border-2 border-black transform -rotate-3 group-hover:rotate-0 transition-transform shadow-[2px_2px_0_0_#000]">
-            <Zap className="w-6 h-6 text-black fill-current" />
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between">
+        {/* Logo - 响应式设计 */}
+        <div className="flex items-center gap-2 sm:gap-3 group cursor-pointer">
+          <div className="relative p-1.5 sm:p-2 bg-brand-primary border-2 border-black transform -rotate-3 group-hover:rotate-0 transition-transform shadow-[2px_2px_0_0_#000]">
+            <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-black fill-current" />
           </div>
           <div className="flex flex-col leading-tight text-center">
-            <span className="text-3xl tracking-wide text-black transform skew-x-[-5deg]" style={{ fontFamily: '"Bangers", cursive', textShadow: '2px 2px 0 #FACC15' }}>
+            <span className="text-xl sm:text-2xl md:text-3xl tracking-wide text-black transform skew-x-[-5deg]" style={{ fontFamily: '"Bangers", cursive', textShadow: '2px 2px 0 #FACC15' }}>
               电力监控
             </span>
-            <span className="text-4xl tracking-wide text-brand-primary transform skew-x-[-5deg]" style={{ fontFamily: '"Bangers", cursive', textShadow: '2px 2px 0 #FACC15' }}>
+            <span className="text-2xl sm:text-3xl md:text-4xl tracking-wide text-brand-primary transform skew-x-[-5deg]" style={{ fontFamily: '"Bangers", cursive', textShadow: '2px 2px 0 #FACC15' }}>
               系统
             </span>
           </div>
         </div>
 
-        {/* 用户区域 */}
-        <div className="flex items-center gap-4">
+        {/* 用户区域 - 响应式间距 */}
+        <div className="flex items-center gap-2 sm:gap-4">
           {/* 通知按钮 */}
           {isAuthenticated && (
             <button
@@ -53,9 +53,10 @@ export function Navbar({ onLoginClick }: NavbarProps) {
           {/* 用户信息/登录按钮 */}
           {isAuthenticated && user ? (
             <div className="flex items-center gap-4">
-              <div className="text-right hidden md:block">
-                <div className="text-sm font-black text-black uppercase tracking-wider">{user.qq_number}</div>
-                <div className="text-xs font-bold text-white bg-brand-primary px-2 py-1 border-2 border-black inline-block shadow-[2px_2px_0_0_#000]">
+              {/* 用户信息 - 移动端简化显示 */}
+              <div className="text-right">
+                <div className="text-xs sm:text-sm font-black text-black uppercase tracking-wider">{user.qq_number}</div>
+                <div className="hidden sm:inline-block text-xs font-bold text-white bg-brand-primary px-2 py-1 border-2 border-black shadow-[2px_2px_0_0_#000]">
                   {user.role === 'admin' ? 'ADMIN' : 'USER'}
                 </div>
               </div>

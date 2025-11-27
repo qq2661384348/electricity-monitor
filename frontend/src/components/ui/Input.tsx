@@ -12,8 +12,18 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <input
         type={type}
         className={cn(
-          "flex h-10 w-full bg-white px-3 py-2 text-sm text-black font-bold border-4 border-black outline-none transition-all placeholder:text-gray-500 focus-visible:shadow-[8px_8px_0_0_var(--color-brand-primary)] focus-visible:scale-[1.02] shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] disabled:cursor-not-allowed disabled:opacity-50",
-          "font-comic", // 确保使用漫画字体
+          // 基础样式 - 触控友好 (min-h-[44px] 满足 Apple HIG 触控最小要求)
+          "flex min-h-[44px] sm:min-h-[40px] w-full bg-white px-3 py-2 text-base sm:text-sm text-black font-bold",
+          // 边框和阴影
+          "border-4 border-black outline-none transition-all",
+          "shadow-[4px_4px_0_0_rgba(0,0,0,0.5)]",
+          // 焦点状态
+          "focus-visible:shadow-[8px_8px_0_0_var(--color-brand-primary)] focus-visible:scale-[1.02]",
+          // 占位符和禁用状态
+          "placeholder:text-gray-500 disabled:cursor-not-allowed disabled:opacity-50",
+          // 漫画字体
+          "font-comic",
+          // 错误状态
           error && "border-status-danger focus-visible:shadow-[8px_8px_0_0_var(--color-status-danger)]",
           className
         )}

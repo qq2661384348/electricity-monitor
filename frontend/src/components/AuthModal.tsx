@@ -157,10 +157,10 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.5 }}
               transition={{ type: 'spring', damping: 15 }}
-              className="relative w-full max-w-md"
+              className="relative w-full max-w-[calc(100%-1rem)] sm:max-w-md"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="relative bg-white p-8 border-4 border-black shadow-[8px_8px_0_0_#000]">
+              <div className="relative bg-white p-4 sm:p-6 md:p-8 border-4 border-black shadow-[4px_4px_0_0_#000] sm:shadow-[6px_6px_0_0_#000] md:shadow-[8px_8px_0_0_#000]">
                 {/* 装饰元素：漫画点阵角标 */}
                 <div className="absolute -top-4 -right-4 w-12 h-12 bg-brand-secondary border-2 border-black z-20 shadow-[4px_4px_0_0_#000]" />
                 <div className="absolute -bottom-4 -left-4 w-8 h-8 bg-brand-primary border-2 border-black z-20 shadow-[4px_4px_0_0_#000]" />
@@ -173,12 +173,12 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                   <X size={20} strokeWidth={3} />
                 </button>
 
-                {/* 标题 */}
-                <div className="relative z-10 text-center mb-8">
-                  <div className="inline-block mb-4 p-3 bg-brand-secondary border-2 border-black shadow-[4px_4px_0_0_#000] rounded-full">
-                    <Zap className="w-10 h-10 text-black" strokeWidth={3} />
+                {/* 标题 - 响应式设计 */}
+                <div className="relative z-10 text-center mb-4 sm:mb-6 md:mb-8">
+                  <div className="inline-block mb-3 sm:mb-4 p-2 sm:p-3 bg-brand-secondary border-2 border-black shadow-[4px_4px_0_0_#000] rounded-full">
+                    <Zap className="w-8 h-8 sm:w-10 sm:h-10 text-black" strokeWidth={3} />
                   </div>
-                  <h2 className="text-4xl font-black uppercase italic tracking-tighter text-black transform -skew-x-6" style={{ textShadow: '2px 2px 0 #0EA5E9' }}>
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl font-black uppercase italic tracking-tighter text-black transform -skew-x-6" style={{ textShadow: '2px 2px 0 #0EA5E9' }}>
                     身份验证
                   </h2>
                   <p className="text-black font-bold bg-brand-secondary inline-block px-2 transform -rotate-1 mt-2 border border-black text-xs">
@@ -186,8 +186,8 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                   </p>
                 </div>
 
-                {/* 表单 */}
-                <div className="relative z-10 space-y-6">
+                {/* 表单 - 响应式间距 */}
+                <div className="relative z-10 space-y-4 sm:space-y-6">
                   {/* QQ号输入 */}
                   <div>
                     <label htmlFor="auth-qq" className="comic-label">
@@ -226,7 +226,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                       onChange={(e) => setCode(e.target.value.replaceAll(/\D/g, '').slice(0, 6))}
                       onKeyDown={handleKeyDown}
                       placeholder="######"
-                      className="comic-input text-center text-3xl tracking-[0.5em] font-black focus:ring-brand-primary"
+                      className="comic-input text-center text-xl sm:text-2xl md:text-3xl tracking-[0.3em] sm:tracking-[0.5em] font-black focus:ring-brand-primary"
                       disabled={isLoading}
                       maxLength={6}
                     />
@@ -256,8 +256,8 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                   </button>
                 </div>
 
-                {/* 英雄名言 (漫画气泡样式) */}
-                <div className="relative z-10 mt-8 p-4 bg-white border-2 border-black shadow-[4px_4px_0_0_#000]">
+                {/* 英雄名言 (漫画气泡样式) - 移动端隐藏 */}
+                <div className="relative z-10 mt-4 sm:mt-6 md:mt-8 p-3 sm:p-4 bg-white border-2 border-black shadow-[4px_4px_0_0_#000] hidden sm:block">
                   <p className="text-black text-sm font-bold italic text-center font-serif">
                     "{quote.text}"
                   </p>

@@ -29,7 +29,7 @@ export function ComicModalContent({
       className={`relative w-full ${MODAL_SIZE_CLASSES[size]} max-h-[90vh] p-4 ${className}`}
       onClick={stopPropagation ? (e) => e.stopPropagation() : undefined}
     >
-      <div className="relative p-8 border-4 border-black shadow-[10px_10px_0_0_#000] text-black bg-linear-to-br from-[#fff4c7] via-[#ffe173] to-[#ffc93c] h-full flex flex-col">
+      <div className="relative p-4 sm:p-6 md:p-8 border-4 border-black shadow-[6px_6px_0_0_#000] sm:shadow-[8px_8px_0_0_#000] md:shadow-[10px_10px_0_0_#000] text-black bg-linear-to-br from-[#fff4c7] via-[#ffe173] to-[#ffc93c] h-full flex flex-col">
         {/* 漫画半调纹理 */}
         {decorations.halftone && (
           <div

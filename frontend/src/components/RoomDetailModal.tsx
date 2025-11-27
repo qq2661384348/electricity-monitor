@@ -72,13 +72,13 @@ export function RoomDetailModal({ isOpen, onClose, room, binding }: RoomDetailMo
         </div>
       }
     >
-      <div className="space-y-6">
-        {/* 标题和状态 */}
-        <div className="flex items-start justify-between gap-4">
+      <div className="space-y-4 sm:space-y-6">
+        {/* 标题和状态 - 响应式设计 */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                 <div>
                   <h3
-                    className="text-3xl font-black uppercase italic mb-2 text-black"
-                    style={{ textShadow: '3px 3px 0 #FACC15' }}
+                    className="text-xl sm:text-2xl md:text-3xl font-black uppercase italic mb-2 text-black"
+                    style={{ textShadow: '2px 2px 0 #FACC15' }}
                   >
                     {room.room_name}
                   </h3>
@@ -89,7 +89,7 @@ export function RoomDetailModal({ isOpen, onClose, room, binding }: RoomDetailMo
                     {room.primary_roompath}
                   </p>
                 </div>
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2">
                   <div className={cn('flex items-center gap-2 px-3 py-1 transform -rotate-2', config.badgeClass)}>
                     <span className="text-sm font-black uppercase tracking-wider">
                       {config.label}
@@ -102,8 +102,8 @@ export function RoomDetailModal({ isOpen, onClose, room, binding }: RoomDetailMo
                 </div>
         </div>
 
-        {/* 主要信息区域 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* 主要信息区域 - 移动端单列 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div className="space-y-4">
                   <div className="relative bg-white/70 p-4 pt-6 border-2 border-black shadow-[4px_4px_0_0_#000]">
                     <span className="absolute top-2 left-3 bg-[#ffd966] border-2 border-black px-2 text-sm text-black font-black uppercase shadow-[2px_2px_0_0_#000]">
@@ -111,7 +111,7 @@ export function RoomDetailModal({ isOpen, onClose, room, binding }: RoomDetailMo
                     </span>
                     <div className="flex items-baseline gap-1 mt-2">
                       <span
-                        className="text-5xl text-brand-primary tracking-tight"
+                        className="text-3xl sm:text-4xl md:text-5xl text-brand-primary tracking-tight"
                         style={{ fontFamily: '"Bangers", cursive', textShadow: '2px 2px 0 #FACC15' }}
                       >
                         {formatElectricityFee(room.electricity_fee)}

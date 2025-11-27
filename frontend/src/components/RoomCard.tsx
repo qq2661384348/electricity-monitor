@@ -171,23 +171,22 @@ export function RoomCard({
             <span>{formatTime(room.updated_at)}</span>
           </div>
           
-          {/* 操作按钮组 */}
+          {/* 操作按钮组 - 移动端横向布局 */}
           {(onEditThreshold || onToggleNotification || onDeleteBinding) && (
-            <div className="relative z-10 flex gap-2 pt-3 border-t-2 border-black/30">
+            <div className="relative z-10 flex flex-wrap gap-2 pt-3 border-t-2 border-black/30">
               {onEditThreshold && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onEditThreshold(room);
                   }}
-                  className="flex-1 px-3 py-2 bg-brand-secondary text-black font-black text-lg uppercase border-2 border-black hover:scale-105 transition-all shadow-[2px_2px_0_0_#000] hover:shadow-[3px_3px_0_0_#000]"
+                  className="flex-1 min-w-[80px] px-2 sm:px-3 py-2 bg-brand-secondary text-black font-black text-sm sm:text-base uppercase border-2 border-black hover:scale-105 transition-all shadow-[2px_2px_0_0_#000] hover:shadow-[3px_3px_0_0_#000]"
                   style={{ textShadow: '-1px 0 #fff, 1px 0 #fff, 0 1px #fff, 0 -1px #fff' }}
                 >
-                  <span className="flex flex-col items-center leading-tight">
-                    <span className="text-2xl" aria-hidden>
-                      ✏️
-                    </span>
-                    <span>修改阈值</span>
+                  <span className="flex items-center justify-center gap-1 sm:gap-2">
+                    <span className="text-lg sm:text-xl" aria-hidden>✏️</span>
+                    <span className="hidden xs:inline sm:inline">修改阈值</span>
+                    <span className="xs:hidden sm:hidden">阈值</span>
                   </span>
                 </button>
               )}
@@ -197,18 +196,18 @@ export function RoomCard({
                     e.stopPropagation();
                     setIsNotificationModalOpen(true);
                   }}
-                  className={`flex-1 px-3 py-2 font-black text-sm uppercase border-2 border-black hover:scale-105 transition-all shadow-[2px_2px_0_0_#000] hover:shadow-[3px_3px_0_0_#000] ${
+                  className={`flex-1 min-w-[80px] px-2 sm:px-3 py-2 font-black text-sm uppercase border-2 border-black hover:scale-105 transition-all shadow-[2px_2px_0_0_#000] hover:shadow-[3px_3px_0_0_#000] ${
                     binding?.notification_enabled
                       ? 'bg-status-normal text-white'
                       : 'bg-gray-400 text-black'
                   }`}
                   style={{ textShadow: binding?.notification_enabled ? '-1px 0 #000, 1px 0 #000, 0 1px #000, 0 -1px #000' : '-1px 0 #fff, 1px 0 #fff, 0 1px #fff, 0 -1px #fff' }}
                 >
-                  <span className="flex flex-col items-center leading-tight">
-                    <span className="text-2xl" aria-hidden>
+                  <span className="flex items-center justify-center gap-1 sm:gap-2">
+                    <span className="text-lg sm:text-xl" aria-hidden>
                       {binding?.notification_enabled ? '🔔' : '🔕'}
                     </span>
-                    <span>{binding?.notification_enabled ? '通知已开启' : '通知已关闭'}</span>
+                    <span className="hidden sm:inline">{binding?.notification_enabled ? '已开启' : '已关闭'}</span>
                   </span>
                 </button>
               )}
@@ -218,14 +217,12 @@ export function RoomCard({
                     e.stopPropagation();
                     setIsDeleteModalOpen(true);
                   }}
-                  className="flex-1 px-3 py-2 bg-status-danger text-white font-black text-sm uppercase border-2 border-black hover:scale-105 transition-all shadow-[2px_2px_0_0_#000] hover:shadow-[3px_3px_0_0_#000]"
+                  className="flex-1 min-w-[80px] px-2 sm:px-3 py-2 bg-status-danger text-white font-black text-sm uppercase border-2 border-black hover:scale-105 transition-all shadow-[2px_2px_0_0_#000] hover:shadow-[3px_3px_0_0_#000]"
                   style={{ textShadow: '-1px 0 #000, 1px 0 #000, 0 1px #000, 0 -1px #000' }}
                 >
-                  <span className="flex flex-col items-center leading-tight">
-                    <span className="text-2xl" aria-hidden>
-                      🗑️
-                    </span>
-                    <span>删除绑定</span>
+                  <span className="flex items-center justify-center gap-1 sm:gap-2">
+                    <span className="text-lg sm:text-xl" aria-hidden>🗑️</span>
+                    <span className="hidden sm:inline">删除</span>
                   </span>
                 </button>
               )}

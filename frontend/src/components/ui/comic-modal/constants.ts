@@ -2,14 +2,18 @@ import type { ModalSize, DecorationConfig } from './types';
 
 /**
  * 模态框尺寸映射到 Tailwind CSS 类名
+ * 
+ * 响应式设计：
+ * - 移动端：使用 calc(100% - 1rem) 确保边距
+ * - 桌面端：使用固定最大宽度
  */
 export const MODAL_SIZE_CLASSES: Record<ModalSize, string> = {
-  sm: 'max-w-sm',
-  md: 'max-w-md',
-  lg: 'max-w-lg',
-  xl: 'max-w-xl',
-  '2xl': 'max-w-2xl',
-  '3xl': 'max-w-3xl',
+  sm: 'max-w-[calc(100%-1rem)] sm:max-w-sm',
+  md: 'max-w-[calc(100%-1rem)] sm:max-w-md',
+  lg: 'max-w-[calc(100%-1rem)] sm:max-w-lg',
+  xl: 'max-w-[calc(100%-1rem)] sm:max-w-xl',
+  '2xl': 'max-w-[calc(100%-1rem)] sm:max-w-2xl',
+  '3xl': 'max-w-[calc(100%-1rem)] sm:max-w-3xl',
 } as const;
 
 /**
