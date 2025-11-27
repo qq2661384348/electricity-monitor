@@ -15,41 +15,41 @@ interface TutorialStep {
 const tutorialSteps: TutorialStep[] = [
   {
     id: 1,
-    icon: <UserPlus className="w-6 h-6" strokeWidth={3} />,
+    icon: <UserPlus className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '添加QQ好友',
     description: '先添加已经部署并登录的 NapCat 机器人账号为好友；具体账号由部署者在私有渠道提供。',
     highlight: '100000002',
   },
   {
     id: 2,
-    icon: <LogIn className="w-6 h-6" strokeWidth={3} />,
+    icon: <LogIn className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '登录验证',
     description: '使用接收通知的 QQ 号登录，验证码会通过机器人私聊发送。',
     image: 'https://cdn4.winhlb.com/2025/11/20/691f2b16cde0e.png',
   },
   {
     id: 3,
-    icon: <Link2 className="w-6 h-6" strokeWidth={3} />,
+    icon: <Link2 className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '绑定房间',
     description: '点击“绑定房间”按钮，按照步骤选择你的房间位置',
   },
   {
     id: 4,
-    icon: <BookOpen className="w-6 h-6" strokeWidth={3} />,
+    icon: <BookOpen className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '查看绑定',
     description: '绑定成功后可以看到房间信息和当前电量',
     image: 'https://cdn4.winhlb.com/2025/11/20/691f2b1c8c846.png',
   },
   {
     id: 5,
-    icon: <Settings className="w-6 h-6" strokeWidth={3} />,
+    icon: <Settings className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '设置阈值',
     description: '开启通知并设定阈值（如100kWh），低于阈值时会通知',
     image: 'https://cdn4.winhlb.com/2025/11/20/691f2b1c42564.png',
   },
   {
     id: 6,
-    icon: <Bell className="w-6 h-6" strokeWidth={3} />,
+    icon: <Bell className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '接收通知',
     description: '电量低于阈值时，系统会自动发送机器人通知。',
     image: 'https://cdn4.winhlb.com/2025/11/20/691f2b178a2df.png',
@@ -129,7 +129,7 @@ export function HeroDashboard() {
               variants={containerVariants}
               initial="hidden"
               animate="visible"
-              className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 pt-4"
+              className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 p-4"
             >
               {tutorialSteps.map((step) => (
                 <motion.div
@@ -151,7 +151,7 @@ export function HeroDashboard() {
                     <div className="w-8 h-8 md:w-10 md:h-10 bg-brand-secondary border-2 border-black flex items-center justify-center shadow-[2px_2px_0_0_#000]">
                       {step.icon}
                     </div>
-                    <h3 className="font-black text-xl md:text-2xl lg:text-3xl text-black">{step.title}</h3>
+                    <h3 className="font-black text-lg md:text-xl lg:text-2xl text-black">{step.title}</h3>
                   </div>
 
                   {/* 描述 */}
