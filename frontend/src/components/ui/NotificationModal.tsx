@@ -79,7 +79,7 @@ export function NotificationModal({
         </div>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* 房间名称 */}
         <div className="text-center">
           <p className="text-sm font-bold text-gray-700 mb-1">房间</p>
@@ -92,7 +92,7 @@ export function NotificationModal({
                 <button
                   onClick={() => setSelectedStatus(true)}
                   disabled={isSubmitting}
-                  className={`w-full p-4 border-4 border-black transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`w-full p-3 sm:p-4 border-4 border-black transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                     isNotificationEnabled
                       ? 'bg-status-normal shadow-[4px_4px_0_0_#000]'
                       : 'bg-white shadow-[4px_4px_0_0_#000] hover:shadow-[6px_6px_0_0_#000] hover:-translate-x-[2px] hover:-translate-y-[2px]'
@@ -124,7 +124,7 @@ export function NotificationModal({
                 <button
                   onClick={() => setSelectedStatus(false)}
                   disabled={isSubmitting}
-                  className={`w-full p-4 border-4 border-black transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`w-full p-3 sm:p-4 border-4 border-black transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                     isNotificationDisabled
                       ? 'bg-gray-600 shadow-[4px_4px_0_0_#000]'
                       : 'bg-white shadow-[4px_4px_0_0_#000] hover:shadow-[6px_6px_0_0_#000] hover:-translate-x-[2px] hover:-translate-y-[2px]'

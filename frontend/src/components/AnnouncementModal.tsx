@@ -28,20 +28,20 @@ export function AnnouncementModal({ isOpen, onClose }: AnnouncementModalProps) {
         </button>
       }
     >
-      <div className="text-center space-y-4">
+      <div className="text-center space-y-3 sm:space-y-4">
         <div className="inline-flex items-center gap-3 px-4 py-2 bg-black text-white border-2 border-black shadow-[4px_4px_0_0_#000]">
           <Megaphone className="w-6 h-6" strokeWidth={3} />
           <span className="font-black text-lg tracking-widest uppercase">公告</span>
         </div>
 
         <h3
-          className="text-3xl font-black uppercase italic text-black"
-          style={{ fontFamily: '"Bangers", cursive', textShadow: '3px 3px 0 #FACC15' }}
+          className="text-2xl sm:text-3xl font-black uppercase italic text-black"
+          style={{ fontFamily: '"Bangers", cursive', textShadow: '2px 2px 0 #FACC15' }}
         >
           系统通知
         </h3>
 
-        <div className="relative bg-white/80 border-2 border-black shadow-[4px_4px_0_0_#000] p-5 text-left">
+        <div className="relative bg-white/80 border-2 border-black shadow-[4px_4px_0_0_#000] p-3 sm:p-5 text-left">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 bg-brand-primary border-2 border-black flex items-center justify-center shadow-[3px_3px_0_0_#000]">
               <MessageSquareHeart className="w-6 h-6 text-black" strokeWidth={3} />

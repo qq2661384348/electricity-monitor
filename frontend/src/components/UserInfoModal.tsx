@@ -34,18 +34,18 @@ export function UserInfoModal({ isOpen, onClose, qqNumber, role }: UserInfoModal
         </button>
       }
     >
-      <div className="flex flex-col items-center gap-4 text-center">
+      <div className="flex flex-col items-center gap-3 sm:gap-4 text-center">
         <div className="w-16 h-16 bg-white border-4 border-black rounded-full flex items-center justify-center shadow-[4px_4px_0_0_#000]">
           <User className="w-8 h-8 text-black" strokeWidth={3} />
         </div>
         <h3
-          className="text-3xl font-black uppercase italic text-black"
-          style={{ fontFamily: '"Bangers", cursive', textShadow: '3px 3px 0 #FACC15' }}
+          className="text-2xl sm:text-3xl font-black uppercase italic text-black"
+          style={{ fontFamily: '"Bangers", cursive', textShadow: '2px 2px 0 #FACC15' }}
         >
           个人信息
         </h3>
 
-        <div className="w-full bg-white/80 border-2 border-black shadow-[4px_4px_0_0_#000] p-5 text-left space-y-4">
+        <div className="w-full bg-white/80 border-2 border-black shadow-[4px_4px_0_0_#000] p-3 sm:p-5 text-left space-y-3 sm:space-y-4">
           <div className="flex justify-between items-center">
             <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">
               QQ 号码
