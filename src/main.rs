@@ -370,9 +370,9 @@ fn create_app(state: AppState) -> Router {
     // 添加全局中间件
     app.layer(
         ServiceBuilder::new()
-            .layer(CompressionLayer::new())    // Gzip/Brotli 压缩
-            .layer(create_trace_layer())       // 日志跟踪
-            .layer(cors)                       // CORS
+            .layer(CompressionLayer::new())                    // Gzip/Brotli 压缩
+            .layer(create_trace_layer(&config.logging.level))  // 日志跟踪
+            .layer(cors)                                       // CORS
     )
 }
 
@@ -390,9 +390,10 @@ fn init_tracing(config: &electricity_monitor_backend::config::LoggingConfig) {
         .unwrap_or_else(|_| {
             // 使用配置文件中的日志级别
             // 设置全局默认级别，同时为项目和常见的第三方库设置级别
+            // tower_http 级别跟随全局配置，控制 HTTP 访问日志
             format!(
-                "{},electricity_monitor_backend={},tokio_postgres=warn,hyper=warn,tower_http=info",
-                config.level, config.level
+                "{level},electricity_monitor_backend={level},tower_http={level},tokio_postgres=warn,hyper=warn",
+                level = config.level
             )
         });
 
