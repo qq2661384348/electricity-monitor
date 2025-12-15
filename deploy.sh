@@ -9,7 +9,8 @@
 #   3. ./deploy.sh
 #
 # 镜像文件（可选，如已加载则跳过）:
-#   - electricity-monitor.tar
+#   - electricity-app.tar
+#   - electricity-redis.tar
 #
 # =============================================================================
 
@@ -41,8 +42,8 @@ REDIS_CONTAINER="electricity-redis"
 # 网络名称
 NETWORK_NAME="electricity-net"
 
-# 端口映射（宿主机:容器）
-APP_PORT="11451:8000"
+# 端口映射（绑定127.0.0.1，需通过nginx反向代理访问）
+APP_PORT="127.0.0.1:11450:8000"
 
 # Redis 配置
 REDIS_IMAGE="redis:8-alpine"
@@ -83,12 +84,18 @@ command -v docker &> /dev/null || error "Docker 未安装"
 docker info &> /dev/null || error "Docker 守护进程未运行"
 
 # 加载镜像（如果存在 tar 文件）
-if [ -f "electricity-monitor.tar" ]; then
-    info "发现镜像文件，正在加载..."
-    docker load -i electricity-monitor.tar
-    success "镜像加载完成"
-    echo ""
+if [ -f "electricity-app.tar" ]; then
+    info "加载应用镜像: electricity-app.tar"
+    docker load -i electricity-app.tar
+    success "应用镜像加载完成"
 fi
+
+if [ -f "electricity-redis.tar" ]; then
+    info "加载 Redis 镜像: electricity-redis.tar"
+    docker load -i electricity-redis.tar
+    success "Redis 镜像加载完成"
+fi
+echo ""
 
 # 检查镜像是否存在
 if ! docker image inspect "$APP_IMAGE" &> /dev/null; then
@@ -129,14 +136,14 @@ ENV_ARGS=(
 )
 
 # 可选：数据库配置
-[ -n "$ENV_DB_HOST" ] && ENV_ARGS+=(-e "APP__DATABASE__HOST=$ENV_DB_HOST")
-[ -n "$ENV_DB_PORT" ] && ENV_ARGS+=(-e "APP__DATABASE__PORT=$ENV_DB_PORT")
-[ -n "$ENV_DB_USER" ] && ENV_ARGS+=(-e "APP__DATABASE__USERNAME=$ENV_DB_USER")
-[ -n "$ENV_DB_PASS" ] && ENV_ARGS+=(-e "APP__DATABASE__PASSWORD=$ENV_DB_PASS")
-[ -n "$ENV_DB_NAME" ] && ENV_ARGS+=(-e "APP__DATABASE__DATABASE=$ENV_DB_NAME")
+# [ -n "$ENV_DB_HOST" ] && ENV_ARGS+=(-e "APP__DATABASE__HOST=$ENV_DB_HOST")
+# [ -n "$ENV_DB_PORT" ] && ENV_ARGS+=(-e "APP__DATABASE__PORT=$ENV_DB_PORT")
+# [ -n "$ENV_DB_USER" ] && ENV_ARGS+=(-e "APP__DATABASE__USERNAME=$ENV_DB_USER")
+# [ -n "$ENV_DB_PASS" ] && ENV_ARGS+=(-e "APP__DATABASE__PASSWORD=$ENV_DB_PASS")
+# [ -n "$ENV_DB_NAME" ] && ENV_ARGS+=(-e "APP__DATABASE__DATABASE=$ENV_DB_NAME")
 
 # 可选：JWT 密钥
-[ -n "$ENV_JWT_SECRET" ] && ENV_ARGS+=(-e "APP__JWT__SECRET=$ENV_JWT_SECRET")
+# [ -n "$ENV_JWT_SECRET" ] && ENV_ARGS+=(-e "APP__JWT__SECRET=$ENV_JWT_SECRET")
 
 # 启动应用
 info "启动应用容器..."
@@ -153,7 +160,7 @@ info "等待应用就绪..."
 sleep 5
 
 # 健康检查
-if curl -sf http://localhost:11451/api/health > /dev/null 2>&1; then
+if curl -sf http://localhost:11450/api/health > /dev/null 2>&1; then
     success "应用健康检查通过"
 else
     warn "健康检查未响应，请稍后手动检查"
@@ -164,7 +171,7 @@ echo "============================================================"
 echo -e "${GREEN}🎉 部署完成！${NC}"
 echo "============================================================"
 echo ""
-echo "访问地址: http://$(hostname -I | awk '{print $1}'):11451"
+echo "访问地址: http://$(hostname -I | awk '{print $1}'):11450"
 echo ""
 echo "常用命令:"
 echo "  查看日志:   docker logs -f $APP_CONTAINER"

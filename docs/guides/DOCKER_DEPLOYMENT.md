@@ -106,7 +106,7 @@ vim config/production.toml
 │  ┌───────────────────┐    ┌──────────────────┐  │
 │  │       app         │◄──►│      redis       │  │
 │  │   (Rust 后端)     │    │   (纯内存模式)   │  │
-│  │   :8000 → :11451  │    │                  │  │
+│  │   :8000 → :11450  │    │                  │  │
 │  │                   │    │                  │  │
 │  │  内置: config/    │    │                  │  │
 │  │        static/    │    │                  │  │
@@ -122,13 +122,13 @@ vim config/production.toml
 
 | 服务 | 容器端口 | 宿主机端口 |
 |------|----------|------------|
-| app | 8000 | 11451 |
+| app | 8000 | 11450 |
 | redis | 6379 | 不暴露 |
 
 ### 访问地址
 
-- **API 地址**: `http://localhost:11451`
-- **健康检查**: `http://localhost:11451/api/health`
+- **API 地址**: `http://localhost:11450`
+- **健康检查**: `http://localhost:11450/api/health`
 
 ## Redis 配置
 

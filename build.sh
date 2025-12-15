@@ -78,8 +78,8 @@ cmd_up() {
     echo ""
     success "服务已启动"
     echo ""
-    info "访问地址: http://0.0.0.0:11451"
-    info "健康检查: http://0.0.0.0:11451/api/health"
+    info "访问地址: http://0.0.0.0:11450"
+    info "健康检查: http://0.0.0.0:11450/api/health"
     echo ""
     info "查看日志: ./build.sh logs"
     info "停止服务: ./build.sh down"
@@ -134,20 +134,28 @@ cmd_clean() {
 
 # 导出镜像
 cmd_export() {
-    local output="${1:-electricity-monitor.tar}"
-    
     separator
     echo -e "${GREEN}📦 导出镜像${NC}"
     separator
     
-    info "导出镜像到: $output"
-    docker save -o "$output" "${IMAGE_NAME}:latest"
+    # 导出应用镜像
+    info "导出应用镜像..."
+    docker save -o "electricity-app.tar" "${IMAGE_NAME}:latest"
+    local app_size=$(du -h "electricity-app.tar" | cut -f1)
+    success "electricity-app.tar ($app_size)"
     
-    local size=$(du -h "$output" | cut -f1)
-    success "导出完成: $output ($size)"
+    # 导出 Redis 镜像
+    info "导出 Redis 镜像..."
+    docker save -o "electricity-redis.tar" "redis:8-alpine"
+    local redis_size=$(du -h "electricity-redis.tar" | cut -f1)
+    success "electricity-redis.tar ($redis_size)"
+    
     echo ""
     echo "部署到服务器:"
-    echo "  1. 上传 $output 和 deploy.sh 到服务器"
+    echo "  1. 上传以下文件到服务器:"
+    echo "     - electricity-app.tar"
+    echo "     - electricity-redis.tar"
+    echo "     - deploy.sh"
     echo "  2. chmod +x deploy.sh"
     echo "  3. ./deploy.sh"
 }
