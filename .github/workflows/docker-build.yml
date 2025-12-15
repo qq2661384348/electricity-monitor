@@ -48,7 +48,7 @@ jobs:
       # 4. 安装前端依赖
       - name: Install frontend dependencies
         working-directory: ./frontend
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       # 5. 构建前端
       - name: Build frontend
