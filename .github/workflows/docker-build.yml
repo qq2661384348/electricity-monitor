@@ -1,0 +1,119 @@
+# =============================================================================
+# GitHub Actions - Docker 镜像构建工作流
+# =============================================================================
+# 功能：
+#   1. 构建前端静态资源
+#   2. 构建包含前端和后端的 Docker 镜像
+#   3. 导出镜像为 tar 文件并上传为 artifact
+#
+# 触发条件：
+#   - 推送到 main/master 分支
+#   - 手动触发
+# =============================================================================
+
+name: Build Docker Image
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:  # 支持手动触发
+
+env:
+  IMAGE_NAME: electricity-monitor
+  REDIS_IMAGE: redis:8-alpine
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 设置 Node.js 环境（用于构建前端）
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 3. 安装 pnpm
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      # 4. 安装前端依赖
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: pnpm install --frozen-lockfile
+
+      # 5. 构建前端
+      - name: Build frontend
+        working-directory: ./frontend
+        run: pnpm build
+
+      # 6. 复制前端构建产物到 static 目录
+      - name: Copy frontend build to static
+        run: |
+          mkdir -p static
+          cp -r frontend/dist/* static/
+
+      # 7. 设置 Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 8. 构建 Docker 镜像
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 9. 导出应用镜像为 tar 文件
+      - name: Export app image
+        run: |
+          docker save ${{ env.IMAGE_NAME }}:latest -o electricity-app.tar
+          echo "App image size: $(du -h electricity-app.tar | cut -f1)"
+
+      # 10. 拉取并导出 Redis 镜像
+      - name: Pull and export Redis image
+        run: |
+          docker pull ${{ env.REDIS_IMAGE }}
+          docker save ${{ env.REDIS_IMAGE }} -o electricity-redis.tar
+          echo "Redis image size: $(du -h electricity-redis.tar | cut -f1)"
+
+      # 11. 上传镜像文件为 artifact
+      - name: Upload Docker images
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-images
+          path: |
+            electricity-app.tar
+            electricity-redis.tar
+            deploy.sh
+          retention-days: 30
+          compression-level: 0  # tar 文件已压缩，无需再压缩
+
+      # 12. 构建摘要
+      - name: Build summary
+        run: |
+          echo "## 🎉 构建完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 镜像信息" >> $GITHUB_STEP_SUMMARY
+          echo "| 镜像 | 大小 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| electricity-app.tar | $(du -h electricity-app.tar | cut -f1) |" >> $GITHUB_STEP_SUMMARY
+          echo "| electricity-redis.tar | $(du -h electricity-redis.tar | cut -f1) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 部署说明" >> $GITHUB_STEP_SUMMARY
+          echo "1. 下载 artifact（docker-images）" >> $GITHUB_STEP_SUMMARY
+          echo "2. 解压并传输到服务器" >> $GITHUB_STEP_SUMMARY
+          echo "3. 执行 \`chmod +x deploy.sh && ./deploy.sh\`" >> $GITHUB_STEP_SUMMARY
