@@ -35,7 +35,7 @@ impl MessageBuilder {
     /// - 不显示内部 roomid，提升用户体验
     pub fn build_electricity_alert_message(room: &Room) -> String {
         format!(
-            "⚡ 【电量预警提醒】\n\n📍 房间位置: {}\n🔋 当前剩余: {:.2} kWh\n⚠️  预警阈值: {:.2} kWh\n\n💡 您的电量已低于预警阈值，请及时充值！",
+            "⚡ 【电量预警提醒】\n\n📍 房间位置: {}\n🔋 当前剩余: {:.2} kWh\n⚠️  预警阈值: {:.2} kWh\n\n💡 您的电量已低于预警阈值，请及时充值！\n\n访问https://y-electricity-monitor-65535.xyz:11451/  以更新你的数据",
             room.primary_roompath,
             room.electricity_fee,
             room.threshold
