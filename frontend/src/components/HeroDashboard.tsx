@@ -3,12 +3,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, UserPlus, LogIn, Link2, Settings, Bell, ChevronDown, ChevronUp } from 'lucide-react';
 import { CopyableQQNumber } from './CopyableQQNumber';
 
+// 导入本地图片
+import tutorialStep2Img1 from '@/assets/images/tutorial-step2-img1.png';
+import tutorialStep2Img2 from '@/assets/images/tutorial-step2-img2.png';
+import tutorialStep3Img from '@/assets/images/tutorial-step3.png';
+import tutorialStep4Img from '@/assets/images/tutorial-step4.png';
+import tutorialStep5Img from '@/assets/images/tutorial-step5.png';
+import tutorialStep6Img from '@/assets/images/tutorial-step6.png';
+
+
 interface TutorialStep {
   id: number;
   icon: React.ReactNode;
   title: string;
   description: string;
   image?: string;
+  images?: string[];
   highlight?: string;
 }
 
@@ -25,34 +35,38 @@ const tutorialSteps: TutorialStep[] = [
     icon: <LogIn className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '登录验证',
     description: '使用接收通知的 QQ 号登录，验证码会通过机器人私聊发送。',
-    image: 'https://cdn4.winhlb.com/2025/11/20/691f2b16cde0e.png',
+    images: [
+      tutorialStep2Img1,
+      tutorialStep2Img2
+    ],
   },
   {
     id: 3,
     icon: <Link2 className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '绑定房间',
-    description: '点击“绑定房间”按钮，按照步骤选择你的房间位置',
+    description: '点击"绑定房间"按钮，按照步骤选择你的房间位置',
+    image: tutorialStep3Img,
   },
   {
     id: 4,
     icon: <BookOpen className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '查看绑定',
     description: '绑定成功后可以看到房间信息和当前电量',
-    image: 'https://cdn4.winhlb.com/2025/11/20/691f2b1c8c846.png',
+    image: tutorialStep4Img,
   },
   {
     id: 5,
     icon: <Settings className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '设置阈值',
     description: '开启通知并设定阈值（如100kWh），低于阈值时会通知',
-    image: 'https://cdn4.winhlb.com/2025/11/20/691f2b1c42564.png',
+    image: tutorialStep5Img,
   },
   {
     id: 6,
     icon: <Bell className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '接收通知',
     description: '电量低于阈值时，系统会自动发送机器人通知。',
-    image: 'https://cdn4.winhlb.com/2025/11/20/691f2b178a2df.png',
+    image: tutorialStep6Img,
   },
 ];
 
@@ -167,25 +181,52 @@ export function HeroDashboard() {
                   </div>
 
                   {/* 图片 */}
-                  {step.image && (
-                    <div className="relative border-2 border-black overflow-hidden shadow-[2px_2px_0_0_#000] bg-gray-100">
-                      <img
-                        src={step.image}
-                        alt={`步骤${step.id}示例`}
-                        className="w-full h-auto object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const placeholder = target.nextElementSibling as HTMLElement;
-                          if (placeholder) placeholder.style.display = 'flex';
-                        }}
-                      />
-                      <div
-                        className="hidden w-full h-24 md:h-32 items-center justify-center bg-gray-200 text-gray-500 font-bold text-xs md:text-sm"
-                        style={{ display: 'none' }}
-                      >
-                        🖼️ 图片加载失败
-                      </div>
+                  {(step.image || step.images) && (
+                    <div className="space-y-2">
+                      {/* 单张图片 */}
+                      {step.image && (
+                        <div className="relative border-2 border-black overflow-hidden shadow-[2px_2px_0_0_#000] bg-gray-100">
+                          <img
+                            src={step.image}
+                            alt={`步骤${step.id}示例`}
+                            className="w-full h-auto object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const placeholder = target.nextElementSibling as HTMLElement;
+                              if (placeholder) placeholder.style.display = 'flex';
+                            }}
+                          />
+                          <div
+                            className="hidden w-full h-24 md:h-32 items-center justify-center bg-gray-200 text-gray-500 font-bold text-xs md:text-sm"
+                            style={{ display: 'none' }}
+                          >
+                            🖼️ 图片加载失败
+                          </div>
+                        </div>
+                      )}
+                      {/* 多张图片 */}
+                      {step.images && step.images.map((imageUrl, index) => (
+                        <div key={`${step.id}-img-${index}`} className="relative border-2 border-black overflow-hidden shadow-[2px_2px_0_0_#000] bg-gray-100">
+                          <img
+                            src={imageUrl}
+                            alt={`步骤${step.id}示例${index + 1}`}
+                            className="w-full h-auto object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const placeholder = target.nextElementSibling as HTMLElement;
+                              if (placeholder) placeholder.style.display = 'flex';
+                            }}
+                          />
+                          <div
+                            className="hidden w-full h-24 md:h-32 items-center justify-center bg-gray-200 text-gray-500 font-bold text-xs md:text-sm"
+                            style={{ display: 'none' }}
+                          >
+                            🖼️ 图片加载失败
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </motion.div>
