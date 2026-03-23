@@ -1,22 +1,7 @@
-#!/bin/bash
-# =============================================================================
-# 电力监控系统 - 服务器部署脚本
-# =============================================================================
-#
-# 使用方法:
-#   1. 将此脚本和镜像文件放在同一目录
-#   2. chmod +x deploy.sh
-#   3. ./deploy.sh
-#
-# 镜像文件（可选，如已加载则跳过）:
-#   - electricity-app.tar
-#   - electricity-redis.tar
-#
-# =============================================================================
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-# 颜色
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
@@ -26,156 +11,185 @@ NC='\033[0m'
 info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
 success() { echo -e "${GREEN}[OK]${NC} $1"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+error()   { echo -e "${RED}[ERROR]${NC} $1" >&2; exit 1; }
 
-# =============================================================================
-# 配置区（按需修改）
-# =============================================================================
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_FILE="${SCRIPT_DIR}/compose.yaml"
+ENV_FILE="${SCRIPT_DIR}/.env"
+ENV_EXAMPLE_FILE="${SCRIPT_DIR}/.env.example"
+IMAGES_DIR="${SCRIPT_DIR}/images"
+BACKUP_TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 
-# 镜像名称
-APP_IMAGE="electricity-monitor:latest"
+APP_BACKUP_NAME=""
+REDIS_BACKUP_NAME=""
 
-# 容器名称
-APP_CONTAINER="electricity-app"
-REDIS_CONTAINER="electricity-redis"
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || error "缺少命令: $1"
+}
 
-# 网络名称
-NETWORK_NAME="electricity-net"
+check_prerequisites() {
+    require_command docker
+    require_command gzip
+    require_command curl
+    docker info >/dev/null 2>&1 || error "Docker 守护进程未运行"
+    docker compose version >/dev/null 2>&1 || error "当前环境缺少 docker compose 插件"
 
-# 端口映射（绑定127.0.0.1，需通过nginx反向代理访问）
-APP_PORT="127.0.0.1:11450:8000"
+    [ -f "${COMPOSE_FILE}" ] || error "未找到 ${COMPOSE_FILE}"
+    [ -d "${IMAGES_DIR}" ] || error "未找到镜像目录 ${IMAGES_DIR}"
+}
 
-# Redis 配置
-REDIS_IMAGE="redis:8-alpine"
-REDIS_MAX_MEMORY="128mb"
+prepare_env_file() {
+    if [ ! -f "${ENV_FILE}" ]; then
+        if [ -f "${ENV_EXAMPLE_FILE}" ]; then
+            cp "${ENV_EXAMPLE_FILE}" "${ENV_FILE}"
+            error "未找到 .env，已按 .env.example 生成默认文件。请至少填写 APP__JWT__SECRET 后重新执行。"
+        fi
 
-# =============================================================================
-# 环境变量配置（按需修改）
-# =============================================================================
+        error "未找到 .env 和 .env.example，无法继续部署"
+    fi
+}
 
-# Redis 连接（容器内部通信，使用容器名称）
-ENV_REDIS_HOST="$REDIS_CONTAINER"
-ENV_REDIS_PORT="6379"
+load_env() {
+    while IFS= read -r line || [ -n "${line}" ]; do
+        line="${line%$'\r'}"
 
-# 日志级别（可选：trace/debug/info/warn/error）
-ENV_LOG_LEVEL="warn"
+        case "${line}" in
+            ''|'#'*) continue ;;
+        esac
 
-# 数据库配置（取消注释并填写实际值）
-# ENV_DB_HOST="your-db-host"
-# ENV_DB_PORT="5432"
-# ENV_DB_USER="postgres"
-# ENV_DB_PASS="your-password"
-# ENV_DB_NAME="electricity"
+        if [[ "${line}" != *=* ]]; then
+            error "环境文件存在非法行: ${line}"
+        fi
 
-# JWT 密钥（生产环境必须修改）
-# ENV_JWT_SECRET="your-jwt-secret"
+        local key="${line%%=*}"
+        local value="${line#*=}"
 
-# =============================================================================
-# 主逻辑
-# =============================================================================
+        if [[ "${value}" =~ ^\".*\"$ ]] || [[ "${value}" =~ ^\'.*\'$ ]]; then
+            value="${value:1:${#value}-2}"
+        fi
 
-echo "============================================================"
-echo -e "${GREEN}🚀 电力监控系统 - 服务器部署${NC}"
-echo "============================================================"
-echo ""
+        export "${key}=${value}"
+    done < "${ENV_FILE}"
 
-# 检查 Docker
-command -v docker &> /dev/null || error "Docker 未安装"
-docker info &> /dev/null || error "Docker 守护进程未运行"
+    : "${APP_CONTAINER_NAME:=electricity-app}"
+    : "${REDIS_CONTAINER_NAME:=electricity-redis}"
+    : "${APP_HOST_PORT:=11450}"
+    : "${DEPLOY_HEALTHCHECK_URL:=http://127.0.0.1:${APP_HOST_PORT}/api/health}"
+    : "${DEPLOY_HEALTHCHECK_RETRIES:=20}"
+    : "${DEPLOY_HEALTHCHECK_INTERVAL:=3}"
+    : "${APP_IMAGE_REF:?APP_IMAGE_REF 未配置}"
+    : "${REDIS_IMAGE_REF:=redis:8-alpine}"
 
-# 加载镜像（如果存在 tar 文件）
-if [ -f "electricity-app.tar" ]; then
-    info "加载应用镜像: electricity-app.tar"
-    docker load -i electricity-app.tar
-    success "应用镜像加载完成"
-fi
+    if [ -z "${APP__JWT__SECRET:-}" ] || [ "${APP__JWT__SECRET}" = "CHANGE-ME" ] || [ "${APP__JWT__SECRET}" = "CHANGE-THIS-IN-PRODUCTION-ENV" ]; then
+        error "APP__JWT__SECRET 未正确配置，请编辑 ${ENV_FILE}"
+    fi
 
-if [ -f "electricity-redis.tar" ]; then
-    info "加载 Redis 镜像: electricity-redis.tar"
-    docker load -i electricity-redis.tar
-    success "Redis 镜像加载完成"
-fi
-echo ""
+    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" config >/dev/null
+}
 
-# 检查镜像是否存在
-if ! docker image inspect "$APP_IMAGE" &> /dev/null; then
-    error "镜像 $APP_IMAGE 不存在，请先加载镜像文件"
-fi
+load_images() {
+    local loaded=0
 
-# 停止并删除旧容器（如果存在）
-info "清理旧容器..."
-docker rm -f "$APP_CONTAINER" 2>/dev/null || true
-docker rm -f "$REDIS_CONTAINER" 2>/dev/null || true
+    while IFS= read -r -d '' archive; do
+        info "加载镜像归档: $(basename "${archive}")"
+        gzip -dc "${archive}" | docker load >/dev/null
+        loaded=$((loaded + 1))
+    done < <(find "${IMAGES_DIR}" -maxdepth 1 -type f -name '*.tar.gz' -print0 | sort -z)
 
-# 创建网络（如果不存在）
-if ! docker network inspect "$NETWORK_NAME" &> /dev/null; then
-    info "创建 Docker 网络: $NETWORK_NAME"
-    docker network create "$NETWORK_NAME"
-fi
+    [ "${loaded}" -gt 0 ] || error "未在 ${IMAGES_DIR} 中找到任何 .tar.gz 镜像归档"
+}
 
-# 启动 Redis
-info "启动 Redis 容器..."
-docker run -d \
-    --name "$REDIS_CONTAINER" \
-    --network "$NETWORK_NAME" \
-    --restart unless-stopped \
-    "$REDIS_IMAGE" \
-    redis-server --save "" --appendonly no --maxmemory "$REDIS_MAX_MEMORY" --maxmemory-policy allkeys-lru
+backup_container() {
+    local container_name="$1"
+    local backup_name=""
 
-# 等待 Redis 就绪
-info "等待 Redis 就绪..."
-sleep 2
-docker exec "$REDIS_CONTAINER" redis-cli ping > /dev/null || error "Redis 启动失败"
-success "Redis 已就绪"
+    if docker container inspect "${container_name}" >/dev/null 2>&1; then
+        backup_name="${container_name}-backup-${BACKUP_TIMESTAMP}"
+        local image_id
+        image_id="$(docker inspect -f '{{.Image}}' "${container_name}")"
 
-# 构建环境变量参数
-ENV_ARGS=(
-    -e "APP__REDIS__HOST=$ENV_REDIS_HOST"
-    -e "APP__REDIS__PORT=$ENV_REDIS_PORT"
-    -e "APP__LOGGING__LEVEL=$ENV_LOG_LEVEL"
-)
+        docker image tag "${image_id}" "${container_name}:rollback-${BACKUP_TIMESTAMP}" >/dev/null 2>&1 || true
 
-# 可选：数据库配置
-# [ -n "$ENV_DB_HOST" ] && ENV_ARGS+=(-e "APP__DATABASE__HOST=$ENV_DB_HOST")
-# [ -n "$ENV_DB_PORT" ] && ENV_ARGS+=(-e "APP__DATABASE__PORT=$ENV_DB_PORT")
-# [ -n "$ENV_DB_USER" ] && ENV_ARGS+=(-e "APP__DATABASE__USERNAME=$ENV_DB_USER")
-# [ -n "$ENV_DB_PASS" ] && ENV_ARGS+=(-e "APP__DATABASE__PASSWORD=$ENV_DB_PASS")
-# [ -n "$ENV_DB_NAME" ] && ENV_ARGS+=(-e "APP__DATABASE__DATABASE=$ENV_DB_NAME")
+        info "备份现有容器 ${container_name} -> ${backup_name}"
+        docker stop "${container_name}" >/dev/null 2>&1 || true
+        docker rename "${container_name}" "${backup_name}"
+    fi
 
-# 可选：JWT 密钥
-# [ -n "$ENV_JWT_SECRET" ] && ENV_ARGS+=(-e "APP__JWT__SECRET=$ENV_JWT_SECRET")
+    printf '%s' "${backup_name}"
+}
 
-# 启动应用
-info "启动应用容器..."
-docker run -d \
-    --name "$APP_CONTAINER" \
-    --network "$NETWORK_NAME" \
-    --restart unless-stopped \
-    -p "$APP_PORT" \
-    "${ENV_ARGS[@]}" \
-    "$APP_IMAGE"
+start_new_release() {
+    info "启动新版本容器"
+    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d
+}
 
-# 等待应用就绪
-info "等待应用就绪..."
-sleep 5
+wait_for_health() {
+    local attempt=1
 
-# 健康检查
-if curl -sf http://localhost:11450/api/health > /dev/null 2>&1; then
-    success "应用健康检查通过"
-else
-    warn "健康检查未响应，请稍后手动检查"
-fi
+    while [ "${attempt}" -le "${DEPLOY_HEALTHCHECK_RETRIES}" ]; do
+        if curl -fsS "${DEPLOY_HEALTHCHECK_URL}" >/dev/null 2>&1; then
+            return 0
+        fi
 
-echo ""
-echo "============================================================"
-echo -e "${GREEN}🎉 部署完成！${NC}"
-echo "============================================================"
-echo ""
-echo "访问地址: http://$(hostname -I | awk '{print $1}'):11450"
-echo ""
-echo "常用命令:"
-echo "  查看日志:   docker logs -f $APP_CONTAINER"
-echo "  停止服务:   docker stop $APP_CONTAINER $REDIS_CONTAINER"
-echo "  启动服务:   docker start $REDIS_CONTAINER $APP_CONTAINER"
-echo "  重启服务:   docker restart $APP_CONTAINER"
-echo ""
+        info "健康检查未通过，等待后重试 (${attempt}/${DEPLOY_HEALTHCHECK_RETRIES})"
+        sleep "${DEPLOY_HEALTHCHECK_INTERVAL}"
+        attempt=$((attempt + 1))
+    done
+
+    return 1
+}
+
+restore_container() {
+    local backup_name="$1"
+    local stable_name="$2"
+
+    if [ -n "${backup_name}" ] && docker container inspect "${backup_name}" >/dev/null 2>&1; then
+        info "恢复容器 ${backup_name} -> ${stable_name}"
+        docker rename "${backup_name}" "${stable_name}"
+        docker start "${stable_name}" >/dev/null
+    fi
+}
+
+rollback() {
+    warn "部署失败，开始回滚"
+
+    docker rm -f "${APP_CONTAINER_NAME}" >/dev/null 2>&1 || true
+    docker rm -f "${REDIS_CONTAINER_NAME}" >/dev/null 2>&1 || true
+
+    restore_container "${REDIS_BACKUP_NAME}" "${REDIS_CONTAINER_NAME}"
+    restore_container "${APP_BACKUP_NAME}" "${APP_CONTAINER_NAME}"
+}
+
+main() {
+    echo "============================================================"
+    echo -e "${GREEN}🚀 Electricity Monitor Release Deploy${NC}"
+    echo "============================================================"
+
+    check_prerequisites
+    prepare_env_file
+    load_env
+    load_images
+
+    APP_BACKUP_NAME="$(backup_container "${APP_CONTAINER_NAME}")"
+    REDIS_BACKUP_NAME="$(backup_container "${REDIS_CONTAINER_NAME}")"
+
+    if ! start_new_release; then
+        rollback
+        error "docker compose 启动失败，已尝试回滚"
+    fi
+
+    if wait_for_health; then
+        success "部署完成，健康检查通过"
+        if [ -n "${APP_BACKUP_NAME}" ] || [ -n "${REDIS_BACKUP_NAME}" ]; then
+            warn "已保留旧容器备份，必要时可手动清理"
+            [ -n "${APP_BACKUP_NAME}" ] && info "应用备份: ${APP_BACKUP_NAME}"
+            [ -n "${REDIS_BACKUP_NAME}" ] && info "Redis 备份: ${REDIS_BACKUP_NAME}"
+        fi
+        return 0
+    fi
+
+    rollback
+    error "健康检查失败，已回滚到上一个可运行版本"
+}
+
+main "$@"

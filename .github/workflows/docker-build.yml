@@ -1,119 +1,149 @@
-# =============================================================================
-# GitHub Actions - Docker 镜像构建工作流
-# =============================================================================
-# 功能：
-#   1. 构建前端静态资源
-#   2. 构建包含前端和后端的 Docker 镜像
-#   3. 导出镜像为 tar 文件并上传为 artifact
-#
-# 触发条件：
-#   - 推送到 main/master 分支
-#   - 手动触发
-# =============================================================================
-
-name: Build Docker Image
+name: Package Docker Release
 
 on:
-  push:
-    branches:
-      - main
-      - master
-  workflow_dispatch:  # 支持手动触发
+  workflow_dispatch:
+    inputs:
+      git_tag:
+        description: Git tag to build and package
+        required: true
+        type: string
 
 env:
   IMAGE_NAME: electricity-monitor
   REDIS_IMAGE: redis:8-alpine
+  RELEASE_ROOT: release
 
 jobs:
-  build:
+  package-release:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+
     steps:
-      # 1. 检出代码
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # 2. 设置 Node.js 环境（用于构建前端）
+      - name: Validate and checkout git tag
+        shell: bash
+        env:
+          GIT_TAG: ${{ inputs.git_tag }}
+        run: |
+          set -euo pipefail
+
+          git fetch --force --tags
+
+          if ! git rev-parse "refs/tags/${GIT_TAG}" >/dev/null 2>&1; then
+            echo "::error::Git tag not found: ${GIT_TAG}"
+            exit 1
+          fi
+
+          git checkout "refs/tags/${GIT_TAG}"
+
+          if [[ ! "${GIT_TAG}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "::error::Git tag '${GIT_TAG}' is not a valid Docker tag. Use characters [A-Za-z0-9_.-] and avoid '/'."
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
-      # 3. 安装 pnpm
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           version: 8
+          run_install: false
 
-      # 4. 安装前端依赖
       - name: Install frontend dependencies
-        working-directory: ./frontend
-        run: pnpm install --no-frozen-lockfile
+        working-directory: frontend
+        shell: bash
+        run: pnpm install --frozen-lockfile
 
-      # 5. 构建前端
-      - name: Build frontend
-        working-directory: ./frontend
-        run: pnpm build
+      - name: Build frontend and copy static assets
+        working-directory: frontend
+        shell: bash
+        run: pnpm build:prod
 
-      # 6. 复制前端构建产物到 static 目录
-      - name: Copy frontend build to static
-        run: |
-          mkdir -p static
-          cp -r frontend/dist/* static/
-
-      # 7. 设置 Docker Buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 8. 构建 Docker 镜像
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
+      - name: Build application image
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          push: false
+          platforms: linux/amd64
           load: true
-          tags: ${{ env.IMAGE_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          push: false
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ inputs.git_tag }}
+            ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha,scope=electricity-monitor-release
+          cache-to: type=gha,mode=max,scope=electricity-monitor-release
 
-      # 9. 导出应用镜像为 tar 文件
-      - name: Export app image
+      - name: Pull Redis image
+        shell: bash
+        run: docker pull "${REDIS_IMAGE}"
+
+      - name: Assemble release package
+        shell: bash
+        env:
+          GIT_TAG: ${{ inputs.git_tag }}
         run: |
-          docker save ${{ env.IMAGE_NAME }}:latest -o electricity-app.tar
-          echo "App image size: $(du -h electricity-app.tar | cut -f1)"
+          set -euo pipefail
 
-      # 10. 拉取并导出 Redis 镜像
-      - name: Pull and export Redis image
-        run: |
-          docker pull ${{ env.REDIS_IMAGE }}
-          docker save ${{ env.REDIS_IMAGE }} -o electricity-redis.tar
-          echo "Redis image size: $(du -h electricity-redis.tar | cut -f1)"
+          app_archive="${IMAGE_NAME}-${GIT_TAG}-linux-amd64.tar"
+          redis_archive="redis-8-alpine-linux-amd64.tar"
+          package_name="release-${GIT_TAG}.tar.gz"
 
-      # 11. 上传镜像文件为 artifact
-      - name: Upload Docker images
+          rm -rf "${RELEASE_ROOT}"
+          mkdir -p "${RELEASE_ROOT}/images"
+
+          docker save "${IMAGE_NAME}:${GIT_TAG}" | gzip > "${RELEASE_ROOT}/images/${app_archive}.gz"
+          docker save "${REDIS_IMAGE}" | gzip > "${RELEASE_ROOT}/images/${redis_archive}.gz"
+
+          cp deploy.sh "${RELEASE_ROOT}/deploy.sh"
+          cp deploy/compose.release.yml "${RELEASE_ROOT}/compose.yaml"
+          sed "s/__RELEASE_TAG__/${GIT_TAG}/g" deploy/release.env.example > "${RELEASE_ROOT}/.env.example"
+          sed "s/__RELEASE_TAG__/${GIT_TAG}/g" deploy/README.release.md > "${RELEASE_ROOT}/README.md"
+
+          tar -czf "${package_name}" "${RELEASE_ROOT}"
+
+          echo "PACKAGE_NAME=${package_name}" >> "${GITHUB_ENV}"
+          echo "APP_ARCHIVE=${app_archive}.gz" >> "${GITHUB_ENV}"
+          echo "REDIS_ARCHIVE=${redis_archive}.gz" >> "${GITHUB_ENV}"
+
+      - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: docker-images
-          path: |
-            electricity-app.tar
-            electricity-redis.tar
-            deploy.sh
+          name: electricity-monitor-release-${{ inputs.git_tag }}
+          path: ${{ env.PACKAGE_NAME }}
           retention-days: 30
-          compression-level: 0  # tar 文件已压缩，无需再压缩
+          compression-level: 0
 
-      # 12. 构建摘要
       - name: Build summary
+        shell: bash
+        env:
+          GIT_TAG: ${{ inputs.git_tag }}
         run: |
-          echo "## 🎉 构建完成" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 镜像信息" >> $GITHUB_STEP_SUMMARY
-          echo "| 镜像 | 大小 |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
-          echo "| electricity-app.tar | $(du -h electricity-app.tar | cut -f1) |" >> $GITHUB_STEP_SUMMARY
-          echo "| electricity-redis.tar | $(du -h electricity-redis.tar | cut -f1) |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 部署说明" >> $GITHUB_STEP_SUMMARY
-          echo "1. 下载 artifact（docker-images）" >> $GITHUB_STEP_SUMMARY
-          echo "2. 解压并传输到服务器" >> $GITHUB_STEP_SUMMARY
-          echo "3. 执行 \`chmod +x deploy.sh && ./deploy.sh\`" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Release package created"
+            echo
+            echo "- Git tag: \`${GIT_TAG}\`"
+            echo "- Target platform: \`linux/amd64\`"
+            echo "- Package: \`${PACKAGE_NAME}\`"
+            echo "- App image archive: \`${APP_ARCHIVE}\`"
+            echo "- Redis image archive: \`${REDIS_ARCHIVE}\`"
+            echo
+            echo "### Deploy steps"
+            echo "1. Download artifact \`electricity-monitor-release-${GIT_TAG}\`"
+            echo "2. Upload \`${PACKAGE_NAME}\` to the server"
+            echo "3. Extract it and run \`chmod +x deploy.sh && ./deploy.sh\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

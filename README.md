@@ -86,6 +86,16 @@ cargo clippy   # 代码检查
 cargo test     # 运行测试
 ```
 
+## 📦 部署
+
+生产部署已调整为 GitHub Actions 手动触发打包：
+
+1. 在 GitHub Actions 中手动触发发布工作流并指定 `git_tag`
+2. 下载生成的 release artifact
+3. 在服务器解压后执行 `deploy.sh`
+
+详见 **[Docker 部署指南](./docs/guides/DOCKER_DEPLOYMENT.md)**。
+
 ## 📖 更多文档
 
 访问 **[docs/INDEX.md](./docs/INDEX.md)** 查看完整文档索引

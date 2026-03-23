@@ -1,267 +1,151 @@
 # Docker 部署指南
 
-本文档介绍如何使用 Docker Compose 部署电力监控系统。
+本文档描述当前推荐的发布链路：由 GitHub Actions 在 CI 中构建镜像、导出发布包、上传为 artifact，再由服务器执行一键部署脚本完成上线。
 
-## 快速开始
+## 当前发布链路
 
-```bash
-# 启动服务
-./build.sh up
+### 目标
 
-# 查看日志
-./build.sh logs
+- 不在personal development environment上构建生产镜像
+- 不在服务器上从源码重新编译
+- 服务器只负责 `docker load`、`docker compose up`、健康检查与失败回滚
 
-# 停止服务
-./build.sh down
+### 发布产物
+
+手动触发工作流后，会生成一个 GitHub Actions artifact：
+
+```text
+release-<git-tag>.tar.gz
+└── release/
+    ├── images/
+    │   ├── electricity-monitor-<git-tag>-linux-amd64.tar.gz
+    │   └── redis-8-alpine-linux-amd64.tar.gz
+    ├── compose.yaml
+    ├── deploy.sh
+    ├── .env.example
+    └── README.md
 ```
 
-## 运维脚本
+## GitHub Actions 工作流
 
-项目提供 `build.sh` 脚本，封装了常用的 Docker 操作命令。
+工作流文件：`.github/workflows/docker-build.yml`
 
-### 命令列表
+### 触发方式
 
-| 命令 | 说明 | 示例 |
-|------|------|------|
-| `build [TAG]` | 构建镜像 | `./build.sh build v1.0.0` |
-| `up` | 启动服务（含构建） | `./build.sh up` |
-| `down` | 停止服务 | `./build.sh down` |
-| `restart` | 重启服务 | `./build.sh restart` |
-| `logs [SERVICE]` | 查看日志 | `./build.sh logs app` |
-| `status` | 查看服务状态 | `./build.sh status` |
-| `export [FILE]` | 导出镜像为 tar 文件 | `./build.sh export` |
-| `clean` | 清理未使用镜像 | `./build.sh clean` |
-| `help` | 显示帮助 | `./build.sh help` |
+- 仅支持 `workflow_dispatch`
+- 必须输入 `git_tag`
 
-### 日志查看
+### 工作流行为
 
-```bash
-# 查看所有服务日志
-./build.sh logs
+1. 校验 tag 是否存在，并检出该 tag
+2. 构建前端并复制到 `static/`
+3. 在 GitHub Actions Linux runner 中构建 `linux/amd64` Docker 镜像
+4. 导出应用镜像与 Redis 镜像
+5. 组装 release 目录并压缩成单个归档
+6. 上传为 GitHub Actions artifact
 
-# 只看应用日志
-./build.sh logs app
+### 构建性能优化
 
-# 只看 Redis 日志
-./build.sh logs redis
-```
+当前工作流已针对构建链路做了以下优化：
 
-## 配置管理
-
-### 配置文件结构
-
-```
-config/
-├── default.toml        # 基础配置（所有环境共用）
-├── development.toml    # 开发环境覆盖
-└── production.toml     # 生产环境覆盖
-```
-
-### 配置加载优先级
-
-1. `config/default.toml` — 最低优先级
-2. `config/{APP_ENV}.toml` — 环境配置覆盖
-3. 环境变量 `APP__XXX__YYY` — 最高优先级
-
-### 镜像自包含
-
-镜像内已打包所有必要文件：
-- `config/*.toml` — 配置文件
-- `static/` — 前端静态文件
-- `migrations/` — 数据库迁移
-
-**无需挂载任何目录**，镜像可独立运行。
-
-### 环境变量覆盖
-
-敏感配置通过环境变量覆盖（优先级最高）：
-
-```yaml
-environment:
-  - APP_ENV=production
-  - APP__DATABASE__HOST=your-db-host
-  - APP__DATABASE__PASSWORD=your-password
-  - APP__JWT__SECRET=your-jwt-secret
-```
-
-**命名规则**：`APP__<SECTION>__<KEY>`（双下划线分隔）
-
-### 修改配置
-
-```bash
-# 方式1：编辑 docker-compose.yml 中的 environment
-vim docker-compose.yml
-
-# 方式2：修改 config/*.toml 后重新构建
-vim config/production.toml
-./build.sh up  # 重新构建并启动
-```
-
-## 服务架构
-
-```
-┌─────────────────────────────────────────────────┐
-│              docker-compose                      │
-│                                                  │
-│  ┌───────────────────┐    ┌──────────────────┐  │
-│  │       app         │◄──►│      redis       │  │
-│  │   (Rust 后端)     │    │   (纯内存模式)   │  │
-│  │   :8000 → :11450  │    │                  │  │
-│  │                   │    │                  │  │
-│  │  内置: config/    │    │                  │  │
-│  │        static/    │    │                  │  │
-│  └───────────────────┘    └──────────────────┘  │
-│                                                  │
-└─────────────────────────────────────────────────┘
-           ▲
-           │ 环境变量覆盖敏感配置
-           │ APP__DATABASE__PASSWORD=xxx
-```
-
-### 端口映射
-
-| 服务 | 容器端口 | 宿主机端口 |
-|------|----------|------------|
-| app | 8000 | 11450 |
-| redis | 6379 | 不暴露 |
-
-### 访问地址
-
-- **API 地址**: `http://localhost:11450`
-- **健康检查**: `http://localhost:11450/api/health`
-
-## Redis 配置
-
-容器内的 Redis 采用纯内存模式运行：
-
-```bash
-redis-server --save "" --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
-```
-
-**说明**：
-- `--save ""` — 禁用 RDB 持久化
-- `--appendonly no` — 禁用 AOF 持久化
-- `--maxmemory 128mb` — 限制最大内存
-- `--maxmemory-policy allkeys-lru` — 内存满时 LRU 淘汰
-
-**适用场景**：项目中 Redis 仅用于短生命周期的临时数据（限流计数、验证码、缓存），无需持久化。
+- 前端依赖通过 `actions/setup-node` 的 `pnpm` 缓存复用
+- 前端安装使用 `pnpm install --frozen-lockfile`
+- Docker 镜像构建使用 `docker/build-push-action` + `gha` 缓存
+- Dockerfile 继续复用多阶段构建与 `cargo-chef`
+- CI 直接构建 `linux/amd64` 镜像，避免本地与线上重复构建
 
 ## 服务器部署
 
-将镜像部署到其他 Linux 服务器的完整流程。
+### 1. 下载 artifact
 
-### 1. 构建并导出镜像（开发机）
+在 GitHub Actions 页面下载对应 tag 的 artifact，并上传到服务器。
+
+### 2. 解压发布包
 
 ```bash
-# 构建镜像
-./build.sh build
-
-# 导出为 tar 文件
-./build.sh export
-# 生成: electricity-monitor.tar
+mkdir -p /opt/electricity-monitor
+tar -xzf release-<git-tag>.tar.gz -C /opt/electricity-monitor
+cd /opt/electricity-monitor/release
 ```
 
-### 2. 传输到服务器
+### 3. 配置环境变量
 
 ```bash
-# 上传镜像和部署脚本
-scp electricity-monitor.tar deploy.sh user@server:/opt/electricity/
+cp .env.example .env
+vim .env
 ```
 
-### 3. 运行部署（服务器）
+至少需要修改：
+
+- `APP__JWT__SECRET`
+
+可按需覆盖：
+
+- `APP__DATABASE__HOST`
+- `APP__DATABASE__PORT`
+- `APP__DATABASE__USERNAME`
+- `APP__DATABASE__PASSWORD`
+- `APP__DATABASE__DATABASE`
+- `APP_HOST_PORT`
+- `APP_BIND_ADDRESS`
+
+### 4. 执行一键部署
 
 ```bash
-cd /opt/electricity
 chmod +x deploy.sh
 ./deploy.sh
 ```
 
 `deploy.sh` 会自动完成：
-- 加载镜像（检测到 tar 文件时）
-- 清理旧容器
-- 创建 Docker 网络
-- 启动 Redis 和应用
-- 健康检查
 
-### 4. 管理服务
+1. 校验 `docker` / `docker compose` / `gzip` / `curl`
+2. 加载 `images/` 下的镜像归档
+3. 备份现有 `electricity-app` / `electricity-redis`
+4. 使用 `compose.yaml` 启动新版本
+5. 对 `GET /api/health` 做重试健康检查
+6. 若健康检查失败，则自动回滚到旧容器
 
-```bash
-# 查看日志
-docker logs -f electricity-app
+## 运行时约定
 
-# 停止服务
-docker stop electricity-app electricity-redis
+### 编排方式
 
-# 启动服务
-docker start electricity-redis electricity-app
+- 运行方式：`docker compose`
+- 服务：`app` + `redis`
+- 重启策略：`unless-stopped`
 
-# 重启应用
-docker restart electricity-app
-```
+### 容器身份
 
-### 5. 配置覆盖
+- 应用容器：`electricity-app`
+- Redis 容器：`electricity-redis`
 
-编辑 `deploy.sh` 中的配置区或启动参数：
+### 端口
 
-```bash
-# 修改端口
-APP_PORT="8080:8000"
+- 容器端口：`8000`
+- 默认宿主机端口：`11450`
+- 默认绑定地址：`127.0.0.1`
 
-# 添加环境变量覆盖
-docker run ... \
-    -e APP__DATABASE__HOST=prod-db \
-    -e APP__LOGGING__LEVEL=warn \
-    ...
-```
+### 健康检查
 
-## 常见问题
+- 容器内健康检查：`http://localhost:8000/api/health`
+- 部署成功判定：`.env` 中的 `DEPLOY_HEALTHCHECK_URL`
+- 默认值：`http://127.0.0.1:11450/api/health`
 
-### 1. 如何查看容器资源使用？
+## 回滚机制
 
-```bash
-./build.sh status
-```
+部署脚本采用容器级回滚：
 
-### 2. 如何完全重建镜像？
+1. 发现旧容器后，先为当前镜像打 `rollback-<timestamp>` 标签
+2. 将旧容器重命名为 `*-backup-<timestamp>`
+3. 启动新容器并执行健康检查
+4. 若失败：
+   - 删除新容器
+   - 将备份容器重命名回原名称
+   - 重新启动旧容器
 
-```bash
-./build.sh down
-./build.sh clean
-./build.sh up
-```
+这意味着脚本不会只“报错退出”，而是会尝试恢复到上一个可运行状态。
 
-### 3. 如何修改日志级别？
+## 本地调试说明
 
-**方式1：环境变量（推荐）**
+仓库中的 `build.sh` 和根目录 `docker-compose.yml` 仍可用于本地 Docker 调试，但它们不再是推荐的生产发布主线。
 
-```bash
-# 编辑 deploy.sh 或 docker-compose.yml
--e APP__LOGGING__LEVEL=debug
-```
-
-**方式2：修改配置文件后重新构建**
-
-```toml
-# config/default.toml
-[logging]
-level = "debug"  # 可选: error, warn, info, debug, trace
-```
-
-### 4. 数据库连接配置在哪？
-
-`config/production.toml` 中的 `[database]` 部分：
-
-```toml
-[database]
-host = "your-db-host"
-port = 5432
-username = "postgres"
-password = "your-password"
-database = "electricity_pro"
-```
-
-## 相关文档
-
-- [快速启动指南](./QUICKSTART.md)
-- [数据库迁移指南](./DATABASE_MIGRATION.md)
-- [API 参考](../api/API_REFERENCE.md)
+生产发布主线以 GitHub Actions artifact 为准。

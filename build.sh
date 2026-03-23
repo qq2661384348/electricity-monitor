@@ -11,6 +11,7 @@
 #   ./build.sh logs [SERVICE]   # 查看日志
 #   ./build.sh status           # 查看状态
 #   ./build.sh clean            # 清理未使用的镜像
+#   ./build.sh export           # 本地导出镜像（调试/应急，不是推荐生产发布主线）
 #
 # =============================================================================
 
@@ -137,6 +138,8 @@ cmd_export() {
     separator
     echo -e "${GREEN}📦 导出镜像${NC}"
     separator
+
+    warn "该命令仅用于本地调试或应急导出；推荐的生产发布主线为 GitHub Actions release artifact"
     
     # 导出应用镜像
     info "导出应用镜像..."
@@ -180,7 +183,7 @@ cmd_help() {
     echo "示例:"
     echo "  ./build.sh build           # 构建镜像"
     echo "  ./build.sh up              # 启动所有服务"
-    echo "  ./build.sh export          # 导出镜像用于部署"
+    echo "  ./build.sh export          # 本地导出镜像（调试/应急）"
     echo "  ./build.sh logs app        # 只看应用日志"
 }
 

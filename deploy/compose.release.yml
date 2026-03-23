@@ -1,0 +1,47 @@
+services:
+  redis:
+    image: ${REDIS_IMAGE_REF:-redis:8-alpine}
+    container_name: ${REDIS_CONTAINER_NAME:-electricity-redis}
+    restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
+    command: redis-server --save "" --appendonly no --maxmemory ${REDIS_MAX_MEMORY:-128mb} --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - internal
+
+  app:
+    image: ${APP_IMAGE_REF:?APP_IMAGE_REF is required}
+    container_name: ${APP_CONTAINER_NAME:-electricity-app}
+    restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_HOST_PORT:-11450}:${APP_CONTAINER_PORT:-8000}"
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP__REDIS__HOST: ${APP__REDIS__HOST:-redis}
+      APP__REDIS__PORT: ${APP__REDIS__PORT:-6379}
+      APP__LOGGING__LEVEL: ${APP__LOGGING__LEVEL:-info}
+      APP__DATABASE__HOST: ${APP__DATABASE__HOST:-47.92.117.121}
+      APP__DATABASE__PORT: ${APP__DATABASE__PORT:-5432}
+      APP__DATABASE__USERNAME: ${APP__DATABASE__USERNAME:-postgres}
+      APP__DATABASE__PASSWORD: ${APP__DATABASE__PASSWORD:-postgres}
+      APP__DATABASE__DATABASE: ${APP__DATABASE__DATABASE:-electricity_pro}
+      APP__JWT__SECRET: ${APP__JWT__SECRET:?APP__JWT__SECRET is required}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    networks:
+      - internal
+
+networks:
+  internal:
+    name: ${COMPOSE_PROJECT_NAME:-electricity-monitor}-internal
+    driver: bridge
