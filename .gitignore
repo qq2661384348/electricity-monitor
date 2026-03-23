@@ -38,3 +38,6 @@ Thumbs.db
 # python打包脚本
 build_zip.py
 *.zip
+
+# 临时文件夹
+.tmp/
