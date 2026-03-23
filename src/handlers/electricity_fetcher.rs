@@ -4,8 +4,8 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::state::AppState;
 use crate::errors::Result;
+use crate::state::AppState;
 
 /// 手动触发电费获取请求
 #[derive(Debug, Deserialize)]

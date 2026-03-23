@@ -1,9 +1,6 @@
 //! API路由定义
 
-use axum::{
-    routing::get,
-    Router,
-};
+use axum::{routing::get, Router};
 
 use crate::handlers;
 use crate::state::AppState;

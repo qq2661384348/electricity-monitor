@@ -8,19 +8,19 @@ pub struct StaticFilesConfig {
     /// 是否启用静态文件服务
     #[serde(default = "default_enabled")]
     pub enabled: bool,
-    
+
     /// 静态文件目录
     #[serde(default = "default_directory")]
     pub directory: String,
-    
+
     /// 入口文件（SPA fallback）
     #[serde(default = "default_index_file")]
     pub index_file: String,
-    
+
     /// 带 hash 资源的缓存时间（秒），默认1年
     #[serde(default = "default_cache_max_age")]
     pub cache_max_age_seconds: u64,
-    
+
     /// HTML 文件缓存时间（秒），默认0表示 no-cache
     #[serde(default)]
     pub html_cache_seconds: u64,
@@ -59,7 +59,7 @@ impl StaticFilesConfig {
     pub fn index_path(&self) -> String {
         format!("{}/{}", self.directory, self.index_file)
     }
-    
+
     /// 检查目录是否存在
     pub fn directory_exists(&self) -> bool {
         std::path::Path::new(&self.directory).is_dir()

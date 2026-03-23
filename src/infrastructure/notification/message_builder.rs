@@ -8,10 +8,10 @@ pub struct MessageBuilder;
 
 impl MessageBuilder {
     /// 构建验证码消息
-    /// 
+    ///
     /// # 参数
     /// * `code` - 6位验证码
-    /// 
+    ///
     /// # 返回
     /// 格式化的验证码消息文本
     pub fn build_verification_code_message(code: &str) -> String {
@@ -20,15 +20,15 @@ impl MessageBuilder {
             code
         )
     }
-    
+
     /// 构建电费预警消息
-    /// 
+    ///
     /// # 参数
     /// * `room` - 房间信息
-    /// 
+    ///
     /// # 返回
     /// 格式化的预警消息文本
-    /// 
+    ///
     /// # 消息格式
     /// - 使用 emoji 增强视觉层次
     /// - 显示房间路径（primary_roompath）而非房间名称
@@ -41,13 +41,13 @@ impl MessageBuilder {
             room.threshold
         )
     }
-    
+
     /// 构建QQ API请求体
-    /// 
+    ///
     /// # 参数
     /// * `user_id` - QQ号
     /// * `message` - 消息文本
-    /// 
+    ///
     /// # 返回
     /// JSON格式的请求体
     pub fn build_api_request_body(user_id: &str, message: &str) -> sonic_rs::Value {
@@ -91,24 +91,24 @@ mod tests {
             created_at: chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc(),
             updated_at: chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc(),
         };
-        
+
         let message = MessageBuilder::build_electricity_alert_message(&room);
-        
+
         // 检查 emoji 存在
         assert!(message.contains("⚡"));
         assert!(message.contains("📍"));
         assert!(message.contains("🔋"));
         assert!(message.contains("⚠️"));
         assert!(message.contains("💡"));
-        
+
         // 检查房间路径（而非房间名称）
         assert!(message.contains("南校区/1号楼/101"));
         assert!(!message.contains("测试房间")); // 不应该包含 room_name
-        
+
         // 检查电量数据
         assert!(message.contains("5.50"));
         assert!(message.contains("10.00"));
-        
+
         // 确认不显示 "roomid" 或 "房间ID" 字样
         assert!(!message.contains("roomid"));
         assert!(!message.contains("房间ID"));

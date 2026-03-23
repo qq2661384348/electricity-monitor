@@ -1,5 +1,5 @@
 //! 第三方验证码校验服务
-//! 
+//!
 //! 采用"客户端直连获取、网关代理校验"架构
 //! 第三方API: https://v2.xxapi.cn/api/captcha
 
@@ -41,10 +41,10 @@ pub struct ThirdPartyResponse {
 pub struct CaptchaVerificationService {
     /// HTTP客户端
     http_client: Client,
-    
+
     /// Redis连接池（用于存储一次性token）
     redis_pool: RedisPool,
-    
+
     /// 第三方API地址
     api_url: String,
 }
@@ -56,21 +56,21 @@ impl CaptchaVerificationService {
             .timeout(Duration::from_secs(5))
             .build()
             .expect("Failed to create HTTP client");
-        
+
         Self {
             http_client,
             redis_pool,
             api_url: "https://v2.xxapi.cn/api/captcha".to_string(),
         }
     }
-    
+
     /// 校验验证码（网关代理）
-    /// 
+    ///
     /// # 参数
     /// * `id` - 验证码ID
     /// * `key` - 用户输入的答案
     /// * `captcha_type` - 验证码类型
-    /// 
+    ///
     /// # 返回
     /// 成功返回一次性token，失败返回错误
     pub async fn verify_captcha(
@@ -84,7 +84,7 @@ impl CaptchaVerificationService {
             captcha_type = ?captcha_type,
             "开始校验验证码"
         );
-        
+
         // 构建请求URL
         let url = format!(
             "{}?id={}&key={}&type={}",
@@ -97,18 +97,13 @@ impl CaptchaVerificationService {
                 CaptchaType::Digit => "digit",
             }
         );
-        
+
         // 发送GET请求到第三方API
-        let response = self
-            .http_client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "验证码校验请求失败");
-                AppError::Internal(format!("验证码服务请求失败: {}", e))
-            })?;
-        
+        let response = self.http_client.get(&url).send().await.map_err(|e| {
+            tracing::error!(error = %e, "验证码校验请求失败");
+            AppError::Internal(format!("验证码服务请求失败: {}", e))
+        })?;
+
         // 检查HTTP状态码
         if response.status() != StatusCode::OK {
             tracing::warn!(
@@ -117,18 +112,18 @@ impl CaptchaVerificationService {
             );
             return Err(AppError::Internal("验证码服务暂时不可用".to_string()));
         }
-        
+
         // 解析响应
         let body = response.text().await.map_err(|e| {
             tracing::error!(error = %e, "读取验证码响应失败");
             AppError::Internal("验证码服务响应异常".to_string())
         })?;
-        
+
         let api_response: ThirdPartyResponse = sonic_rs::from_str(&body).map_err(|e| {
             tracing::error!(error = %e, body = %body, "解析验证码响应失败");
             AppError::Internal("验证码服务响应格式错误".to_string())
         })?;
-        
+
         // 检查验证结果
         if api_response.code != 200 {
             tracing::info!(
@@ -139,53 +134,53 @@ impl CaptchaVerificationService {
             );
             return Err(AppError::Unauthorized("验证码错误或已过期".to_string()));
         }
-        
+
         // 验证成功，生成一次性token
         let token = Uuid::new_v4().to_string();
-        
+
         // 存储token到Redis，有效期60秒
         let mut conn = self
             .redis_pool
             .get()
             .await
             .map_err(|e| AppError::Redis(format!("获取Redis连接失败: {}", e)))?;
-        
+
         let redis_key = format!("captcha:token:{}", token);
         conn.set_ex::<_, _, ()>(&redis_key, "valid", 60)
             .await
             .map_err(|e| AppError::Redis(format!("存储验证码token失败: {}", e)))?;
-        
+
         tracing::info!(
             captcha_id = %id,
             token = %token,
             "验证码验证成功，生成一次性token"
         );
-        
+
         Ok(token)
     }
-    
+
     /// 验证并消费token
-    /// 
+    ///
     /// # 参数
     /// * `token` - 一次性token
-    /// 
+    ///
     /// # 返回
     /// token有效返回true，无效或已使用返回false
     pub async fn verify_and_consume_token(&self, token: &str) -> Result<bool> {
         let redis_key = format!("captcha:token:{}", token);
-        
+
         let mut conn = self
             .redis_pool
             .get()
             .await
             .map_err(|e| AppError::Redis(format!("获取Redis连接失败: {}", e)))?;
-        
+
         // 使用GETDEL原子操作，获取并删除token（确保只能使用一次）
         let exists: Option<String> = conn
             .get_del(&redis_key)
             .await
             .map_err(|e| AppError::Redis(format!("验证token失败: {}", e)))?;
-        
+
         match exists {
             Some(_) => {
                 tracing::info!(token = %token, "Token验证成功并已消费");
@@ -202,18 +197,18 @@ impl CaptchaVerificationService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_captcha_type_serialization() {
         let math_type = CaptchaType::Math;
         let json = sonic_rs::to_string(&math_type).unwrap();
         assert_eq!(json, r#""math""#);
-        
+
         let string_type = CaptchaType::String;
         let json = sonic_rs::to_string(&string_type).unwrap();
         assert_eq!(json, r#""string""#);
     }
-    
+
     #[test]
     fn test_third_party_response_deserialization() {
         let json = r#"{"code":200,"msg":"数据请求成功","data":"验证成功"}"#;

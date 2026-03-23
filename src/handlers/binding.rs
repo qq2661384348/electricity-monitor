@@ -1,12 +1,11 @@
 //! 用户-房间绑定处理器
-//! 
+//!
 //! 处理用户房间绑定相关的HTTP请求
 
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    Extension,
-    Json,
+    Extension, Json,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -23,7 +22,7 @@ use crate::state::AppState;
 pub struct CreateBindingRequest {
     /// 房间ID
     pub roomid: i32,
-    
+
     /// 是否启用通知（默认: false）
     #[serde(default)]
     pub notification_enabled: bool,
@@ -45,7 +44,7 @@ pub struct BindingResponse {
     pub notification_enabled: bool,
     pub created_at: String,
     pub updated_at: String,
-    
+
     // 完整的房间信息（联表查询时填充）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub room: Option<crate::domain::models::Room>,
@@ -67,11 +66,14 @@ impl From<UserRoomBinding> for BindingResponse {
 
 impl BindingResponse {
     /// 从绑定和房间信息构造完整响应
-    /// 
+    ///
     /// # 参数
     /// - `binding`: 用户房间绑定
     /// - `room`: 可选的房间信息（联表查询时提供）
-    pub fn with_room_info(binding: UserRoomBinding, room: Option<&crate::domain::models::Room>) -> Self {
+    pub fn with_room_info(
+        binding: UserRoomBinding,
+        room: Option<&crate::domain::models::Room>,
+    ) -> Self {
         let mut response = Self::from(binding);
         response.room = room.cloned();
         response
@@ -79,9 +81,9 @@ impl BindingResponse {
 }
 
 /// 创建用户-房间绑定
-/// 
+///
 /// POST /api/bindings
-/// 
+///
 /// 需要认证
 pub async fn create_binding(
     State(state): State<AppState>,
@@ -93,7 +95,9 @@ pub async fn create_binding(
         return Err(AppError::Forbidden);
     }
 
-    let user_id_str = user_ctx.user_id.as_ref()
+    let user_id_str = user_ctx
+        .user_id
+        .as_ref()
         .ok_or(AppError::Internal("用户ID缺失".to_string()))?;
 
     // 验证请求
@@ -150,11 +154,11 @@ pub async fn create_binding(
 }
 
 /// 查询用户的所有绑定（包含房间信息）
-/// 
+///
 /// GET /api/bindings
-/// 
+///
 /// 需要认证
-/// 
+///
 /// # 性能优化
 /// 使用批量查询避免N+1问题：
 /// 1. 查询所有绑定
@@ -171,9 +175,11 @@ pub async fn list_bindings(
         return Ok(Json(Vec::new()));
     }
 
-    let user_id_str = user_ctx.user_id.as_ref()
+    let user_id_str = user_ctx
+        .user_id
+        .as_ref()
         .ok_or(AppError::Internal("用户ID缺失".to_string()))?;
-    
+
     // 解析user_id
     let user_id = Uuid::parse_str(user_id_str)
         .map_err(|_| AppError::Internal("无效的用户ID格式".to_string()))?;
@@ -196,7 +202,7 @@ pub async fn list_bindings(
 
     // 4. 构建roomid -> Room 的映射，方便快速查找
     use std::collections::HashMap;
-    let room_map: HashMap<i32, &crate::domain::models::Room> = 
+    let room_map: HashMap<i32, &crate::domain::models::Room> =
         rooms.iter().map(|r| (r.roomid, r)).collect();
 
     // 5. 组装响应，填充房间信息
@@ -218,9 +224,9 @@ pub async fn list_bindings(
 }
 
 /// 获取绑定详情
-/// 
+///
 /// GET /api/bindings/{id}
-/// 
+///
 /// 需要认证，只能查看自己的绑定（管理员除外）
 pub async fn get_binding(
     State(state): State<AppState>,
@@ -228,7 +234,7 @@ pub async fn get_binding(
     Path(id): Path<Uuid>,
 ) -> Result<Json<BindingResponse>> {
     let binding_repo = UserRoomBindingRepository::new(state.db_pool.clone());
-    
+
     let binding = binding_repo
         .find_by_id(id)
         .await?
@@ -237,9 +243,11 @@ pub async fn get_binding(
     // 管理员可以查看所有绑定
     if !user_ctx.is_admin {
         // 普通用户只能查看自己的绑定
-        let user_id_str = user_ctx.user_id.as_ref()
+        let user_id_str = user_ctx
+            .user_id
+            .as_ref()
             .ok_or(AppError::Internal("用户ID缺失".to_string()))?;
-        
+
         if binding.user_id.to_string() != *user_id_str {
             tracing::warn!(
                 user_id = %user_id_str,
@@ -254,9 +262,9 @@ pub async fn get_binding(
 }
 
 /// 更新通知开关
-/// 
+///
 /// PUT /api/bindings/{id}/notification
-/// 
+///
 /// 需要认证，只能更新自己的绑定（管理员除外）
 pub async fn update_notification(
     State(state): State<AppState>,
@@ -279,9 +287,11 @@ pub async fn update_notification(
     // 管理员可以更新所有绑定
     if !user_ctx.is_admin {
         // 普通用户只能更新自己的绑定
-        let user_id_str = user_ctx.user_id.as_ref()
+        let user_id_str = user_ctx
+            .user_id
+            .as_ref()
             .ok_or(AppError::Internal("用户ID缺失".to_string()))?;
-        
+
         if binding.user_id.to_string() != *user_id_str {
             tracing::warn!(
                 user_id = %user_id_str,
@@ -300,9 +310,13 @@ pub async fn update_notification(
     let user_info = if user_ctx.is_admin {
         "admin".to_string()
     } else {
-        user_ctx.user_id.as_ref().unwrap_or(&"unknown".to_string()).clone()
+        user_ctx
+            .user_id
+            .as_ref()
+            .unwrap_or(&"unknown".to_string())
+            .clone()
     };
-    
+
     tracing::info!(
         user_id = %user_info,
         binding_id = %id,
@@ -314,9 +328,9 @@ pub async fn update_notification(
 }
 
 /// 删除绑定
-/// 
+///
 /// DELETE /api/bindings/{id}
-/// 
+///
 /// 需要认证，只能删除自己的绑定（管理员除外）
 pub async fn delete_binding(
     State(state): State<AppState>,
@@ -334,9 +348,11 @@ pub async fn delete_binding(
     // 管理员可以删除所有绑定
     if !user_ctx.is_admin {
         // 普通用户只能删除自己的绑定
-        let user_id_str = user_ctx.user_id.as_ref()
+        let user_id_str = user_ctx
+            .user_id
+            .as_ref()
             .ok_or(AppError::Internal("用户ID缺失".to_string()))?;
-        
+
         if binding.user_id.to_string() != *user_id_str {
             tracing::warn!(
                 user_id = %user_id_str,
@@ -354,9 +370,13 @@ pub async fn delete_binding(
         let user_info = if user_ctx.is_admin {
             "admin".to_string()
         } else {
-            user_ctx.user_id.as_ref().unwrap_or(&"unknown".to_string()).clone()
+            user_ctx
+                .user_id
+                .as_ref()
+                .unwrap_or(&"unknown".to_string())
+                .clone()
         };
-        
+
         tracing::info!(
             user_id = %user_info,
             binding_id = %id,

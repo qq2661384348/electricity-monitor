@@ -15,10 +15,10 @@ use tokio::sync::RwLock;
 pub struct RoomSyncCache {
     /// 主缓存：roomid → Room
     rooms: Arc<RwLock<HashMap<i32, Room>>>,
-    
+
     /// 路径缓存：roomid → Vec<RoomPath>
     paths: Arc<RwLock<HashMap<i32, Vec<RoomPath>>>>,
-    
+
     /// 数据库连接池（用于刷新缓存）
     pool: DbPool,
 }
@@ -37,16 +37,12 @@ impl RoomSyncCache {
     pub async fn new(pool: DbPool) -> Result<Self> {
         let rooms = Arc::new(RwLock::new(HashMap::new()));
         let paths = Arc::new(RwLock::new(HashMap::new()));
-        
-        let cache = Self {
-            rooms,
-            paths,
-            pool,
-        };
-        
+
+        let cache = Self { rooms, paths, pool };
+
         // ⭐ 启动时唯一的全量数据库查询
         cache.full_refresh().await?;
-        
+
         Ok(cache)
     }
 
@@ -61,48 +57,42 @@ impl RoomSyncCache {
     /// 如果查询失败，返回数据库错误
     pub async fn full_refresh(&self) -> Result<()> {
         let repo = RoomRepository::new(self.pool.clone());
-        
+
         tracing::info!("开始全量刷新RoomSyncCache");
-        
+
         // 1. 查询所有活跃房间
         let all_rooms = repo.find_all_active().await?;
-        
+
         tracing::debug!("查询到 {} 个活跃房间", all_rooms.len());
-        
+
         // 2. 查询所有额外路径
         let all_paths = repo.find_all_additional_paths().await?;
-        
+
         tracing::debug!("查询到 {} 条额外路径", all_paths.len());
-        
+
         // 3. 构建房间缓存
-        let rooms_map: HashMap<i32, Room> = all_rooms
-            .into_iter()
-            .map(|r| (r.roomid, r))
-            .collect();
-        
+        let rooms_map: HashMap<i32, Room> = all_rooms.into_iter().map(|r| (r.roomid, r)).collect();
+
         // 4. 构建路径缓存（按roomid分组）
         let mut paths_map: HashMap<i32, Vec<RoomPath>> = HashMap::new();
         for path in all_paths {
-            paths_map
-                .entry(path.roomid)
-                .or_default()
-                .push(path);
+            paths_map.entry(path.roomid).or_default().push(path);
         }
-        
+
         // 5. 更新缓存
         *self.rooms.write().await = rooms_map;
         *self.paths.write().await = paths_map;
-        
+
         // 6. 记录统计（先获取值再记录日志，避免Send问题）
         let room_count = self.rooms.read().await.len();
         let path_groups = self.paths.read().await.len();
-        
+
         tracing::info!(
             room_count = room_count,
             path_groups = path_groups,
             "RoomSyncCache 全量刷新完成"
         );
-        
+
         Ok(())
     }
 
@@ -118,16 +108,13 @@ impl RoomSyncCache {
         if new_rooms.is_empty() {
             return;
         }
-        
+
         let mut cache = self.rooms.write().await;
         for room in new_rooms {
             cache.insert(room.roomid, room);
         }
-        
-        tracing::debug!(
-            count = cache.len(),
-            "增量添加房间到缓存"
-        );
+
+        tracing::debug!(count = cache.len(), "增量添加房间到缓存");
     }
 
     /// 增量更新房间（不查询数据库）
@@ -142,16 +129,13 @@ impl RoomSyncCache {
         if updated_rooms.is_empty() {
             return;
         }
-        
+
         let mut cache = self.rooms.write().await;
         for room in updated_rooms {
             cache.insert(room.roomid, room);
         }
-        
-        tracing::debug!(
-            count = cache.len(),
-            "增量更新房间缓存"
-        );
+
+        tracing::debug!(count = cache.len(), "增量更新房间缓存");
     }
 
     /// 增量更新路径缓存
@@ -161,7 +145,7 @@ impl RoomSyncCache {
     /// - `paths`: 该房间的所有路径
     pub async fn update_paths(&self, roomid: i32, paths: Vec<RoomPath>) {
         let mut cache = self.paths.write().await;
-        
+
         if paths.is_empty() {
             cache.remove(&roomid);
         } else {
@@ -201,22 +185,19 @@ impl RoomSyncCache {
                 return Ok(Some(room.clone()));
             }
         }
-        
+
         // 2. 缓存未命中，降级到数据库（兜底）
-        tracing::warn!(
-            roomid = roomid,
-            "缓存未命中，降级到数据库查询"
-        );
-        
+        tracing::warn!(roomid = roomid, "缓存未命中，降级到数据库查询");
+
         let repo = RoomRepository::new(self.pool.clone());
         let room = repo.find_by_roomid(roomid).await?;
-        
+
         // 3. 更新缓存
         if let Some(ref r) = room {
             let mut cache = self.rooms.write().await;
             cache.insert(roomid, r.clone());
         }
-        
+
         Ok(room)
     }
 
@@ -243,11 +224,8 @@ impl RoomSyncCache {
     pub async fn remove_room(&self, roomid: i32) {
         self.rooms.write().await.remove(&roomid);
         self.paths.write().await.remove(&roomid);
-        
-        tracing::debug!(
-            roomid = roomid,
-            "从缓存中移除房间"
-        );
+
+        tracing::debug!(roomid = roomid, "从缓存中移除房间");
     }
 
     /// 获取缓存大小

@@ -1,10 +1,10 @@
 //! 电费插入服务（优化版）
-//! 
+//!
 //! 后台任务：从Redis队列批量消费电费数据并批量更新数据库
 //! 应用限流防止过多并发影响主业务
 
-use std::sync::Arc;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 use crate::domain::services::{RateLimitOperation, RateLimiter};
@@ -28,8 +28,8 @@ impl Default for BatchConfig {
     fn default() -> Self {
         Self {
             batch_size: 100,           // 每批100条
-            batch_wait_ms: 50,          // 批处理间隔50ms
-            empty_queue_wait_ms: 1000,  // 空队列等待1秒
+            batch_wait_ms: 50,         // 批处理间隔50ms
+            empty_queue_wait_ms: 1000, // 空队列等待1秒
         }
     }
 }
@@ -39,7 +39,7 @@ impl Default for BatchConfig {
 pub struct ElectricityData {
     /// 房间ID
     pub roomid: i32,
-    
+
     /// 电费值
     pub electricity_fee: f32,
 }
@@ -61,26 +61,26 @@ pub struct BatchStats {
 pub struct ElectricityService {
     /// Room仓储
     repository: RoomRepository,
-    
+
     /// Redis连接池
     redis_pool: RedisPool,
-    
+
     /// 限流器
     rate_limiter: Arc<RateLimiter>,
-    
+
     /// Redis队列键名
     queue_key: String,
-    
+
     /// 批量处理配置
     batch_config: BatchConfig,
-    
+
     /// 统计信息
     stats: Arc<tokio::sync::Mutex<BatchStats>>,
 }
 
 impl ElectricityService {
     /// 创建新的电费插入服务
-    /// 
+    ///
     /// # 参数
     /// - `repository`: Room仓储
     /// - `redis_pool`: Redis连接池
@@ -90,14 +90,9 @@ impl ElectricityService {
         redis_pool: RedisPool,
         rate_limiter: Arc<RateLimiter>,
     ) -> Self {
-        Self::with_config(
-            repository,
-            redis_pool,
-            rate_limiter,
-            BatchConfig::default(),
-        )
+        Self::with_config(repository, redis_pool, rate_limiter, BatchConfig::default())
     }
-    
+
     /// 创建带自定义配置的服务
     pub fn with_config(
         repository: RoomRepository,
@@ -116,22 +111,22 @@ impl ElectricityService {
     }
 
     /// 启动后台任务（优化版）
-    /// 
+    ///
     /// # 说明
     /// 此方法会启动一个Tokio任务，持续从Redis队列批量消费电费数据
     /// 批量处理显著提升性能：100条/批次 vs 单条处理
     pub fn spawn_worker(self) -> tokio::task::JoinHandle<()> {
         let stats = self.stats.clone();
-        
+
         tokio::spawn(async move {
             tracing::info!(
                 "电费插入服务已启动（批量模式）: batch_size={}, wait_ms={}",
                 self.batch_config.batch_size,
                 self.batch_config.batch_wait_ms
             );
-            
+
             let mut log_timer = tokio::time::interval(Duration::from_secs(60));
-            
+
             loop {
                 tokio::select! {
                     _ = log_timer.tick() => {
@@ -153,11 +148,12 @@ impl ElectricityService {
             }
         })
     }
-    
+
     /// 处理一批数据
     async fn process_batch(&self) {
         // 应用限流（批次级别）
-        if let Err(e) = self.rate_limiter
+        if let Err(e) = self
+            .rate_limiter
             .wait_for_rate_limit(RateLimitOperation::Insert)
             .await
         {
@@ -171,7 +167,7 @@ impl ElectricityService {
             Ok(batch) if !batch.is_empty() => {
                 let batch_size = batch.len();
                 tracing::debug!("从队列获取到 {} 条数据", batch_size);
-                
+
                 // 批量处理
                 match self.process_electricity_batch(batch).await {
                     Ok(updated) => {
@@ -179,17 +175,13 @@ impl ElectricityService {
                         stats.batch_count += 1;
                         stats.total_records += batch_size as u64;
                         stats.updated_records += updated as u64;
-                        
-                        tracing::info!(
-                            "批量更新完成: 处理={}, 更新={}",
-                            batch_size,
-                            updated
-                        );
+
+                        tracing::info!("批量更新完成: 处理={}, 更新={}", batch_size, updated);
                     }
                     Err(e) => {
                         let mut stats = self.stats.lock().await;
                         stats.failed_batches += 1;
-                        
+
                         tracing::error!("批量处理失败: {}", e);
                     }
                 }
@@ -207,10 +199,10 @@ impl ElectricityService {
     }
 
     /// 从Redis队列批量消费数据
-    /// 
+    ///
     /// # 返回
     /// 批量数据（最多batch_size条）
-    /// 
+    ///
     /// # 优化策略
     /// 使用LPOP批量弹出，避免LRANGE+LTRIM的竞态条件
     async fn consume_batch_from_queue(&self) -> Result<Vec<ElectricityData>> {
@@ -219,16 +211,13 @@ impl ElectricityService {
         })?;
 
         let mut batch = Vec::with_capacity(self.batch_config.batch_size);
-        
+
         // 批量弹出（使用pipeline优化）
         for _ in 0..self.batch_config.batch_size {
-            let result: Option<String> = conn
-                .lpop(&self.queue_key, None)
-                .await
-                .map_err(|e| {
-                    crate::errors::AppError::Internal(format!("Redis LPOP failed: {}", e))
-                })?;
-            
+            let result: Option<String> = conn.lpop(&self.queue_key, None).await.map_err(|e| {
+                crate::errors::AppError::Internal(format!("Redis LPOP failed: {}", e))
+            })?;
+
             match result {
                 Some(json_data) => {
                     // 反序列化JSON数据
@@ -243,30 +232,30 @@ impl ElectricityService {
                 None => break, // 队列已空
             }
         }
-        
+
         Ok(batch)
     }
 
     /// 批量处理电费数据
-    /// 
+    ///
     /// # 参数
     /// - `batch`: 电费数据批次
-    /// 
+    ///
     /// # 返回
     /// 实际更新的记录数
-    /// 
+    ///
     /// # 性能提升
     /// - 单条处理：N次数据库操作
     /// - 批量处理：1次数据库操作（100倍提升）
     async fn process_electricity_batch(&self, batch: Vec<ElectricityData>) -> Result<usize> {
         // 转换为HashMap格式
         let mut data_map = HashMap::with_capacity(batch.len());
-        
+
         for item in batch {
             // 如果有重复的roomid，保留最新值
             data_map.insert(item.roomid, item.electricity_fee);
         }
-        
+
         let record_count = data_map.len();
         tracing::debug!("准备批量更新 {} 个房间的电费", record_count);
 
@@ -284,20 +273,17 @@ impl ElectricityService {
                 record_count - affected_rows
             );
         } else if record_count > 0 {
-            tracing::warn!(
-                "批量更新未匹配任何房间: 提交={}",
-                record_count
-            );
+            tracing::warn!("批量更新未匹配任何房间: 提交={}", record_count);
         }
 
         Ok(affected_rows)
     }
 
     /// 推送电费数据到队列（供外部API调用）
-    /// 
+    ///
     /// # 参数
     /// - `data`: 电费数据
-    /// 
+    ///
     /// # 说明
     /// 此方法保持不变，仍支持单条推送
     pub async fn push_to_queue(&self, data: ElectricityData) -> Result<()> {
@@ -307,38 +293,34 @@ impl ElectricityService {
 
         // 序列化为JSON
         let json_data = serde_json::to_string(&data)
-            .map_err(|e| {
-                crate::errors::AppError::Internal(format!("JSON序列化失败: {}", e))
-            })?;
+            .map_err(|e| crate::errors::AppError::Internal(format!("JSON序列化失败: {}", e)))?;
 
         // 推送到队列
         conn.rpush::<_, _, ()>(&self.queue_key, json_data)
             .await
-            .map_err(|e| {
-                crate::errors::AppError::Internal(format!("Redis RPUSH failed: {}", e))
-            })?;
+            .map_err(|e| crate::errors::AppError::Internal(format!("Redis RPUSH failed: {}", e)))?;
 
         tracing::debug!("电费数据已推送到队列: {:?}", data);
 
         Ok(())
     }
-    
+
     /// 批量推送电费数据到队列
-    /// 
+    ///
     /// # 参数
     /// - `batch`: 电费数据批次
-    /// 
+    ///
     /// # 性能优化
     /// 使用pipeline批量推送
     pub async fn push_batch_to_queue(&self, batch: Vec<ElectricityData>) -> Result<()> {
         if batch.is_empty() {
             return Ok(());
         }
-        
+
         let mut conn = self.redis_pool.get().await.map_err(|e| {
             crate::errors::AppError::Internal(format!("Failed to get Redis connection: {}", e))
         })?;
-        
+
         // 批量序列化
         let json_batch: Vec<String> = batch
             .iter()
@@ -351,7 +333,7 @@ impl ElectricityService {
                     .ok()
             })
             .collect();
-        
+
         if !json_batch.is_empty() {
             // 批量推送
             conn.rpush::<_, _, ()>(&self.queue_key, json_batch)
@@ -359,10 +341,10 @@ impl ElectricityService {
                 .map_err(|e| {
                     crate::errors::AppError::Internal(format!("Redis批量RPUSH失败: {}", e))
                 })?;
-            
+
             tracing::info!("批量推送 {} 条数据到队列", batch.len());
         }
-        
+
         Ok(())
     }
 
@@ -375,13 +357,11 @@ impl ElectricityService {
         let length: usize = conn
             .llen(&self.queue_key)
             .await
-            .map_err(|e| {
-                crate::errors::AppError::Internal(format!("Redis LLEN failed: {}", e))
-            })?;
+            .map_err(|e| crate::errors::AppError::Internal(format!("Redis LLEN failed: {}", e)))?;
 
         Ok(length)
     }
-    
+
     /// 获取服务统计信息
     pub async fn get_stats(&self) -> BatchStats {
         let stats = self.stats.lock().await;
@@ -395,27 +375,30 @@ impl ElectricityService {
 }
 
 /// 电费获取器trait
-/// 
+///
 /// # 注意
 /// 此trait是公开接口，供外部模块扩展使用
 pub trait ElectricityFetcher: Send + Sync {
     /// 获取房间电费
-    /// 
+    ///
     /// # 参数
     /// - `roomid`: 房间ID
-    /// 
+    ///
     /// # 返回
     /// 电费值的Future
-    fn fetch_electricity_fee(&self, roomid: i32) -> impl std::future::Future<Output = Result<f32>> + Send;
-    
+    fn fetch_electricity_fee(
+        &self,
+        roomid: i32,
+    ) -> impl std::future::Future<Output = Result<f32>> + Send;
+
     /// 批量获取房间电费（可选实现）
-    /// 
+    ///
     /// # 参数
     /// - `roomids`: 房间ID列表
-    /// 
+    ///
     /// # 返回
     /// roomid -> 电费值的映射
-    /// 
+    ///
     /// # 默认实现
     /// 串行调用单个获取方法
     fn fetch_electricity_batch(
@@ -424,7 +407,7 @@ pub trait ElectricityFetcher: Send + Sync {
     ) -> impl std::future::Future<Output = Result<HashMap<i32, f32>>> + Send {
         async move {
             let mut results = HashMap::new();
-            
+
             for roomid in roomids {
                 match self.fetch_electricity_fee(roomid).await {
                     Ok(fee) => {
@@ -435,7 +418,7 @@ pub trait ElectricityFetcher: Send + Sync {
                     }
                 }
             }
-            
+
             Ok(results)
         }
     }
@@ -458,7 +441,7 @@ mod tests {
         assert_eq!(deserialized.roomid, 101);
         assert_eq!(deserialized.electricity_fee, 123.45);
     }
-    
+
     #[test]
     fn test_batch_config_default() {
         let config = BatchConfig::default();

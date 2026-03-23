@@ -44,7 +44,7 @@ services:
       - "11450:8000"
     environment:
       # 生产环境标识
-      # - APP_ENV=production
+      - APP_ENV=production
       # Redis 地址（连接到 compose 内部的 redis 服务）
       - APP__REDIS__HOST=redis
       - APP__REDIS__PORT=6379

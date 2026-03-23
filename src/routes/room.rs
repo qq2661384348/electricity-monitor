@@ -1,5 +1,5 @@
 //! Room路由定义
-//! 
+//!
 //! 所有端点需要JWT认证
 //! - 管理员可以访问所有房间数据
 //! - 普通用户只能访问已绑定的房间
@@ -15,12 +15,12 @@ use crate::middleware::auth::auth_middleware;
 use crate::state::AppState;
 
 /// 创建Room路由
-/// 
+///
 /// # 权限要求
 /// - 所有端点需要JWT认证
 /// - 管理员可以访问所有数据
 /// - 普通用户只能访问已绑定的房间
-/// 
+///
 /// # 注意
 /// create_room, delete_room, reset_send_flag已移除
 /// 这些操作仅通过后台同步服务或Repository层内部调用
@@ -36,7 +36,10 @@ pub fn routes() -> Router<AppState> {
         // 查询需要通知的房间
         .route("/rooms/flagged", get(handlers::get_flagged_rooms))
         // 根据roomid查询
-        .route("/rooms/by-roomid/{roomid}", get(handlers::get_rooms_by_roomid))
+        .route(
+            "/rooms/by-roomid/{roomid}",
+            get(handlers::get_rooms_by_roomid),
+        )
         // 获取房间详情
         .route("/rooms/{id}", get(handlers::get_room))
         // 更新阈值

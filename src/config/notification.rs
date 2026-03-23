@@ -7,24 +7,24 @@ use serde::Deserialize;
 pub struct NotificationConfig {
     /// 并发发送通知数量限制
     pub concurrent_send_limit: usize,
-    
+
     /// 查询间隔（秒）
-    /// 
+    ///
     /// 通知服务查询需要发送通知的房间的间隔时间
     /// 默认: 60秒
     #[serde(default = "default_query_interval_secs")]
     pub query_interval_secs: u64,
-    
+
     /// 防抖观察期（秒）
-    /// 
+    ///
     /// 当房间电费恢复到阈值以上后，需要等待此时长才能重置通知状态
     /// 用于防止电费在阈值附近抖动导致的重复通知
     /// 默认: 3600秒（1小时）
     #[serde(default = "default_debounce_period_secs")]
     pub debounce_period_secs: u64,
-    
+
     /// 恢复监控间隔（秒）
-    /// 
+    ///
     /// 监控任务查询恢复中房间的间隔时间
     /// 默认: 300秒（5分钟）
     #[serde(default = "default_recovery_monitor_interval_secs")]

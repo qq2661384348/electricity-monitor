@@ -7,13 +7,13 @@ use serde::{Deserialize, Serialize};
 use super::{Room, RoomPath};
 
 /// RoomAggregate聚合根
-/// 
+///
 /// 包含房间基本信息和所有关联的路径信息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoomAggregate {
     /// 房间基本信息
     pub room: Room,
-    
+
     /// 额外的房间路径列表（不包含primary_roompath）
     pub additional_paths: Vec<RoomPath>,
 }
@@ -26,23 +26,19 @@ impl RoomAggregate {
             additional_paths,
         }
     }
-    
+
     /// 获取所有路径（包含primary和additional）
     pub fn all_roompaths(&self) -> Vec<String> {
         let mut paths = vec![self.room.primary_roompath.clone()];
-        paths.extend(
-            self.additional_paths
-                .iter()
-                .map(|p| p.roompath.clone())
-        );
+        paths.extend(self.additional_paths.iter().map(|p| p.roompath.clone()));
         paths
     }
-    
+
     /// 获取路径总数
     pub fn total_path_count(&self) -> usize {
         1 + self.additional_paths.len()
     }
-    
+
     /// 检查是否有额外路径
     pub fn has_additional_paths(&self) -> bool {
         !self.additional_paths.is_empty()
@@ -92,12 +88,13 @@ mod tests {
     #[test]
     fn test_aggregate_creation() {
         let room = create_test_room();
-        let paths = vec![
-            create_test_path(123, "桂林/雁山/05栋/05楼/0501".to_string()),
-        ];
-        
+        let paths = vec![create_test_path(
+            123,
+            "桂林/雁山/05栋/05楼/0501".to_string(),
+        )];
+
         let aggregate = RoomAggregate::new(room, paths);
-        
+
         assert_eq!(aggregate.total_path_count(), 2);
         assert!(aggregate.has_additional_paths());
     }
@@ -109,10 +106,10 @@ mod tests {
             create_test_path(123, "桂林/雁山/05栋/05楼/0501".to_string()),
             create_test_path(123, "广西/桂林/雁山/05栋/0501".to_string()),
         ];
-        
+
         let aggregate = RoomAggregate::new(room, paths);
         let all_paths = aggregate.all_roompaths();
-        
+
         assert_eq!(all_paths.len(), 3);
         assert_eq!(all_paths[0], "桂林/雁山/05栋/0501");
     }
@@ -121,7 +118,7 @@ mod tests {
     fn test_no_additional_paths() {
         let room = create_test_room();
         let aggregate = RoomAggregate::new(room, vec![]);
-        
+
         assert_eq!(aggregate.total_path_count(), 1);
         assert!(!aggregate.has_additional_paths());
     }

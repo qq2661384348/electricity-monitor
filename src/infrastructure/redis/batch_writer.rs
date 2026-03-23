@@ -60,7 +60,12 @@ impl RedisBatchWriter {
         let mut written_count = 0;
 
         // 分批写入
-        for (batch_idx, chunk) in data.iter().collect::<Vec<_>>().chunks(BATCH_SIZE).enumerate() {
+        for (batch_idx, chunk) in data
+            .iter()
+            .collect::<Vec<_>>()
+            .chunks(BATCH_SIZE)
+            .enumerate()
+        {
             // 创建Pipeline
             let mut pipe = redis::pipe();
             pipe.atomic();

@@ -1,21 +1,21 @@
 //! 通知服务内存缓存
-//! 
+//!
 //! 使用LRU缓存减少数据库查询，提升通知服务性能
-//! 
+//!
 //! # 缓存策略
 //! - **用户缓存**: 1000个用户，TTL=300秒
 //! - **绑定缓存**: 500个房间的绑定关系，TTL=300秒
 //! - **LRU驱逐**: 缓存满时自动驱逐最久未使用的项
-//! 
+//!
 //! # 线程安全
 //! 使用`Arc<RwLock>`实现线程安全的并发访问
 
+use lru::LruCache;
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use lru::LruCache;
-use std::num::NonZeroUsize;
 use uuid::Uuid;
 
 use crate::domain::models::{User, UserRoomBinding};
@@ -82,20 +82,20 @@ impl CacheStats {
 pub struct NotificationCache {
     /// 用户缓存 (user_id -> User)
     user_cache: Arc<RwLock<LruCache<Uuid, CachedItem<User>>>>,
-    
+
     /// 绑定缓存 (roomid -> Vec<UserRoomBinding>)
     binding_cache: Arc<RwLock<LruCache<i32, CachedItem<Vec<UserRoomBinding>>>>>,
-    
+
     /// 缓存过期时间（TTL）
     ttl: Duration,
-    
+
     /// 统计信息
     stats: Arc<RwLock<CacheStats>>,
 }
 
 impl NotificationCache {
     /// 创建新的缓存管理器
-    /// 
+    ///
     /// # 参数
     /// - `user_capacity`: 用户缓存容量（默认1000）
     /// - `binding_capacity`: 绑定缓存容量（默认500）
@@ -117,25 +117,25 @@ impl NotificationCache {
         );
 
         Self {
-            user_cache: Arc::new(RwLock::new(
-                LruCache::new(NonZeroUsize::new(user_cap).unwrap())
-            )),
-            binding_cache: Arc::new(RwLock::new(
-                LruCache::new(NonZeroUsize::new(binding_cap).unwrap())
-            )),
+            user_cache: Arc::new(RwLock::new(LruCache::new(
+                NonZeroUsize::new(user_cap).unwrap(),
+            ))),
+            binding_cache: Arc::new(RwLock::new(LruCache::new(
+                NonZeroUsize::new(binding_cap).unwrap(),
+            ))),
             ttl,
             stats: Arc::new(RwLock::new(CacheStats::default())),
         }
     }
 
     /// 获取用户（优先从缓存）
-    /// 
+    ///
     /// # 返回
     /// - `Some(User)`: 缓存命中且未过期
     /// - `None`: 缓存未命中或已过期
     pub async fn get_user(&self, user_id: Uuid) -> Option<User> {
         let mut cache = self.user_cache.write().await;
-        
+
         if let Some(cached) = cache.get(&user_id) {
             if !cached.is_expired(self.ttl) {
                 // 缓存命中
@@ -147,7 +147,7 @@ impl NotificationCache {
                 cache.pop(&user_id);
             }
         }
-        
+
         // 缓存未命中
         let mut stats = self.stats.write().await;
         stats.user_misses += 1;
@@ -169,13 +169,13 @@ impl NotificationCache {
     }
 
     /// 获取房间的绑定关系（优先从缓存）
-    /// 
+    ///
     /// # 返回
     /// - `Some(Vec<UserRoomBinding>)`: 缓存命中且未过期
     /// - `None`: 缓存未命中或已过期
     pub async fn get_bindings(&self, roomid: i32) -> Option<Vec<UserRoomBinding>> {
         let mut cache = self.binding_cache.write().await;
-        
+
         if let Some(cached) = cache.get(&roomid) {
             if !cached.is_expired(self.ttl) {
                 // 缓存命中
@@ -187,7 +187,7 @@ impl NotificationCache {
                 cache.pop(&roomid);
             }
         }
-        
+
         // 缓存未命中
         let mut stats = self.stats.write().await;
         stats.binding_misses += 1;
@@ -224,10 +224,10 @@ impl NotificationCache {
     pub async fn clear_all(&self) {
         let mut user_cache = self.user_cache.write().await;
         let mut binding_cache = self.binding_cache.write().await;
-        
+
         user_cache.clear();
         binding_cache.clear();
-        
+
         tracing::info!("已清空所有缓存");
     }
 
@@ -253,7 +253,7 @@ impl NotificationCache {
     pub async fn log_stats(&self) {
         let stats = self.get_stats().await;
         let (user_size, binding_size) = self.get_cache_sizes().await;
-        
+
         tracing::info!(
             user_hits = stats.user_hits,
             user_misses = stats.user_misses,
@@ -283,17 +283,17 @@ mod tests {
     #[tokio::test]
     async fn test_cache_stats() {
         let cache = NotificationCache::new(Some(10), Some(10), Some(60));
-        
+
         // 初始状态
         let stats = cache.get_stats().await;
         assert_eq!(stats.user_hits, 0);
         assert_eq!(stats.user_misses, 0);
-        
+
         // 模拟缓存未命中
         let user_id = Uuid::new_v4();
         let result = cache.get_user(user_id).await;
         assert!(result.is_none());
-        
+
         let stats = cache.get_stats().await;
         assert_eq!(stats.user_misses, 1);
     }

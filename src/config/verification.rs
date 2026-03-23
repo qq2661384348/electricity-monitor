@@ -7,10 +7,10 @@ use serde::Deserialize;
 pub struct VerificationConfig {
     /// 验证码长度
     pub code_length: usize,
-    
+
     /// 验证码过期时间（秒）
     pub expire_seconds: u64,
-    
+
     /// Redis键前缀
     pub redis_key_prefix: String,
 }
@@ -19,7 +19,7 @@ impl Default for VerificationConfig {
     fn default() -> Self {
         Self {
             code_length: 6,
-            expire_seconds: 300,  // 5分钟
+            expire_seconds: 300, // 5分钟
             redis_key_prefix: "verify".to_string(),
         }
     }

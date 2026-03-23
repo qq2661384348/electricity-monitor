@@ -1,11 +1,6 @@
 //! 健康检查处理器
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
 
 use crate::state::AppState;
@@ -19,7 +14,7 @@ pub async fn health_check() -> impl IntoResponse {
         Json(json!({
             "status": "ok",
             "message": "Service is healthy"
-        }))
+        })),
     )
 }
 
@@ -37,7 +32,7 @@ pub async fn health_check_db(State(state): State<AppState>) -> impl IntoResponse
                     "status": "ok",
                     "database": "connected",
                     "message": "Service and database are healthy"
-                }))
+                })),
             )
         }
         Err(e) => {
@@ -49,7 +44,7 @@ pub async fn health_check_db(State(state): State<AppState>) -> impl IntoResponse
                     "status": "error",
                     "database": "unavailable",
                     "message": format!("Database connection failed: {}", e)
-                }))
+                })),
             )
         }
     }

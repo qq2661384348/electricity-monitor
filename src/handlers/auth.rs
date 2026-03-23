@@ -1,15 +1,10 @@
 //! 认证处理器
-//! 
+//!
 //! 处理用户认证相关的HTTP请求
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Extension,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, Extension, Json};
 use chrono::Utc;
-use jsonwebtoken::{encode, decode, EncodingKey, DecodingKey, Header, Validation};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -26,7 +21,7 @@ pub struct SendVerificationCodeRequest {
     /// QQ号（5-20位数字）
     #[validate(length(min = 5, max = 20, message = "QQ号长度必须在5-20字符之间"))]
     pub qq_number: String,
-    
+
     /// 验证码Token（可选，暂时兼容不传）
     pub captcha_token: Option<String>,
 }
@@ -37,7 +32,7 @@ pub struct VerifyAndLoginRequest {
     /// QQ号
     #[validate(length(min = 5, max = 20, message = "QQ号长度必须在5-20字符之间"))]
     pub qq_number: String,
-    
+
     /// 验证码（6位数字）
     #[validate(length(equal = 6, message = "验证码必须为6位数字"))]
     pub code: String,
@@ -55,16 +50,16 @@ pub struct RefreshTokenRequest {
 pub struct LoginResponse {
     /// 访问Token（短期有效）
     pub access_token: String,
-    
+
     /// 刷新Token（长期有效）
     pub refresh_token: String,
-    
+
     /// Token类型
     pub token_type: String,
-    
+
     /// 过期时间（秒）
     pub expires_in: u64,
-    
+
     /// 用户信息
     pub user: UserInfo,
 }
@@ -79,7 +74,7 @@ pub struct UserInfo {
 }
 
 /// 发送验证码
-/// 
+///
 /// POST /auth/send-verification-code
 pub async fn send_verification_code(
     State(state): State<AppState>,
@@ -94,25 +89,26 @@ pub async fn send_verification_code(
         has_captcha_token = req.captcha_token.is_some(),
         "收到发送验证码请求"
     );
-    
+
     // 如果提供了captcha_token，则验证它
     if let Some(token) = &req.captcha_token {
-        let captcha_service = crate::domain::services::captcha_verification::CaptchaVerificationService::new(
-            state.redis_pool.clone()
-        );
-        
-        let token_valid = captcha_service
-            .verify_and_consume_token(token)
-            .await?;
-        
+        let captcha_service =
+            crate::domain::services::captcha_verification::CaptchaVerificationService::new(
+                state.redis_pool.clone(),
+            );
+
+        let token_valid = captcha_service.verify_and_consume_token(token).await?;
+
         if !token_valid {
             tracing::warn!(
                 qq_number = %req.qq_number,
                 "验证码token无效或已过期"
             );
-            return Err(AppError::Unauthorized("验证码token无效或已过期".to_string()));
+            return Err(AppError::Unauthorized(
+                "验证码token无效或已过期".to_string(),
+            ));
         }
-        
+
         tracing::info!(
             qq_number = %req.qq_number,
             "验证码token验证成功"
@@ -131,9 +127,7 @@ pub async fn send_verification_code(
     );
 
     // 发送验证码
-    let _code = verification_service
-        .send_and_store(&req.qq_number)
-        .await?;
+    let _code = verification_service.send_and_store(&req.qq_number).await?;
 
     tracing::info!(
         qq_number = %req.qq_number,
@@ -150,7 +144,7 @@ pub async fn send_verification_code(
 }
 
 /// 验证并登录
-/// 
+///
 /// POST /auth/verify-and-login
 pub async fn verify_and_login(
     State(state): State<AppState>,
@@ -193,9 +187,7 @@ pub async fn verify_and_login(
     let user_repo = UserRepository::new(state.db_pool.clone());
 
     // 创建或查找用户
-    let user = user_repo
-        .create_or_find(&req.qq_number, "user")
-        .await?;
+    let user = user_repo.create_or_find(&req.qq_number, "user").await?;
 
     // 检查用户是否激活
     if !user.is_active {
@@ -269,7 +261,7 @@ pub async fn verify_and_login(
 }
 
 /// 刷新Token
-/// 
+///
 /// POST /auth/refresh
 pub async fn refresh_token(
     State(state): State<AppState>,
@@ -282,7 +274,7 @@ pub async fn refresh_token(
     let mut validation = Validation::new(jsonwebtoken::Algorithm::HS256);
     validation.leeway = 60; // 60秒时钟容差
     validation.set_required_spec_claims(&["exp", "iat"]); // 必需字段
-    
+
     let token_data = decode::<Claims>(
         &req.refresh_token,
         &DecodingKey::from_secret(secret),
@@ -296,7 +288,7 @@ pub async fn refresh_token(
     let user_repo = UserRepository::new(state.db_pool.clone());
     let user_id = uuid::Uuid::parse_str(&old_claims.user_id)
         .map_err(|_| AppError::Internal("无效的用户ID格式".to_string()))?;
-    
+
     let user = user_repo
         .find_by_id(user_id)
         .await?
@@ -357,9 +349,9 @@ pub async fn refresh_token(
 }
 
 /// 获取当前用户信息
-/// 
+///
 /// GET /auth/me
-/// 
+///
 /// 需要JWT认证或admin_token
 pub async fn get_current_user(
     State(state): State<AppState>,
@@ -370,7 +362,7 @@ pub async fn get_current_user(
         // 管理员使用固定QQ号
         let config = AppConfig::global();
         let admin_qq = &config.admin.default_qq_number;
-        
+
         return Ok(Json(UserInfo {
             id: "00000000-0000-0000-0000-000000000000".to_string(), // 管理员固定UUID
             qq_number: admin_qq.clone(),
@@ -378,11 +370,12 @@ pub async fn get_current_user(
             is_active: true,
         }));
     }
-    
+
     // 普通用户：从UserContext中获取user_id
-    let user_id_str = user_ctx.user_id
+    let user_id_str = user_ctx
+        .user_id
         .ok_or(AppError::Unauthorized("用户ID缺失".to_string()))?;
-    
+
     let user_repo = UserRepository::new(state.db_pool.clone());
 
     // 从user_id解析UUID

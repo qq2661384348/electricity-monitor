@@ -26,18 +26,16 @@ pub enum AppError {
 
     #[error("资源未找到")]
     NotFound,
-    
+
     #[error("用户未添加机器人为好友: {qq_number}")]
-    UserNotFriend {
-        qq_number: String,
-    },
+    UserNotFriend { qq_number: String },
 
     #[error("内部服务器错误: {0}")]
     Internal(String),
-    
+
     #[error("爬虫错误: {0}")]
     Crawler(String),
-    
+
     #[error("Redis错误: {0}")]
     Redis(String),
 }
@@ -53,20 +51,11 @@ impl IntoResponse for AppError {
                 tracing::error!("Config error: {}", msg);
                 (StatusCode::INTERNAL_SERVER_ERROR, "配置错误")
             }
-            AppError::Unauthorized(ref msg) => {
-                (StatusCode::UNAUTHORIZED, msg.as_str())
-            }
-            AppError::Forbidden => {
-                (StatusCode::FORBIDDEN, "权限不足")
-            }
-            AppError::NotFound => {
-                (StatusCode::NOT_FOUND, "资源未找到")
-            }
+            AppError::Unauthorized(ref msg) => (StatusCode::UNAUTHORIZED, msg.as_str()),
+            AppError::Forbidden => (StatusCode::FORBIDDEN, "权限不足"),
+            AppError::NotFound => (StatusCode::NOT_FOUND, "资源未找到"),
             AppError::UserNotFriend { ref qq_number } => {
-                tracing::warn!(
-                    qq_number = qq_number,
-                    "用户未添加机器人为好友"
-                );
+                tracing::warn!(qq_number = qq_number, "用户未添加机器人为好友");
                 // 返回特殊的JSON响应，包含错误码和QQ号
                 let body = Json(json!({
                     "error": "USER_NOT_FRIEND",
@@ -113,26 +102,24 @@ impl From<anyhow::Error> for AppError {
 impl From<crate::infrastructure::notification::error::NotificationError> for AppError {
     fn from(err: crate::infrastructure::notification::error::NotificationError) -> Self {
         use crate::infrastructure::notification::error::NotificationError;
-        
+
         match err {
-            NotificationError::UserNotFriend { qq_number } => {
-                AppError::UserNotFriend { qq_number }
-            }
+            NotificationError::UserNotFriend { qq_number } => AppError::UserNotFriend { qq_number },
             NotificationError::HttpError(e) => {
                 AppError::Internal(format!("通知服务HTTP请求失败: {}", e))
             }
-            NotificationError::ApiError { status, retcode, message } => {
-                AppError::Internal(format!(
-                    "通知服务API错误: status={}, retcode={}, message={}",
-                    status, retcode, message
-                ))
-            }
+            NotificationError::ApiError {
+                status,
+                retcode,
+                message,
+            } => AppError::Internal(format!(
+                "通知服务API错误: status={}, retcode={}, message={}",
+                status, retcode, message
+            )),
             NotificationError::FormatError(msg) => {
                 AppError::Internal(format!("消息格式化失败: {}", msg))
             }
-            NotificationError::JsonError(e) => {
-                AppError::Internal(format!("JSON处理失败: {}", e))
-            }
+            NotificationError::JsonError(e) => AppError::Internal(format!("JSON处理失败: {}", e)),
         }
     }
 }

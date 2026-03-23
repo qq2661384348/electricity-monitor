@@ -79,20 +79,22 @@ cargo build
 cargo install diesel_cli --no-default-features --features postgres
 ```
 
-### 3. 配置数据库
+### 3. 配置本地数据库和本地 Redis
 
-**选项A: 使用已配置的远程数据库**
-- 开发环境已配置: `postgres://postgres:postgres@47.92.117.121:5432/electricity-dev`
-- 无需额外配置
+开发环境默认只允许连接本地 PostgreSQL 和本地 Redis。
 
-**选项B: 使用本地数据库**
-1. 安装PostgreSQL
-2. 修改 `config/development.toml`:
+1. 安装并启动 PostgreSQL
+2. 安装并启动 Redis
+3. 按local environment实际账号修改 `config/development.toml`（如需）:
    ```toml
    [database]
-   host = "localhost"
+   host = "127.0.0.1"
    username = "your-username"
    password = "your-password"
+
+   [redis]
+   host = "127.0.0.1"
+   port = 6379
    ```
 
 ### 3. 初始化数据库Schema
@@ -244,8 +246,8 @@ diesel migration run
 
 **检查清单**:
 - [ ] 数据库服务是否运行
+- [ ] Redis 服务是否运行
 - [ ] 配置文件中的连接信息是否正确
-- [ ] 网络是否可达（远程数据库）
 - [ ] 用户名密码是否正确
 
 ### 问题3: 编译时间过长

@@ -25,7 +25,7 @@ pub struct RoomSyncLog {
 #[derive(Debug, Clone, Insertable)]
 #[diesel(table_name = room_sync_log)]
 pub struct NewRoomSyncLog {
-    pub id: Option<Uuid>,  // 可选ID，允许手动设置或自动生成
+    pub id: Option<Uuid>, // 可选ID，允许手动设置或自动生成
     pub sync_type: String,
     pub started_at: NaiveDateTime,
     pub status: String,

@@ -56,11 +56,7 @@ impl ElectricityFetcherService {
     /// # 错误
     /// - URL格式错误
     /// - 初始化缓存失败
-    pub async fn new(
-        api_url: String,
-        db_pool: DbPool,
-        redis_pool: RedisPool,
-    ) -> Result<Self> {
+    pub async fn new(api_url: String, db_pool: DbPool, redis_pool: RedisPool) -> Result<Self> {
         // 创建RoomId缓存
         let cache = Arc::new(RoomIdCache::new(db_pool.clone()).await?);
 
@@ -119,10 +115,7 @@ impl ElectricityFetcherService {
             });
         }
 
-        tracing::info!(
-            total_rooms = total_rooms,
-            "开始批量获取电费"
-        );
+        tracing::info!(total_rooms = total_rooms, "开始批量获取电费");
 
         // 2. 批量API获取（50并发）
         let fetch_result = self.fetcher.fetch_batch(room_ids.clone()).await;
@@ -193,11 +186,7 @@ impl ElectricityFetcherService {
         // 2. 删除8天前的数据
         let deleted = self.history_repo.delete_old_records(8).await?;
 
-        tracing::info!(
-            inserted = inserted,
-            deleted = deleted,
-            "历史记录任务完成"
-        );
+        tracing::info!(inserted = inserted, deleted = deleted, "历史记录任务完成");
 
         Ok((inserted, deleted))
     }
@@ -250,13 +239,13 @@ impl ElectricityFetcherService {
             let service = fetch_service.clone();
             Box::pin(async move {
                 tracing::info!("开始定时电费获取任务");
-                
+
                 let mut attempt = 0;
                 let mut delay = std::time::Duration::from_secs(retry_delay_seconds);
-                
+
                 loop {
                     attempt += 1;
-                    
+
                     match service.run_fetch_task().await {
                         Ok(stats) => {
                             tracing::info!(
@@ -278,7 +267,7 @@ impl ElectricityFetcherService {
                                 );
                                 break;
                             }
-                            
+
                             tracing::warn!(
                                 error = %e,
                                 attempt = attempt,
@@ -286,12 +275,12 @@ impl ElectricityFetcherService {
                                 retry_delay_secs = delay.as_secs(),
                                 "定时电费获取任务失败，准备重试"
                             );
-                            
+
                             tokio::time::sleep(delay).await;
-                            
+
                             // 指数退避
                             delay = std::time::Duration::from_secs(
-                                (delay.as_secs() as f64 * retry_backoff_multiplier) as u64
+                                (delay.as_secs() as f64 * retry_backoff_multiplier) as u64,
                             );
                         }
                     }
@@ -300,10 +289,9 @@ impl ElectricityFetcherService {
         })
         .map_err(|e| crate::errors::AppError::Internal(format!("创建电费获取任务失败: {}", e)))?;
 
-        scheduler
-            .add(fetch_job)
-            .await
-            .map_err(|e| crate::errors::AppError::Internal(format!("添加电费获取任务失败: {}", e)))?;
+        scheduler.add(fetch_job).await.map_err(|e| {
+            crate::errors::AppError::Internal(format!("添加电费获取任务失败: {}", e))
+        })?;
 
         // 任务2: 历史记录（每N小时）
         let history_service = service.clone();
@@ -328,10 +316,9 @@ impl ElectricityFetcherService {
         })
         .map_err(|e| crate::errors::AppError::Internal(format!("创建历史记录任务失败: {}", e)))?;
 
-        scheduler
-            .add(history_job)
-            .await
-            .map_err(|e| crate::errors::AppError::Internal(format!("添加历史记录任务失败: {}", e)))?;
+        scheduler.add(history_job).await.map_err(|e| {
+            crate::errors::AppError::Internal(format!("添加历史记录任务失败: {}", e))
+        })?;
 
         tracing::info!(
             fetch_interval = fetch_interval_minutes,

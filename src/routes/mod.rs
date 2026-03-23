@@ -2,8 +2,8 @@
 //!
 //! 定义所有API路由和静态文件服务
 
-use axum::Router;
 use crate::state::AppState;
+use axum::Router;
 
 pub mod api;
 pub mod auth;

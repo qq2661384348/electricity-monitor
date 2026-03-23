@@ -16,12 +16,13 @@ fn parse_level(level: &str) -> Level {
 }
 
 /// 创建日志跟踪层
-/// 
+///
 /// # 参数
 /// - `level`: 日志级别字符串（trace/debug/info/warn/error）
-pub fn create_trace_layer(level: &str) -> TraceLayer<
-    tower_http::classify::SharedClassifier<tower_http::classify::ServerErrorsAsFailures>,
-> {
+pub fn create_trace_layer(
+    level: &str,
+) -> TraceLayer<tower_http::classify::SharedClassifier<tower_http::classify::ServerErrorsAsFailures>>
+{
     let level = parse_level(level);
     TraceLayer::new_for_http()
         .make_span_with(DefaultMakeSpan::new().level(level))

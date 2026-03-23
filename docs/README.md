@@ -135,8 +135,10 @@ export APP__JWT__SECRET="your-production-secret"
 
 ### 当前配置
 
-- **开发环境**: `postgres://postgres:postgres@47.92.117.121:5432/electricity-dev`
+- **开发环境**: `postgres://postgres:<your-local-password>@127.0.0.1:5432/electricity_dev`
 - **生产环境**: `postgres://postgres:postgres@47.92.117.121:5432/electricity-pro`
+
+开发环境运行时会校验数据库和 Redis 主机，拒绝非本地地址，防止误连远端环境。
 
 ### 切换到MySQL
 

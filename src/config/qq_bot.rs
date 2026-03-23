@@ -7,10 +7,10 @@ use serde::Deserialize;
 pub struct QQBotConfig {
     /// QQ机器人API地址
     pub api_url: String,
-    
+
     /// Bearer Token
     pub bearer_token: String,
-    
+
     /// 请求超时（秒）
     pub timeout_seconds: u64,
 }

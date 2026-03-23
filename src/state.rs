@@ -5,8 +5,8 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::domain::services::{ElectricityFetcherService, RateLimiter, RoomPathTree};
 use crate::domain::models::Room;
+use crate::domain::services::{ElectricityFetcherService, RateLimiter, RoomPathTree};
 use crate::infrastructure::{DbPool, RedisPool, SimpleCacheManager};
 
 /// 应用程序状态
@@ -14,22 +14,22 @@ use crate::infrastructure::{DbPool, RedisPool, SimpleCacheManager};
 pub struct AppState {
     /// 数据库连接池
     pub db_pool: DbPool,
-    
+
     /// Redis连接池
     pub redis_pool: RedisPool,
-    
+
     /// 限流器
     pub rate_limiter: Arc<RateLimiter>,
-    
+
     /// 电费获取服务（可选）
     pub electricity_fetcher_service: Option<Arc<ElectricityFetcherService>>,
 
     /// 需要通知的房间缓存（避免N+1查询）
     pub flagged_rooms_cache: Arc<RwLock<Vec<Room>>>,
-    
+
     /// 房间路径树（用于逐层查询）
     pub room_path_tree: Arc<RwLock<RoomPathTree>>,
-    
+
     /// 简化的缓存管理器（高性能缓存）
     pub cache_manager: Option<Arc<SimpleCacheManager>>,
 }
@@ -52,7 +52,7 @@ impl AppState {
             cache_manager: None, // 初始化为None，需要后续通过with_cache方法设置
         }
     }
-    
+
     /// 更新路径树（由同步服务调用）
     pub async fn update_path_tree(&self, tree: RoomPathTree) {
         let mut current_tree = self.room_path_tree.write().await;

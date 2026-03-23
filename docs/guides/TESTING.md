@@ -2,24 +2,24 @@
 
 ## 测试概览
 
-项目包含 **53个测试用例**，涵盖单元测试和集成测试。
+项目当前包含 **109个测试用例**，涵盖单元测试和集成测试。
 
 ```bash
 # 运行所有测试
 cargo test --lib
 
 # 测试结果
-running 53 tests
-test result: ok. 53 passed; 0 failed; 0 ignored
+running 109 tests
+test result: ok. 109 passed; 0 failed; 0 ignored
 ```
 
 ---
 
 ## 测试类型
 
-### 1. 单元测试（不依赖外部服务）
+### 1. 默认运行测试
 
-这些测试会自动运行，无需任何配置：
+这些测试会被 `cargo test --lib` 自动发现；依赖数据库、Redis 或外部网络的测试在条件不满足时会自动跳过：
 
 | 模块 | 测试数量 | 说明 |
 |------|---------|------|
@@ -42,11 +42,11 @@ test result: ok. 53 passed; 0 failed; 0 ignored
 | infra::electricity::parser | 4 | 电费解析（JSON） |
 | infra::redis::batch_writer | 2 | 结构与Key格式 |
 | infra::redis::pool | 1 | 配置验证 |
-| infra::database::pool | 1 | 连接池创建 |
-| infra::repositories::room_repository | 3 | CRUD/查询 |
+| infra::database::pool | 1 | 连接池创建（需显式启用数据库集成测试） |
+| infra::repositories::room_repository | 3 | CRUD/查询（需显式启用数据库集成测试） |
 | infra::repositories::electricity_history_repository | 1 | 历史仓储 |
 
-**总计**: **49个单元测试**
+**说明**: 测试数量会随模块增长而增加，实际数量以 `cargo test` 输出为准。
 
 ---
 
@@ -55,6 +55,27 @@ test result: ok. 53 passed; 0 failed; 0 ignored
 这些测试在没有外部服务时会自动跳过，不影响CI/CD流程。特殊说明：
 - `test_parse_real_api_response`（真实电费API）默认执行；若网络不可达或响应读取失败，会打印提示并自动跳过。
 - 其他集成测试（Redis、爬虫）通过环境变量启用或在外部服务可用时执行。
+
+#### 数据库相关测试（4个）
+
+**测试**:
+- `test_create_pool` - 数据库连接池创建和验证
+- `test_create_room` - 房间仓储创建
+- `test_find_by_roomid` - 房间仓储查询
+- `test_get_sync_history` - 同步历史查询
+
+**启用方式**:
+```bash
+$env:RUN_INTEGRATION_TESTS="1"
+cargo test --lib
+```
+
+**要求**:
+- 本地 PostgreSQL 运行在 `127.0.0.1:5432`
+- `config/development.toml` 中的数据库账号与local environment一致
+- development 环境禁止指向远端数据库
+
+---
 
 #### Redis相关测试（2个）
 
@@ -110,16 +131,18 @@ cargo test --lib infrastructure::electricity::parser::tests::test_parse_real_api
 
 ### 本地开发
 ```bash
-# 只运行单元测试（无外部依赖）
+# 运行默认测试（数据库/Redis/网络集成测试会按条件自动跳过）
 cargo test --lib
 
 # 输出
-running 53 tests
-跳过Redis测试：设置 RUN_INTEGRATION_TESTS=1 或 REDIS_URL 环境变量以启用
+running 109 tests
+跳过数据库测试：设置 RUN_INTEGRATION_TESTS=1 以启用
+跳过Redis测试：设置 RUN_INTEGRATION_TESTS=1 或 REDIS_HOST/REDIS_PORT 以启用
 跳过网络测试（RoomTree）：设置 RUN_INTEGRATION_TESTS=1 以启用
 （电费API测试默认执行；若网络不可达将自动跳过并打印提示）
-跳过限流器测试：设置 RUN_INTEGRATION_TESTS=1 或 REDIS_URL 环境变量以启用
-test result: ok. 53 passed; 0 failed; 0 ignored
+跳过限流器测试：设置 RUN_INTEGRATION_TESTS=1 或 REDIS_HOST/REDIS_PORT 以启用
+跳过数据库仓储测试：设置 RUN_INTEGRATION_TESTS=1 以启用
+test result: ok. 109 passed; 0 failed; 0 ignored
 ```
 
 ### CI/CD环境
@@ -132,11 +155,11 @@ export REDIS_PORT=6379
 cargo test --lib
 
 # 预期输出
-running 53 tests
+running 109 tests
 ✓ Redis连接池测试通过
 ✓ 爬虫网络测试通过，获取到XXX字节数据
 ✓ 限流器测试通过
-test result: ok. 53 passed; 0 failed; 0 ignored
+test result: ok. 109 passed; 0 failed; 0 ignored
 ```
 
 ---
@@ -170,12 +193,9 @@ test result: ok. 53 passed; 0 failed; 0 ignored
 ```rust
 // 数据库测试辅助
 async fn setup_test_pool() -> DbPool {
-    let config = DatabaseConfig {
-        host: "47.92.117.121".to_string(),
-        database: "electricity_dev".to_string(),
-        ...
-    };
-    create_pool(&config).await.unwrap()
+    let config = AppConfig::load_for_environment("development")
+        .expect("无法加载 development 配置");
+    create_pool(&config.database).await.unwrap()
 }
 
 // 测试数据清理
@@ -247,7 +267,7 @@ docker-compose down
 ```
 
 **解决方案**:
-1. 确认数据库运行：`psql -h 47.92.117.121 -U postgres`
+1. 确认本地数据库运行：`psql -h 127.0.0.1 -U postgres`
 2. 检查配置：`config/development.toml`
 
 ---
@@ -299,10 +319,10 @@ jobs:
 
 ## 总结
 
-- ✅ **53个测试全部通过**（49个单元测试 + 4个集成测试）
+- ✅ **109个测试全部通过**
 - ✅ **0个ignored测试**
 - ✅ **单元测试自动运行**
-- ✅ **集成测试**：真实电费API默认执行、网络失败自动跳过；Redis/RoomTree按需启用
+- ✅ **集成测试**：数据库/Redis/RoomTree 按需启用，真实电费API默认执行且网络失败自动跳过
 - ✅ **友好的错误提示**
 - ✅ **CI/CD就绪**
 

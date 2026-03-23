@@ -7,16 +7,16 @@ use serde::Deserialize;
 pub struct RedisConfig {
     /// Redis主机
     pub host: String,
-    
+
     /// Redis端口
     pub port: u16,
-    
+
     /// 最大连接数
     pub max_connections: u32,
-    
+
     /// 最小空闲连接数
     pub min_connections: u32,
-    
+
     /// 连接超时（秒）
     pub connection_timeout: u64,
 }

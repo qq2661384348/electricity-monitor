@@ -1,16 +1,18 @@
 //! UserRoomBinding数据仓储实现
-//! 
+//!
 //! 提供用户-房间绑定关系的数据访问操作
 
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use uuid::Uuid;
 
-use chrono::NaiveDateTime;
-use crate::domain::models::{NewUserRoomBinding, UpdateLastNotified, UpdateNotificationEnabled, UserRoomBinding};
+use crate::domain::models::{
+    NewUserRoomBinding, UpdateLastNotified, UpdateNotificationEnabled, UserRoomBinding,
+};
 use crate::errors::{AppError, Result};
 use crate::infrastructure::database::schema::user_room_bindings;
 use crate::infrastructure::DbPool;
+use chrono::NaiveDateTime;
 
 /// UserRoomBinding数据仓储
 #[derive(Clone)]
@@ -25,13 +27,16 @@ impl UserRoomBindingRepository {
     }
 
     /// 获取数据库连接（内部辅助方法）
-    /// 
+    ///
     /// # 返回
     /// 数据库连接或错误
-    /// 
+    ///
     /// # 错误
     /// 当连接池无法提供连接时返回`AppError::Internal`
-    async fn get_conn(&self) -> Result<diesel_async::pooled_connection::deadpool::Object<diesel_async::AsyncPgConnection>> {
+    async fn get_conn(
+        &self,
+    ) -> Result<diesel_async::pooled_connection::deadpool::Object<diesel_async::AsyncPgConnection>>
+    {
         self.pool.get().await.map_err(|e| {
             tracing::error!("Failed to get database connection: {}", e);
             AppError::Internal(format!("Failed to get database connection: {}", e))
@@ -39,13 +44,13 @@ impl UserRoomBindingRepository {
     }
 
     /// 创建用户-房间绑定
-    /// 
+    ///
     /// # 参数
     /// - `binding`: 新绑定数据
-    /// 
+    ///
     /// # 返回
     /// 创建成功的绑定实体
-    /// 
+    ///
     /// # 错误
     /// - 用户不存在
     /// - 房间不存在
@@ -71,10 +76,10 @@ impl UserRoomBindingRepository {
     }
 
     /// 根据ID查找绑定
-    /// 
+    ///
     /// # 参数
     /// - `id`: 绑定UUID
-    /// 
+    ///
     /// # 返回
     /// - `Some(UserRoomBinding)`: 找到绑定
     /// - `None`: 绑定不存在
@@ -91,10 +96,10 @@ impl UserRoomBindingRepository {
     }
 
     /// 根据用户ID查找所有绑定
-    /// 
+    ///
     /// # 参数
     /// - `user_id`: 用户UUID
-    /// 
+    ///
     /// # 返回
     /// 用户的所有房间绑定列表
     pub async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<UserRoomBinding>> {
@@ -110,10 +115,10 @@ impl UserRoomBindingRepository {
     }
 
     /// 根据房间ID查找所有绑定
-    /// 
+    ///
     /// # 参数
     /// - `roomid`: 房间ID
-    /// 
+    ///
     /// # 返回
     /// 该房间的所有用户绑定列表
     pub async fn find_by_roomid(&self, roomid: i32) -> Result<Vec<UserRoomBinding>> {
@@ -129,16 +134,19 @@ impl UserRoomBindingRepository {
     }
 
     /// 查找启用通知的绑定（根据房间ID）
-    /// 
+    ///
     /// # 参数
     /// - `roomid`: 房间ID
-    /// 
+    ///
     /// # 返回
     /// 该房间启用通知的所有用户绑定列表
-    /// 
+    ///
     /// # 说明
     /// 用于通知服务查询需要发送通知的用户
-    pub async fn find_active_bindings_by_roomid(&self, roomid: i32) -> Result<Vec<UserRoomBinding>> {
+    pub async fn find_active_bindings_by_roomid(
+        &self,
+        roomid: i32,
+    ) -> Result<Vec<UserRoomBinding>> {
         let mut conn = self.get_conn().await?;
 
         user_room_bindings::table
@@ -151,15 +159,19 @@ impl UserRoomBindingRepository {
     }
 
     /// 查找用户在特定房间的绑定
-    /// 
+    ///
     /// # 参数
     /// - `user_id`: 用户UUID
     /// - `roomid`: 房间ID
-    /// 
+    ///
     /// # 返回
     /// - `Some(UserRoomBinding)`: 找到绑定
     /// - `None`: 绑定不存在
-    pub async fn find_by_user_and_room(&self, user_id: Uuid, roomid: i32) -> Result<Option<UserRoomBinding>> {
+    pub async fn find_by_user_and_room(
+        &self,
+        user_id: Uuid,
+        roomid: i32,
+    ) -> Result<Option<UserRoomBinding>> {
         let mut conn = self.get_conn().await?;
 
         user_room_bindings::table
@@ -173,14 +185,18 @@ impl UserRoomBindingRepository {
     }
 
     /// 更新通知开关
-    /// 
+    ///
     /// # 参数
     /// - `id`: 绑定UUID
     /// - `enabled`: 是否启用通知
-    /// 
+    ///
     /// # 返回
     /// 更新后的绑定实体
-    pub async fn update_notification_enabled(&self, id: Uuid, enabled: bool) -> Result<UserRoomBinding> {
+    pub async fn update_notification_enabled(
+        &self,
+        id: Uuid,
+        enabled: bool,
+    ) -> Result<UserRoomBinding> {
         let mut conn = self.get_conn().await?;
 
         let update = UpdateNotificationEnabled {
@@ -204,10 +220,10 @@ impl UserRoomBindingRepository {
     }
 
     /// 删除绑定
-    /// 
+    ///
     /// # 参数
     /// - `id`: 绑定UUID
-    /// 
+    ///
     /// # 返回
     /// 删除的行数
     pub async fn delete(&self, id: Uuid) -> Result<usize> {
@@ -235,15 +251,15 @@ impl UserRoomBindingRepository {
     }
 
     /// 检查绑定所有权
-    /// 
+    ///
     /// # 参数
     /// - `user_id`: 用户UUID
     /// - `binding_id`: 绑定UUID
-    /// 
+    ///
     /// # 返回
     /// - `true`: 用户拥有该绑定
     /// - `false`: 用户不拥有该绑定或绑定不存在
-    /// 
+    ///
     /// # 说明
     /// 用于权限验证，确保用户只能操作自己的绑定
     pub async fn check_ownership(&self, user_id: Uuid, binding_id: Uuid) -> Result<bool> {
@@ -261,16 +277,19 @@ impl UserRoomBindingRepository {
     }
 
     /// 批量查询多个房间的活跃绑定
-    /// 
+    ///
     /// # 参数
     /// - `roomids`: 房间ID列表
-    /// 
+    ///
     /// # 返回
     /// 所有房间的活跃绑定列表
-    /// 
+    ///
     /// # 说明
     /// 用于批量通知服务
-    pub async fn find_active_bindings_by_roomids(&self, roomids: &[i32]) -> Result<Vec<UserRoomBinding>> {
+    pub async fn find_active_bindings_by_roomids(
+        &self,
+        roomids: &[i32],
+    ) -> Result<Vec<UserRoomBinding>> {
         if roomids.is_empty() {
             return Ok(Vec::new());
         }
@@ -287,20 +306,20 @@ impl UserRoomBindingRepository {
     }
 
     /// 删除用户的所有绑定
-    /// 
+    ///
     /// # 参数
     /// - `user_id`: 用户UUID
-    /// 
+    ///
     /// # 返回
     /// 删除的行数
-    /// 
+    ///
     /// # 说明
     /// 用于用户注销或删除
     pub async fn delete_all_by_user(&self, user_id: Uuid) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
         let affected_rows = diesel::delete(
-            user_room_bindings::table.filter(user_room_bindings::user_id.eq(user_id))
+            user_room_bindings::table.filter(user_room_bindings::user_id.eq(user_id)),
         )
         .execute(&mut conn)
         .await
@@ -316,24 +335,23 @@ impl UserRoomBindingRepository {
     }
 
     /// 删除房间的所有绑定
-    /// 
+    ///
     /// # 参数
     /// - `roomid`: 房间ID
-    /// 
+    ///
     /// # 返回
     /// 删除的行数
-    /// 
+    ///
     /// # 说明
     /// 用于房间删除（通常由数据库级联删除处理）
     pub async fn delete_all_by_room(&self, roomid: i32) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
-        let affected_rows = diesel::delete(
-            user_room_bindings::table.filter(user_room_bindings::roomid.eq(roomid))
-        )
-        .execute(&mut conn)
-        .await
-        .map_err(AppError::Database)?;
+        let affected_rows =
+            diesel::delete(user_room_bindings::table.filter(user_room_bindings::roomid.eq(roomid)))
+                .execute(&mut conn)
+                .await
+                .map_err(AppError::Database)?;
 
         tracing::info!(
             roomid = roomid,
@@ -347,15 +365,15 @@ impl UserRoomBindingRepository {
     // ==================== 通知状态持久化方法 ====================
 
     /// 更新用户-房间绑定的最后通知时间
-    /// 
+    ///
     /// # 参数
     /// - `user_id`: 用户UUID
     /// - `roomid`: 房间ID
     /// - `time`: 通知时间
-    /// 
+    ///
     /// # 返回
     /// 更新的行数
-    /// 
+    ///
     /// # 说明
     /// 用于在发送通知后持久化通知状态，防止服务器重启后重复通知
     pub async fn update_last_notified(
@@ -373,7 +391,7 @@ impl UserRoomBindingRepository {
         let affected_rows = diesel::update(
             user_room_bindings::table
                 .filter(user_room_bindings::user_id.eq(user_id))
-                .filter(user_room_bindings::roomid.eq(roomid))
+                .filter(user_room_bindings::roomid.eq(roomid)),
         )
         .set(&update)
         .execute(&mut conn)
@@ -393,21 +411,17 @@ impl UserRoomBindingRepository {
     }
 
     /// 重置用户-房间绑定的最后通知时间（设为NULL）
-    /// 
+    ///
     /// # 参数
     /// - `user_id`: 用户UUID
     /// - `roomid`: 房间ID
-    /// 
+    ///
     /// # 返回
     /// 更新的行数
-    /// 
+    ///
     /// # 说明
     /// 用于在房间电费恢复且过了观察期后重置通知状态
-    pub async fn reset_last_notified(
-        &self,
-        user_id: Uuid,
-        roomid: i32,
-    ) -> Result<usize> {
+    pub async fn reset_last_notified(&self, user_id: Uuid, roomid: i32) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
         // 直接使用 DSL 设置 NULL，避免 AsChangeset 结构体的 None 跳过行为
@@ -415,7 +429,7 @@ impl UserRoomBindingRepository {
         let affected_rows = diesel::update(
             user_room_bindings::table
                 .filter(user_room_bindings::user_id.eq(user_id))
-                .filter(user_room_bindings::roomid.eq(roomid))
+                .filter(user_room_bindings::roomid.eq(roomid)),
         )
         .set(user_room_bindings::last_notified_at.eq(None::<NaiveDateTime>))
         .execute(&mut conn)
@@ -434,13 +448,13 @@ impl UserRoomBindingRepository {
     }
 
     /// 批量重置房间的所有绑定的最后通知时间
-    /// 
+    ///
     /// # 参数
     /// - `roomid`: 房间ID
-    /// 
+    ///
     /// # 返回
     /// 更新的行数
-    /// 
+    ///
     /// # 说明
     /// 用于在房间电费恢复且过了观察期后批量重置该房间所有用户的通知状态
     pub async fn reset_last_notified_by_roomid(&self, roomid: i32) -> Result<usize> {
@@ -448,14 +462,12 @@ impl UserRoomBindingRepository {
 
         // 直接使用 DSL 设置 NULL，避免 AsChangeset 结构体的 None 跳过行为
         // 参考: https://github.com/diesel-rs/diesel/issues/885
-        let affected_rows = diesel::update(
-            user_room_bindings::table
-                .filter(user_room_bindings::roomid.eq(roomid))
-        )
-        .set(user_room_bindings::last_notified_at.eq(None::<NaiveDateTime>))
-        .execute(&mut conn)
-        .await
-        .map_err(AppError::Database)?;
+        let affected_rows =
+            diesel::update(user_room_bindings::table.filter(user_room_bindings::roomid.eq(roomid)))
+                .set(user_room_bindings::last_notified_at.eq(None::<NaiveDateTime>))
+                .execute(&mut conn)
+                .await
+                .map_err(AppError::Database)?;
 
         if affected_rows > 0 {
             tracing::info!(
@@ -469,13 +481,15 @@ impl UserRoomBindingRepository {
     }
 
     /// 加载所有有通知历史的绑定记录
-    /// 
+    ///
     /// # 返回
     /// 包含 `(user_id, roomid, last_notified_at)` 的元组列表
-    /// 
+    ///
     /// # 说明
     /// 用于服务器启动时从数据库恢复通知历史状态到内存
-    pub async fn find_all_with_notification_history(&self) -> Result<Vec<(Uuid, i32, NaiveDateTime)>> {
+    pub async fn find_all_with_notification_history(
+        &self,
+    ) -> Result<Vec<(Uuid, i32, NaiveDateTime)>> {
         let mut conn = self.get_conn().await?;
 
         let results: Vec<(Uuid, i32, Option<NaiveDateTime>)> = user_room_bindings::table
@@ -492,15 +506,10 @@ impl UserRoomBindingRepository {
         // 过滤掉 None 值（虽然 IS NOT NULL 已经过滤，但 Diesel 返回 Option）
         let filtered: Vec<(Uuid, i32, NaiveDateTime)> = results
             .into_iter()
-            .filter_map(|(user_id, roomid, time_opt)| {
-                time_opt.map(|time| (user_id, roomid, time))
-            })
+            .filter_map(|(user_id, roomid, time_opt)| time_opt.map(|time| (user_id, roomid, time)))
             .collect();
 
-        tracing::info!(
-            count = filtered.len(),
-            "加载通知历史记录"
-        );
+        tracing::info!(count = filtered.len(), "加载通知历史记录");
 
         Ok(filtered)
     }

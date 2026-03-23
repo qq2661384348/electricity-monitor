@@ -50,7 +50,7 @@ cargo install diesel_cli --no-default-features --features postgres,mysql
 # config/default.toml
 [database]
 type = "postgres"
-host = "47.92.117.121"
+host = "127.0.0.1"
 port = 5432
 username = "postgres"
 password = "postgres"
@@ -63,10 +63,13 @@ connection_timeout = 30
 ```toml
 # config/production.toml
 [database]
-database = "electricity_pro"  # 覆盖数据库名
+host = "47.92.117.121"
+database = "electricity_pro"
 max_connections = 20
 min_connections = 5
 ```
+
+开发环境迁移命令会复用应用本身的配置加载逻辑，并拒绝连接非本地数据库。
 
 ## 创建迁移
 

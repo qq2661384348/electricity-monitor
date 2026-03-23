@@ -7,13 +7,13 @@ use serde::Deserialize;
 pub struct RoomSyncConfig {
     /// 是否启用同步服务
     pub enabled: bool,
-    
+
     /// 同步间隔（小时）
     pub interval_hours: u64,
-    
+
     /// 默认电费阈值
     pub default_threshold: f32,
-    
+
     /// 爬虫配置
     pub crawler: CrawlerConfig,
 }
@@ -23,16 +23,16 @@ pub struct RoomSyncConfig {
 pub struct CrawlerConfig {
     /// API URL
     pub api_url: String,
-    
+
     /// 请求超时时间（秒）
     pub timeout_seconds: u64,
-    
+
     /// 连接超时时间（秒）
     pub connect_timeout_seconds: u64,
-    
+
     /// 最大重试次数
     pub max_retries: u32,
-    
+
     /// 并发数
     pub concurrency: usize,
 }

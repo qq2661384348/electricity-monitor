@@ -85,7 +85,8 @@ mod tests {
     #[test]
     fn test_parse_room_not_found() {
         let parser = ElectricityParser::new().unwrap();
-        let raw_data = r#""{\"BS\":\"-1\",\"Msg\":\"失败\",\"total\":0,\"component\":null,\"url\":null}""#;
+        let raw_data =
+            r#""{\"BS\":\"-1\",\"Msg\":\"失败\",\"total\":0,\"component\":null,\"url\":null}""#;
         let result = parser.parse(raw_data);
         assert_eq!(result, None);
     }
@@ -93,13 +94,13 @@ mod tests {
     #[tokio::test]
     async fn test_parse_real_api_response() {
         let api_url = "https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid=4330";
-        
+
         // 发起HTTP请求
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .build()
             .expect("Failed to create HTTP client");
-        
+
         let response = match client.get(api_url).send().await {
             Ok(resp) => resp,
             Err(e) => {

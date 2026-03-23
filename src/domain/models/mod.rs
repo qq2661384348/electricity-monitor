@@ -11,11 +11,14 @@ pub mod user;
 pub mod user_room_binding;
 
 pub use electricity_history::{ElectricityHistory, NewElectricityHistory};
-pub use room::{NewRoom, ResetSendFlag, Room, UpdateElectricityFee, UpdateLastRecovered, UpdateThreshold};
+pub use room::{
+    NewRoom, ResetSendFlag, Room, UpdateElectricityFee, UpdateLastRecovered, UpdateThreshold,
+};
 pub use room_aggregate::RoomAggregate;
 pub use room_path::{NewRoomPath, RoomPath};
 pub use room_sync_log::*;
 pub use user::{NewUser, UpdateUserRole, User};
 pub use user_room_binding::{
-    NewUserRoomBinding, UpdateLastNotified, UpdateNotificationEnabled, UserRoomBinding, UserRoomBindingWithRoomInfo,
+    NewUserRoomBinding, UpdateLastNotified, UpdateNotificationEnabled, UserRoomBinding,
+    UserRoomBindingWithRoomInfo,
 };

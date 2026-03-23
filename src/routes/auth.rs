@@ -1,5 +1,5 @@
 //! 认证路由
-//! 
+//!
 //! 定义认证相关的API路由
 
 use axum::{
@@ -16,7 +16,10 @@ use crate::state::AppState;
 pub fn routes() -> Router<AppState> {
     // 公开路由（无需认证）
     let public_routes = Router::new()
-        .route("/auth/send-verification-code", post(auth::send_verification_code))
+        .route(
+            "/auth/send-verification-code",
+            post(auth::send_verification_code),
+        )
         .route("/auth/verify-and-login", post(auth::verify_and_login))
         .route("/auth/refresh", post(auth::refresh_token));
 

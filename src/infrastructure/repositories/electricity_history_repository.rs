@@ -123,11 +123,7 @@ impl ElectricityHistoryRepository {
     /// # 说明
     /// - 使用复合索引（roomid, recorded_at DESC）优化查询
     /// - 默认返回最近的N条记录
-    pub async fn find_by_roomid(
-        &self,
-        roomid: i32,
-        limit: i64,
-    ) -> Result<Vec<ElectricityHistory>> {
+    pub async fn find_by_roomid(&self, roomid: i32, limit: i64) -> Result<Vec<ElectricityHistory>> {
         let mut conn = self.get_conn().await?;
 
         electricity_history::table

@@ -67,26 +67,26 @@ impl ElectricityFetcherConfig {
                 self.api_url
             ));
         }
-        
+
         // 验证间隔时间
         if self.fetch_interval_minutes == 0 {
             return Err("fetch_interval_minutes必须大于0".to_string());
         }
-        
+
         if self.history_interval_hours == 0 {
             return Err("history_interval_hours必须大于0".to_string());
         }
-        
+
         // 验证保留天数
         if self.history_retention_days < 1 {
             return Err("history_retention_days必须至少为1天".to_string());
         }
-        
+
         // 验证重试配置
         if self.retry_backoff_multiplier < 1.0 {
             return Err("retry_backoff_multiplier必须大于等于1.0".to_string());
         }
-        
+
         Ok(())
     }
 }

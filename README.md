@@ -21,13 +21,15 @@ cargo install diesel_cli --no-default-features --features postgres
 # 2. 配置环境
 $env:APP_ENV="development"
 
-# 3. 运行迁移（统一命令）
+# 3. 确保本地 PostgreSQL 和本地 Redis 已启动
+
+# 4. 运行迁移（统一命令）
 cargo run --bin migrate
 
-# 4. 启动服务
+# 5. 启动服务
 cargo run
 
-# 5. 测试API
+# 6. 测试API
 curl http://localhost:8000/api/health
 ```
 
@@ -67,6 +69,7 @@ src/
 ```powershell
 $env:APP_ENV="development"
 $env:RUST_LOG="debug"
+# development 环境只允许连接本地 PostgreSQL / Redis
 ```
 
 ### 生产环境 (Linux)

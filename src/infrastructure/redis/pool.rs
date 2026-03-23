@@ -11,7 +11,7 @@ pub type RedisPool = Pool;
 /// 创建Redis连接池
 pub async fn create_redis_pool(config: &RedisConfig) -> Result<RedisPool> {
     let redis_url = config.connection_url();
-    
+
     tracing::info!(
         "Creating Redis pool: host={}, port={}",
         config.host,
@@ -20,26 +20,23 @@ pub async fn create_redis_pool(config: &RedisConfig) -> Result<RedisPool> {
 
     // 创建连接池配置
     let pool_config = Config::from_url(redis_url);
-    
+
     // 构建连接池
     let pool = pool_config
         .create_pool(Some(Runtime::Tokio1))
-        .map_err(|e| {
-            AppError::Config(format!("Failed to create Redis pool: {}", e))
-        })?;
+        .map_err(|e| AppError::Config(format!("Failed to create Redis pool: {}", e)))?;
 
     // 测试连接
-    let mut conn = pool.get().await.map_err(|e| {
-        AppError::Config(format!("Failed to get Redis connection: {}", e))
-    })?;
-    
+    let mut conn = pool
+        .get()
+        .await
+        .map_err(|e| AppError::Config(format!("Failed to get Redis connection: {}", e)))?;
+
     // 执行PING命令测试连接
     cmd("PING")
         .query_async::<()>(&mut conn)
         .await
-        .map_err(|e| {
-            AppError::Config(format!("Redis PING failed: {}", e))
-        })?;
+        .map_err(|e| AppError::Config(format!("Redis PING failed: {}", e)))?;
 
     tracing::info!("Redis pool created successfully");
 
@@ -50,11 +47,17 @@ pub async fn create_redis_pool(config: &RedisConfig) -> Result<RedisPool> {
 mod tests {
     use super::*;
 
+    fn redis_test_requested() -> bool {
+        std::env::var("RUN_INTEGRATION_TESTS").is_ok()
+            || std::env::var("REDIS_HOST").is_ok()
+            || std::env::var("REDIS_PORT").is_ok()
+    }
+
     #[tokio::test]
     async fn test_create_redis_pool() {
         // 检查是否有Redis可用（通过环境变量控制）
-        if std::env::var("REDIS_URL").is_err() && std::env::var("RUN_INTEGRATION_TESTS").is_err() {
-            println!("跳过Redis测试：设置 RUN_INTEGRATION_TESTS=1 或 REDIS_URL 环境变量以启用");
+        if !redis_test_requested() {
+            println!("跳过Redis测试：设置 RUN_INTEGRATION_TESTS=1 或 REDIS_HOST/REDIS_PORT 以启用");
             return;
         }
 
@@ -70,7 +73,7 @@ mod tests {
         };
 
         let result = create_redis_pool(&config).await;
-        
+
         match result {
             Ok(pool) => {
                 // 验证连接池可用
@@ -87,7 +90,7 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn test_redis_config_validation() {
         // 单元测试：验证配置结构
@@ -98,7 +101,7 @@ mod tests {
             min_connections: 2,
             connection_timeout: 30,
         };
-        
+
         assert_eq!(config.host, "localhost");
         assert_eq!(config.port, 6379);
         assert!(config.max_connections > config.min_connections);

@@ -1,5 +1,5 @@
 //! 电费获取路由
-//! 
+//!
 //! 所有端点仅限管理员访问
 
 use axum::{
@@ -13,7 +13,7 @@ use crate::middleware::auth::{auth_middleware, require_admin};
 use crate::state::AppState;
 
 /// 创建电费获取路由
-/// 
+///
 /// # 权限要求
 /// 所有端点需要管理员权限
 pub fn routes() -> Router<AppState> {

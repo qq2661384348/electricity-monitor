@@ -31,10 +31,10 @@ impl RoomIdCache {
     pub async fn new(pool: DbPool) -> Result<Self> {
         let cache = Arc::new(RwLock::new(Vec::new()));
         let instance = Self { cache, pool };
-        
+
         // 初始化时自动加载
         instance.refresh().await?;
-        
+
         Ok(instance)
     }
 
@@ -50,16 +50,13 @@ impl RoomIdCache {
     pub async fn refresh(&self) -> Result<()> {
         let repo = RoomRepository::new(self.pool.clone());
         let room_ids = repo.find_all_active_roomids().await?;
-        
+
         // 获取写锁更新缓存
         let mut cache = self.cache.write().await;
         *cache = room_ids;
-        
-        tracing::info!(
-            count = cache.len(),
-            "RoomId缓存已刷新"
-        );
-        
+
+        tracing::info!(count = cache.len(), "RoomId缓存已刷新");
+
         Ok(())
     }
 

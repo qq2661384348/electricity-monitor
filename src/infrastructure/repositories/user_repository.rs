@@ -1,5 +1,5 @@
 //! User数据仓储实现
-//! 
+//!
 //! 提供User实体的数据访问操作
 
 use diesel::prelude::*;
@@ -24,13 +24,16 @@ impl UserRepository {
     }
 
     /// 获取数据库连接（内部辅助方法）
-    /// 
+    ///
     /// # 返回
     /// 数据库连接或错误
-    /// 
+    ///
     /// # 错误
     /// 当连接池无法提供连接时返回`AppError::Internal`
-    async fn get_conn(&self) -> Result<diesel_async::pooled_connection::deadpool::Object<diesel_async::AsyncPgConnection>> {
+    async fn get_conn(
+        &self,
+    ) -> Result<diesel_async::pooled_connection::deadpool::Object<diesel_async::AsyncPgConnection>>
+    {
         self.pool.get().await.map_err(|e| {
             tracing::error!("Failed to get database connection: {}", e);
             AppError::Internal(format!("Failed to get database connection: {}", e))
@@ -38,10 +41,10 @@ impl UserRepository {
     }
 
     /// 根据QQ号查找用户
-    /// 
+    ///
     /// # 参数
     /// - `qq_number`: QQ号
-    /// 
+    ///
     /// # 返回
     /// - `Some(User)`: 找到用户
     /// - `None`: 用户不存在
@@ -58,10 +61,10 @@ impl UserRepository {
     }
 
     /// 根据UUID查找用户
-    /// 
+    ///
     /// # 参数
     /// - `id`: 用户UUID
-    /// 
+    ///
     /// # 返回
     /// - `Some(User)`: 找到用户
     /// - `None`: 用户不存在
@@ -78,20 +81,20 @@ impl UserRepository {
     }
 
     /// 创建用户或查找已存在的用户
-    /// 
+    ///
     /// # 参数
     /// - `qq_number`: QQ号
     /// - `role`: 用户角色（默认: "user"）
-    /// 
+    ///
     /// # 返回
     /// 用户实体（已存在或新创建）
-    /// 
+    ///
     /// # 说明
     /// 使用INSERT ... ON CONFLICT DO NOTHING避免竞态条件
     /// 如果插入失败（用户已存在），则查询返回
     pub async fn create_or_find(&self, qq_number: &str, role: &str) -> Result<User> {
         let mut conn = self.get_conn().await?;
-        
+
         let new_user = NewUser {
             qq_number: qq_number.to_string(),
             role: role.to_string(),
@@ -135,11 +138,11 @@ impl UserRepository {
     }
 
     /// 更新用户角色
-    /// 
+    ///
     /// # 参数
     /// - `id`: 用户UUID
     /// - `new_role`: 新角色
-    /// 
+    ///
     /// # 返回
     /// 更新后的User实体
     pub async fn update_role(&self, id: Uuid, new_role: &str) -> Result<User> {
@@ -166,11 +169,11 @@ impl UserRepository {
     }
 
     /// 更新用户激活状态
-    /// 
+    ///
     /// # 参数
     /// - `id`: 用户UUID
     /// - `is_active`: 是否激活
-    /// 
+    ///
     /// # 返回
     /// 更新的行数
     pub async fn update_active_status(&self, id: Uuid, is_active: bool) -> Result<usize> {
@@ -200,7 +203,7 @@ impl UserRepository {
     }
 
     /// 查询所有激活的用户
-    /// 
+    ///
     /// # 返回
     /// 激活用户列表
     pub async fn find_all_active(&self) -> Result<Vec<User>> {
@@ -216,7 +219,7 @@ impl UserRepository {
     }
 
     /// 查询管理员用户列表
-    /// 
+    ///
     /// # 返回
     /// 管理员用户列表
     pub async fn find_all_admins(&self) -> Result<Vec<User>> {
@@ -233,18 +236,18 @@ impl UserRepository {
     }
 
     /// 批量查询用户（根据UUID列表）
-    /// 
+    ///
     /// # 参数
     /// - `user_ids`: 用户UUID切片
-    /// 
+    ///
     /// # 返回
     /// 用户列表（注意：返回顺序可能与输入顺序不同）
-    /// 
+    ///
     /// # 说明
     /// - 使用 `IN (...)` 批量查询，性能优于逐个查询
     /// - 自动分批处理（每批1000个ID）防止SQL过长
     /// - 返回的用户数可能少于输入ID数（不存在的ID会被忽略）
-    /// 
+    ///
     /// # 示例
     /// ```ignore
     /// let user_ids = vec![uuid1, uuid2, uuid3];
@@ -265,14 +268,14 @@ impl UserRepository {
 
         for chunk in user_ids.chunks(BATCH_SIZE) {
             let mut conn = self.get_conn().await?;
-            
+
             let users = users::table
                 .filter(users::id.eq_any(chunk))
                 .select(User::as_select())
                 .load(&mut conn)
                 .await
                 .map_err(AppError::Database)?;
-            
+
             all_users.extend(users);
         }
 
