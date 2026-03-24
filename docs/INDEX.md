@@ -1,126 +1,46 @@
 # 📚 文档索引
 
-欢迎使用 Electricity Monitor Backend 文档！
+## 快速入口
 
-## 📖 文档分类
+- [项目总览](./README.md)
+- [快速开始](./guides/QUICKSTART.md)
+- [Docker 部署指南](./guides/DOCKER_DEPLOYMENT.md)
+- [架构设计](./architecture/ARCHITECTURE.md)
+- [API 参考](./api/API_REFERENCE.md)
 
-### 🏠 项目概述
-- **[README.md](./README.md)** - 项目介绍、技术栈、环境配置、API端点
+## 文档分类
 
-### 🏗️ 架构设计 (`./architecture/`)
-- **[ARCHITECTURE.md](./architecture/ARCHITECTURE.md)** - 完整架构设计文档
-  - 技术选型决策
-  - 分层架构设计
-  - 性能优化策略
-  - 安全设计
-  - 扩展性设计
-  - 部署建议
+### 项目与架构
 
-### 📘 开发指南 (`./guides/`)
-- **[QUICKSTART.md](./guides/QUICKSTART.md)** - 快速启动指南
-  - 环境配置
-  - 数据库初始化
-  - 开发服务器启动
-  - 常见问题解决
-- **[BUILD_CONFIGURATION.md](./guides/BUILD_CONFIGURATION.md)** - 构建配置指南
-  - PostgreSQL 自动检测配置
-  - 编译优化设置
-  - 链接问题解决方案
-  - 常见构建错误排查
-- **[DATABASE_MIGRATION.md](./guides/DATABASE_MIGRATION.md)** - 数据库迁移指南
-  - 统一迁移命令使用
-  - 迁移文件管理
-  - 多环境配置
-- **[TECHNICAL_DEBT.md](./guides/TECHNICAL_DEBT.md)** - 技术债务清单
-  - 项目完成度评估
-  - 待实现功能清单
-  - 开发优先级建议
-  - 关键决策点
+- [README.md](./README.md) - 项目介绍、技术栈、环境配置
+- [ARCHITECTURE.md](./architecture/ARCHITECTURE.md) - 分层架构与设计决策
+- [DEPRECATED_CODE_HISTORY.md](./architecture/DEPRECATED_CODE_HISTORY.md) - 历史代码与遗留背景
 
-### 🔌 API 文档 (`./api/`)
-- **[API_REFERENCE.md](./api/API_REFERENCE.md)** - API接口文档（待创建）
-  - 健康检查接口
-  - 认证接口
-  - 业务接口
+### 开发与测试
 
-## 🚀 快速导航
+- [QUICKSTART.md](./guides/QUICKSTART.md) - 本地开发启动路径
+- [BUILD_CONFIGURATION.md](./guides/BUILD_CONFIGURATION.md) - 编译配置与构建问题排查
+- [DATABASE_MIGRATION.md](./guides/DATABASE_MIGRATION.md) - 迁移命令与数据库演进
+- [TESTING.md](./guides/TESTING.md) - 测试策略与本地依赖示例
+- [TECHNICAL_DEBT.md](./guides/TECHNICAL_DEBT.md) - 技术债与后续重构切入点
+- [第三方验证码集成.md](./guides/第三方验证码集成.md) - 第三方验证码接入记录
+- [QQ机器人调用API测试报告.md](./guides/QQ机器人调用API测试报告.md) - 机器人接口验证记录
 
-### 新手入门
-1. 先阅读 [README.md](./README.md) 了解项目概况
-2. 按照 [QUICKSTART.md](./guides/QUICKSTART.md) 配置开发环境
-3. 参考 [ARCHITECTURE.md](./architecture/ARCHITECTURE.md) 理解项目设计
+### 部署与运维
 
-### 开发参考
-- 技术选型理由 → [ARCHITECTURE.md § 技术选型决策](./architecture/ARCHITECTURE.md#技术选型决策)
-- 添加新API → [QUICKSTART.md § 开发指南](./guides/QUICKSTART.md#开发指南)
-- 配置管理 → [ARCHITECTURE.md § 配置系统](./architecture/ARCHITECTURE.md#核心模块设计)
-- 性能优化 → [ARCHITECTURE.md § 性能优化策略](./architecture/ARCHITECTURE.md#性能优化策略)
-- 技术债务清单 → [TECHNICAL_DEBT.md](./guides/TECHNICAL_DEBT.md)
-- 数据库迁移 → [DATABASE_MIGRATION.md](./guides/DATABASE_MIGRATION.md)
+- [DOCKER_DEPLOYMENT.md](./guides/DOCKER_DEPLOYMENT.md) - GitHub Actions artifact 发布链路
 
-### 部署运维
-- 环境配置 → [README.md § 环境配置](./README.md#环境配置)
-- 生产部署 → [ARCHITECTURE.md § 部署建议](./architecture/ARCHITECTURE.md#部署建议)
-- 性能基准 → [ARCHITECTURE.md § 性能基准](./architecture/ARCHITECTURE.md#性能基准)
+### API
 
-## 📁 文档结构
+- [API_REFERENCE.md](./api/API_REFERENCE.md) - HTTP API 参考
 
-```
-docs/
-├── INDEX.md                    # 本文件 - 文档索引
-├── README.md                   # 项目主文档
-├── architecture/               # 架构设计文档
-│   └── ARCHITECTURE.md        # 详细架构设计
-├── guides/                     # 开发指南
-│   ├── QUICKSTART.md          # 快速启动
-│   ├── BUILD_CONFIGURATION.md # 构建配置指南
-│   ├── DATABASE_MIGRATION.md  # 数据库迁移指南
-│   ├── TECHNICAL_DEBT.md      # 技术债务清单
-│   ├── DEVELOPMENT.md         # 开发规范（待创建）
-│   └── DEPLOYMENT.md          # 部署指南（待创建）
-└── api/                        # API文档
-    └── API_REFERENCE.md       # API参考
-```
+## 当前真源约定
 
-## 🔍 按主题查找
+- 生产发布以 `.github/workflows/docker-build.yml` 和仓库 `deploy/` 目录为准。
+- `deploy/build.sh` 与 `deploy/docker-compose.local.yml` 仅用于本地 Docker 调试。
+- 服务器上线消费 GitHub Actions 产出的 release artifact，不从源码重新构建。
 
-### 技术栈相关
-- Axum框架使用 → [ARCHITECTURE.md § Web框架](./architecture/ARCHITECTURE.md)
-- Diesel ORM → [ARCHITECTURE.md § 数据库层](./architecture/ARCHITECTURE.md)
-- JWT认证 → [ARCHITECTURE.md § 中间件系统](./architecture/ARCHITECTURE.md)
+## 文档维护
 
-### 配置相关
-- TOML配置文件 → [README.md § 配置说明](./README.md#配置说明)
-- 环境变量 → [QUICKSTART.md § 配置环境变量](./guides/QUICKSTART.md#配置环境变量)
-- 数据库配置 → [QUICKSTART.md § 配置数据库](./guides/QUICKSTART.md#配置数据库)
-
-### 开发相关
-- 添加新端点 → [QUICKSTART.md § 添加新的API端点](./guides/QUICKSTART.md)
-- 数据库操作 → [QUICKSTART.md § 数据库操作示例](./guides/QUICKSTART.md)
-- 数据库迁移 → [DATABASE_MIGRATION.md](./guides/DATABASE_MIGRATION.md)
-- 错误处理 → [ARCHITECTURE.md § 错误处理](./architecture/ARCHITECTURE.md)
-- 待实现功能 → [TECHNICAL_DEBT.md § 技术债务清单](./guides/TECHNICAL_DEBT.md)
-
-### 性能相关
-- 编译优化 → [ARCHITECTURE.md § 编译时优化](./architecture/ARCHITECTURE.md)
-- SIMD加速 → [ARCHITECTURE.md § 性能优化](./architecture/ARCHITECTURE.md)
-- 连接池调优 → [ARCHITECTURE.md § 运行时优化](./architecture/ARCHITECTURE.md)
-
-## 📝 文档维护
-
-- **最后更新**: 2025-10-30
-- **文档版本**: 1.1
-- **维护团队**: Electricity Monitor Team
-- **最新变更**: 新增技术债务清单和数据库迁移指南
-
-## 💡 贡献指南
-
-如需添加或更新文档：
-1. 在对应分类目录下创建或修改文档
-2. 更新本索引文件
-3. 遵循 Markdown 格式规范
-4. 包含必要的代码示例和图表
-
----
-
-**提示**: 使用 Ctrl+F 在本页面搜索关键词快速定位文档。
+- 最后更新：2026-03-24
+- 更新部署相关内容时，同时核对 `README.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`deploy/README.md` 与 `memory/03-deploy-and-risk-memory.md`

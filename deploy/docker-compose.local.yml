@@ -1,15 +1,8 @@
 # =============================================================================
-# 电力监控系统 - Docker Compose 配置
+# 电力监控系统 - 本地 Docker 调试 Compose
 # =============================================================================
 #
-# 启动命令:
-#   docker compose up -d
-#
-# 查看日志:
-#   docker compose logs -f
-#
-# 停止服务:
-#   docker compose down
+# 推荐通过 ./deploy/build.sh 调用，而不是直接在根目录执行 docker compose。
 #
 # =============================================================================
 
@@ -37,8 +30,8 @@ services:
     image: electricity-monitor:latest
     container_name: electricity-app
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: deploy/Dockerfile
     restart: unless-stopped
     ports:
       - "11450:8000"

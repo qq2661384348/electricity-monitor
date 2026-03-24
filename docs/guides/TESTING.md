@@ -208,12 +208,15 @@ if let Ok(room) = result {
 
 ## Docker环境测试
 
-### docker-compose.yml
+### deploy/docker-compose.local.yml（示意）
+
+以下片段用于说明本地 Docker 依赖的最小配置；真实仓库文件位于 `deploy/docker-compose.local.yml`。
+
 ```yaml
 version: '3.8'
 services:
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     ports:
       - "6379:6379"
   

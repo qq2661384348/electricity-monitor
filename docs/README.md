@@ -233,21 +233,24 @@ rustup target add x86_64-unknown-linux-gnu
 cargo build --release --target x86_64-unknown-linux-gnu
 ```
 
-### Docker部署（可选）
+### 生产发布主线
 
-项目已预留Docker支持，Dockerfile编写建议：
+当前生产发布完全依赖 GitHub Actions release artifact，而不是开发机或服务器从源码重新构建：
 
-```dockerfile
-FROM rust:1.75 as builder
-WORKDIR /app
-COPY . .
-RUN cargo build --release
+- 工作流：`../.github/workflows/docker-build.yml`
+- 部署资产目录：`../deploy/`
+- 服务器职责：`docker load`、`docker compose up`、健康检查、失败回滚
 
-FROM debian:bookworm-slim
-COPY --from=builder /app/target/release/server /usr/local/bin/
-COPY config /config
-CMD ["server"]
-```
+详细步骤见：[DOCKER_DEPLOYMENT.md](./guides/DOCKER_DEPLOYMENT.md)
+
+### 本地 Docker 调试
+
+本地 Docker 调试文件也已统一收敛到 `../deploy/`：
+
+- `../deploy/build.sh`
+- `../deploy/docker-compose.local.yml`
+- `../deploy/Dockerfile`
+- `../deploy/Dockerfile.dockerignore`
 
 ## 开发规范
 

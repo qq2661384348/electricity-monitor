@@ -26,6 +26,26 @@ release-<git-tag>.tar.gz
     └── README.md
 ```
 
+## 仓库内部署文件布局
+
+生产发布与本地 Docker 调试的相关文件现在都集中在仓库 `deploy/` 目录：
+
+```text
+deploy/
+├── Dockerfile
+├── Dockerfile.dockerignore
+├── build.sh
+├── docker-compose.local.yml
+├── compose.release.yml
+├── deploy.sh
+├── release.env.example
+└── README.release.md
+```
+
+- `deploy/Dockerfile` + `deploy/Dockerfile.dockerignore`：GitHub Actions 构建镜像的真源
+- `deploy/compose.release.yml` / `deploy/release.env.example` / `deploy/deploy.sh` / `deploy/README.release.md`：release 包模板
+- `deploy/build.sh` / `deploy/docker-compose.local.yml`：仅用于本地 Docker 调试，不是生产发布主线
+
 ## GitHub Actions 工作流
 
 工作流文件：`.github/workflows/docker-build.yml`
@@ -39,7 +59,7 @@ release-<git-tag>.tar.gz
 
 1. 校验 tag 是否存在，并检出该 tag
 2. 构建前端并复制到 `static/`
-3. 在 GitHub Actions Linux runner 中构建 `linux/amd64` Docker 镜像
+3. 使用 `deploy/Dockerfile` 在 GitHub Actions Linux runner 中构建 `linux/amd64` Docker 镜像
 4. 导出应用镜像与 Redis 镜像
 5. 组装 release 目录并压缩成单个归档
 6. 上传为 GitHub Actions artifact
@@ -51,7 +71,8 @@ release-<git-tag>.tar.gz
 - 前端依赖通过 `actions/setup-node` 的 `pnpm` 缓存复用
 - 前端安装使用 `pnpm install --frozen-lockfile`
 - Docker 镜像构建使用 `docker/build-push-action` + `gha` 缓存
-- Dockerfile 继续复用多阶段构建与 `cargo-chef`
+- `deploy/Dockerfile` 继续复用多阶段构建与 `cargo-chef`
+- `deploy/Dockerfile.dockerignore` 用于约束镜像构建上下文
 - CI 直接构建 `linux/amd64` 镜像，避免本地与线上重复构建
 
 ## 服务器部署
@@ -146,6 +167,6 @@ chmod +x deploy.sh
 
 ## 本地调试说明
 
-仓库中的 `build.sh` 和根目录 `docker-compose.yml` 仍可用于本地 Docker 调试，但它们不再是推荐的生产发布主线。
+仓库中的 `deploy/build.sh` 和 `deploy/docker-compose.local.yml` 仍可用于本地 Docker 调试，但它们不再是推荐的生产发布主线。
 
 生产发布主线以 GitHub Actions artifact 为准。

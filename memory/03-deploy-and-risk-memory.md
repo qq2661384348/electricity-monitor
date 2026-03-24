@@ -2,6 +2,8 @@
 
 ## 当前生产发布主线
 - GitHub Actions 工作流：`.github/workflows/docker-build.yml`
+- 镜像构建真源：`deploy/Dockerfile`
+- release 模板真源：`deploy/`
 - 触发方式：手动 `workflow_dispatch`
 - 输入：`git_tag`
 - 输出：`release-<tag>.tar.gz`
@@ -12,6 +14,12 @@
   - `deploy.sh`
   - `.env.example`
   - `README.md`
+
+## 仓库内部署资产布局
+- `deploy/Dockerfile` 与 `deploy/Dockerfile.dockerignore` 负责 GitHub Actions 镜像构建。
+- `deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`、`deploy/README.release.md` 负责 release 包模板。
+- `deploy/build.sh` 与 `deploy/docker-compose.local.yml` 只保留为本地 Docker 调试入口，不是生产发布真源。
+- 根目录已不再直接放置部署相关文件，部署边界以 `deploy/` 目录为准。
 
 ## 服务器部署记忆
 - 服务器不再从源码构建。
@@ -28,7 +36,7 @@
 ## 构建性能记忆
 - 前端依赖通过 pnpm lockfile 与缓存优化。
 - Docker 镜像使用 Buildx + GHA cache。
-- Dockerfile 继续复用 `cargo-chef` 多阶段构建。
+- `deploy/Dockerfile` 继续复用 `cargo-chef` 多阶段构建。
 - CI 直接构建 `linux/amd64` 镜像，避免开发机和服务器重复构建。
 
 ## 长期风险记忆

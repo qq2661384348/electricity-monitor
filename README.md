@@ -63,6 +63,18 @@ src/
 └── main.rs             # 程序入口
 ```
 
+```text
+deploy/
+├── Dockerfile                # GitHub Actions / release 镜像构建文件
+├── Dockerfile.dockerignore   # 与 deploy/Dockerfile 配套的构建忽略规则
+├── build.sh                  # 本地 Docker 调试脚本
+├── docker-compose.local.yml  # 本地 Docker 调试编排
+├── compose.release.yml       # release 包内 compose 模板
+├── deploy.sh                 # release 包内一键部署脚本模板
+├── release.env.example       # release 包内 .env 模板
+└── README.release.md         # release 包内说明模板
+```
+
 ## 🌍 环境配置
 
 ### 开发环境 (Windows)
@@ -88,13 +100,18 @@ cargo test     # 运行测试
 
 ## 📦 部署
 
-生产部署已调整为 GitHub Actions 手动触发打包：
+生产部署已调整为 GitHub Actions 手动触发打包，仓库内部署资产统一收敛在 `deploy/`：
+
+- 工作流：`.github/workflows/docker-build.yml`
+- 镜像构建：`deploy/Dockerfile`
+- release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
+- 本地 Docker 调试：`deploy/build.sh`、`deploy/docker-compose.local.yml`
 
 1. 在 GitHub Actions 中手动触发发布工作流并指定 `git_tag`
 2. 下载生成的 release artifact
-3. 在服务器解压后执行 `deploy.sh`
+3. 在服务器解压后执行 release 包中的 `deploy.sh`
 
-详见 **[Docker 部署指南](./docs/guides/DOCKER_DEPLOYMENT.md)**。
+详见 **[Docker 部署指南](./docs/guides/DOCKER_DEPLOYMENT.md)** 和 **[deploy 目录说明](./deploy/README.md)**。
 
 ## 📖 更多文档
 

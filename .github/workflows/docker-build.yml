@@ -76,7 +76,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
+          file: ./deploy/Dockerfile
           platforms: linux/amd64
           load: true
           push: false
@@ -109,7 +109,7 @@ jobs:
           docker save "${IMAGE_NAME}:${GIT_TAG}" | gzip > "${RELEASE_ROOT}/images/${app_archive}.gz"
           docker save "${REDIS_IMAGE}" | gzip > "${RELEASE_ROOT}/images/${redis_archive}.gz"
 
-          cp deploy.sh "${RELEASE_ROOT}/deploy.sh"
+          cp deploy/deploy.sh "${RELEASE_ROOT}/deploy.sh"
           cp deploy/compose.release.yml "${RELEASE_ROOT}/compose.yaml"
           sed "s/__RELEASE_TAG__/${GIT_TAG}/g" deploy/release.env.example > "${RELEASE_ROOT}/.env.example"
           sed "s/__RELEASE_TAG__/${GIT_TAG}/g" deploy/README.release.md > "${RELEASE_ROOT}/README.md"
