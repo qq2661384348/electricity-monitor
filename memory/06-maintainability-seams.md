@@ -1,15 +1,11 @@
 # Electricity Monitor 仓库记忆：第三轮可维护性接缝
 
 ## 鉴权接缝
-- `src/middleware/auth.rs` 当前采用“双轨鉴权”：
-  - 管理员：固定 `admin_token`
-  - 普通用户：JWT Claims
-- 这让鉴权逻辑简单可用，但也把“管理员身份模型”和“用户身份模型”混在一个中间件中。
-- 后续若升级认证体系，应优先把：
-  - token 解析
-  - 角色判定
-  - 请求上下文注入
-  拆成更稳定的边界，而不是继续在 handler 中扩散权限判断。
+- `src/modules/auth/` 已开始接管鉴权边界：
+  - JWT Claims 中显式携带 `role`
+  - middleware 先解析 Claims，再映射统一 `Actor`
+  - `src/middleware/auth.rs` 仅保留兼容 facade / `UserContext` 投影
+- 固定 `admin_token` 已移除，管理员改走和普通用户一致的验证码登录链路。
 
 ## 缓存接缝
 - `src/infrastructure/cache/cache_manager.rs` 已经形成统一缓存管理器雏形，包含：
@@ -17,10 +13,9 @@
   - User
   - Binding
   - Electricity
-- 但 `src/state.rs` 中 `cache_manager` 仍为 `None` 初始化，说明缓存架构是“设计存在、接入不完整”的状态。
-- 这类“半接入基础设施”很重要，后续架构升级应明确：
-  - 要么正式接入主链路
-  - 要么收敛/移除，避免长期保持悬空能力
+- `src/state.rs` 现已持有正式接入的 `CacheManager`，并在启动阶段预热 active rooms。
+- 当前主链路已在 `auth` / `path_tree` / `room` / `binding` 相关读取与失效点使用缓存。
+- 若继续扩展缓存，优先补后台更新链和通知相关读取链，不要重新引入第二套缓存入口。
 
 ## 通知域接缝
 - `NotificationGate` 负责：
@@ -40,9 +35,13 @@
 - 这说明通知域内部实际上已经包含多个子职责，可作为后续拆分的重点候选。
 
 ## Handler 层接缝
-- 当前多个 handler 直接实例化 Repository 并执行权限判断、查询编排、响应拼装。
-- 这说明“application service / use case 层”在 HTTP 层与仓储层之间仍不够稳定。
-- 后续若要提升可维护性，适合把复杂 handler 的编排逻辑向更窄的用例层收敛。
+- `room` / `path_tree` / `room_sync` 的复杂编排已经开始下沉到 `src/modules/*/application`。
+- 当前仍需继续收敛的旧 handler 热点主要是 `binding` 与 `auth`。
+
+## 外部 HTTP 接缝
+- `src/infrastructure/external/` 已建立统一 `reqwest` 客户端构造与 HTTP 状态错误映射。
+- 当前 `electricity`、`room_sync crawler`、`qq_client` 已接入这条统一入口。
+- 后续新增外部 HTTP 依赖时，优先复用这条统一入口，而不是各模块自行 new `reqwest::Client`。
 
 ## 前端可复用资产接缝
 - `frontend/src/components/ui/comic-modal/` 已经采用 compound components 模式，是较成熟的可复用 UI 资产。

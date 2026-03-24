@@ -7,7 +7,7 @@ use tokio::sync::RwLock;
 
 use crate::domain::models::Room;
 use crate::domain::services::{ElectricityFetcherService, RateLimiter, RoomPathTree};
-use crate::infrastructure::{DbPool, RedisPool, SimpleCacheManager};
+use crate::infrastructure::{CacheManager, DbPool, RedisPool};
 
 /// 应用程序状态
 #[derive(Clone)]
@@ -30,8 +30,8 @@ pub struct AppState {
     /// 房间路径树（用于逐层查询）
     pub room_path_tree: Arc<RwLock<RoomPathTree>>,
 
-    /// 简化的缓存管理器（高性能缓存）
-    pub cache_manager: Option<Arc<SimpleCacheManager>>,
+    /// 统一缓存管理器
+    pub cache_manager: Arc<CacheManager>,
 }
 
 impl AppState {
@@ -41,6 +41,7 @@ impl AppState {
         redis_pool: RedisPool,
         rate_limiter: Arc<RateLimiter>,
         electricity_fetcher_service: Option<Arc<ElectricityFetcherService>>,
+        cache_manager: Arc<CacheManager>,
     ) -> Self {
         Self {
             db_pool,
@@ -49,7 +50,7 @@ impl AppState {
             electricity_fetcher_service,
             flagged_rooms_cache: Arc::new(RwLock::new(Vec::new())),
             room_path_tree: Arc::new(RwLock::new(RoomPathTree::new())),
-            cache_manager: None, // 初始化为None，需要后续通过with_cache方法设置
+            cache_manager,
         }
     }
 

@@ -14,6 +14,7 @@ pub mod simple_cache;
 // 重新导出entity_cache实现
 pub use entity_cache_impl as entity_cache;
 
+pub use cache_manager::{CacheManager, CacheManagerConfig, CacheManagerStats};
 pub use metrics::CacheMetrics;
 pub use simple_cache::{
     BindingCache, RoomCache, SimpleCacheConfig, SimpleCacheManager, SimpleCacheStats, UserCache,

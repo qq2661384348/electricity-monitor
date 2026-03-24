@@ -29,6 +29,10 @@ pub struct DatabaseConfig {
     /// 密码
     pub password: String,
 
+    /// 密码 secret file 路径
+    #[serde(default)]
+    pub password_file: Option<String>,
+
     /// 数据库名
     pub database: String,
 

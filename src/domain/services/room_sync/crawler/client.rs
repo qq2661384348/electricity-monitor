@@ -7,6 +7,9 @@ use reqwest::Client;
 use std::time::Duration;
 
 use crate::config::CrawlerConfig;
+use crate::infrastructure::external::{
+    build_reqwest_client, http_status_error_message, HttpClientConfig,
+};
 
 /// 房间API客户端
 pub struct RoomClient {
@@ -29,11 +32,12 @@ impl RoomClient {
     /// # 错误
     /// 如果HTTP客户端创建失败
     pub fn new(config: &CrawlerConfig) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(config.timeout_seconds))
-            .connect_timeout(Duration::from_secs(config.connect_timeout_seconds))
-            .build()
-            .context("创建HTTP客户端失败")?;
+        let client = build_reqwest_client(&HttpClientConfig {
+            timeout: Some(Duration::from_secs(config.timeout_seconds)),
+            connect_timeout: Some(Duration::from_secs(config.connect_timeout_seconds)),
+            ..Default::default()
+        })
+        .context("创建HTTP客户端失败")?;
 
         Ok(Self {
             client,
@@ -150,7 +154,12 @@ impl RoomClient {
 
         let status = response.status();
         if !status.is_success() {
-            anyhow::bail!("HTTP请求失败: status={}", status);
+            tracing::error!(
+                external_dependency = "room_crawler",
+                status = status.as_u16(),
+                "外部 HTTP 请求失败"
+            );
+            anyhow::bail!("{}", http_status_error_message("room_crawler", status));
         }
 
         let body = response.text().await.context("读取响应体失败")?;

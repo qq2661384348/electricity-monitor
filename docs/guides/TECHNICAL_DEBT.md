@@ -1,7 +1,33 @@
 # 技术债务清单
 
-> **文档更新日期**: 2025-11-12 (ElectricityFetcher更新)  
-> **项目阶段**: 核心功能已完成，房间同步服务已实现，电费获取服务已实现，测试覆盖完整
+> **文档更新日期**: 2026-03-24  
+> **真源说明**: 本文档顶部的“当前维护性债务”部分是当前真源；后续历史统计章节仅作为阶段性快照参考，不再代表当前仓库事实。
+
+---
+
+## 当前维护性债务（2026-03-24）
+
+### 当前真源文档
+
+- 架构决策索引：`docs/architecture/ADR_INDEX.md`
+- 双实现收敛台账：`docs/architecture/DUAL_IMPLEMENTATION_LEDGER.md`
+- 发布验收清单：`docs/guides/RELEASE_SMOKE_CHECKLIST.md`
+- 架构审查清单：`docs/guides/ARCHITECTURE_REVIEW_CHECKLIST.md`
+
+### 仍待解决的热点
+
+- `src/infrastructure/repositories/room_repository.rs` 仍然是超大仓储，职责未按变化原因拆开。
+- `room_repository` 仍是超大仓储，后续仍需按读/写/同步日志等变化原因继续拆分。
+- `src/handlers/room.rs`、`src/handlers/binding.rs` 仍存在 handler 直接实例化 repository 的旧路径。
+- `CacheManager` 已接入主链路，但其覆盖面仍有限，尚未完全吸收后台更新失效与更多读路径。
+- 生产 secrets 仍以 TOML/env 兼容模式为主，尚未切到最终受控注入主线。
+- 发布链已补 manifest / deploy-result，但真实 Linux Docker 主机上的回滚演练仍未完成。
+
+### 已完成但不再作为债务的事项
+
+- `main.rs` 已薄化为 `bootstrap::app::run()` 入口。
+- 前端 `bind-room`、HTTP client、query key 与 `DashboardPage` 装配层已经建立新边界，不再按旧集中式结构继续扩张。
+- release artifact 已携带 manifest，服务器部署结果有 `deploy-result.json` 模板。
 
 ---
 

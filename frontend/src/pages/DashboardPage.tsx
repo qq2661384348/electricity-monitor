@@ -1,83 +1,39 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Navbar } from '@/components/Navbar';
 import { AuthModal } from '@/components/AuthModal';
-import { BindRoomModal } from '@/components/BindRoomModal';
 import { InputModal } from '@/components/ui/InputModal';
 import { HeroDashboard } from '@/components/HeroDashboard';
 import { RoomCard } from '@/components/RoomCard';
 import { RoomDetailModal } from '@/components/RoomDetailModal';
-import { useAuthStore } from '@/stores/authStore';
-import { useBindingsQuery } from '@/features/dashboard/hooks/useDashboardData';
+import { BindRoomModal } from '@/features/bind-room';
+import { useDashboardPage } from '@/features/dashboard/model/useDashboardPage';
 import { Button } from '@/components/ui/Button';
-import { roomApi, bindingApi } from '@/services/api';
-import { useQueryClient } from '@tanstack/react-query';
-
-import type { Room } from '@/types';
 
 export default function DashboardPage() {
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isBindModalOpen, setIsBindModalOpen] = useState(false);
-  const [isThresholdModalOpen, setIsThresholdModalOpen] = useState(false);
-  const [selectedRoom, setSelectedRoom] = useState<(Room & { bindingId?: string }) | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const { isAuthenticated } = useAuthStore();
-  const queryClient = useQueryClient();
-
-  // 使用 React Query 获取数据（Binding 为核心数据源）
-  const { data: bindings = [], isLoading: isLoadingBindings } = useBindingsQuery();
-  
-  const isLoading = isLoadingBindings;
-  
-  // 从绑定中提取房间信息（注入 bindingId 供删除使用）
-  const rooms = bindings
-    .filter((b) => b.room) // 过滤无效绑定
-    .map((b) => ({
-      ...b.room!,
-      bindingId: b.id, // 注入 bindingId
-    }));
-
-  // 处理需要登录的操作
-  const requireAuth = (action: () => void) => {
-    if (isAuthenticated) {
-      action();
-    } else {
-      setIsAuthModalOpen(true);
-    }
-  };
-
-  const handleRoomClick = (room: Room & { bindingId?: string }) => {
-    requireAuth(() => {
-      setSelectedRoom(room);
-      setIsDetailModalOpen(true);
-    });
-  };
-
-  // 修改阈值
-  const handleEditThreshold = (room: Room) => {
-    setSelectedRoom(room);
-    setIsThresholdModalOpen(true);
-  };
-
-  // 确认修改阈值
-  const handleConfirmThreshold = async (value: string) => {
-    if (!selectedRoom) return;
-    
-    await roomApi.updateThreshold(selectedRoom.id, Number(value));
-    await queryClient.invalidateQueries({ queryKey: ['bindings'] });
-  };
-
-  // 切换通知
-  const handleToggleNotification = async (bindingId: string, enabled: boolean) => {
-    await bindingApi.updateNotificationEnabled(bindingId, enabled);
-    await queryClient.invalidateQueries({ queryKey: ['bindings'] });
-  };
-
-  // 删除绑定（不需要confirm，由ConfirmModal处理）
-  const handleDeleteBinding = async (bindingId: string) => {
-    await bindingApi.deleteBinding(bindingId);
-    await queryClient.invalidateQueries({ queryKey: ['bindings'] });
-  };
+  const {
+    bindings,
+    getBindingForRoom,
+    handleConfirmThreshold,
+    handleDeleteBinding,
+    handleEditThreshold,
+    handleRoomClick,
+    handleToggleNotification,
+    isAuthModalOpen,
+    isAuthenticated,
+    isBindModalOpen,
+    isDetailModalOpen,
+    isLoading,
+    isThresholdModalOpen,
+    openAuthModal,
+    openBindModal,
+    rooms,
+    selectedRoom,
+    setIsAuthModalOpen,
+    setIsBindModalOpen,
+    setIsDetailModalOpen,
+    setIsThresholdModalOpen,
+    setSelectedRoom,
+  } = useDashboardPage();
 
   // 渲染房间列表内容
   const renderRoomList = () => {
@@ -86,7 +42,7 @@ export default function DashboardPage() {
         <div className="col-span-full text-center py-20 bg-white/60 border-4 border-black border-dashed shadow-[6px_6px_0_0_#000]">
           <p className="text-gray-800 text-lg mb-4 font-bold">请登录以查看您的房间用电情况</p>
           <Button
-            onClick={() => setIsAuthModalOpen(true)}
+            onClick={openAuthModal}
             size="lg"
             variant="primary"
           >
@@ -105,23 +61,18 @@ export default function DashboardPage() {
       );
     }
 
-    return rooms.map((room, index) => {
-      // 找到对应的 binding
-      const binding = bindings.find((b) => b.id === room.bindingId);
-      
-      return (
+      return rooms.map((room, index) => (
         <RoomCard
           key={room.bindingId}
           room={room}
-          binding={binding}
+          binding={getBindingForRoom(room)}
           index={index}
           onClick={() => handleRoomClick(room)}
           onEditThreshold={handleEditThreshold}
           onToggleNotification={handleToggleNotification}
           onDeleteBinding={handleDeleteBinding}
         />
-      );
-    });
+      ));
   };
 
   return (
@@ -142,7 +93,7 @@ export default function DashboardPage() {
       <div className="absolute bottom-40 left-20 w-48 h-48 bg-brand-primary/10 border-4 border-black/20 transform -rotate-6 -z-10" />
 
       {/* 导航栏 */}
-      <Navbar onLoginClick={() => setIsAuthModalOpen(true)} />
+      <Navbar onLoginClick={openAuthModal} />
 
       {/* 主内容 */}
       <main className="relative z-10 pt-20">
@@ -178,7 +129,7 @@ export default function DashboardPage() {
                 
                 {/* 绑定房间按钮 */}
                 <Button
-                  onClick={() => setIsBindModalOpen(true)}
+                  onClick={openBindModal}
                   variant="primary"
                   size="lg"
                   className="flex items-center gap-2 w-full sm:w-auto md:text-base! lg:text-lg!"

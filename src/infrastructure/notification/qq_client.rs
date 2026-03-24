@@ -3,9 +3,13 @@
 use super::error::{NotificationError, Result};
 use super::message_builder::MessageBuilder;
 use crate::config::QQBotConfig;
+use crate::infrastructure::external::{
+    build_reqwest_client, http_status_error_message, HttpClientConfig,
+};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use tracing::instrument;
 
 /// QQ API响应
 #[derive(Debug, Deserialize, Serialize)]
@@ -51,10 +55,11 @@ impl QQClient {
     /// # 返回
     /// QQ客户端实例
     pub fn new(config: QQBotConfig) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(config.timeout_seconds))
-            .build()
-            .map_err(NotificationError::HttpError)?;
+        let client = build_reqwest_client(&HttpClientConfig {
+            timeout: Some(Duration::from_secs(config.timeout_seconds)),
+            ..Default::default()
+        })
+        .map_err(NotificationError::HttpError)?;
 
         Ok(Self { client, config })
     }
@@ -71,6 +76,7 @@ impl QQClient {
     /// # 错误
     /// - HTTP请求失败
     /// - API返回错误
+    #[instrument(skip(self, message), fields(external_dependency = "qq_bot", qq_user_id = %user_id))]
     pub async fn send_private_message(
         &self,
         user_id: &str,
@@ -105,7 +111,7 @@ impl QQClient {
             return Err(NotificationError::ApiError {
                 status: "http_error".to_string(),
                 retcode: status_code.as_u16() as i32,
-                message: format!("HTTP状态码: {}", status_code),
+                message: http_status_error_message("qq_bot", status_code),
             });
         }
 
@@ -176,6 +182,7 @@ mod tests {
         let config = QQBotConfig {
             api_url: "http://test.com/api".to_string(),
             bearer_token: "test_token".to_string(),
+            bearer_token_file: None,
             timeout_seconds: 10,
         };
 

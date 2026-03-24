@@ -125,10 +125,10 @@ cargo build --release
 # 覆盖数据库配置
 export APP__DATABASE__HOST="localhost"
 export APP__DATABASE__PORT="5432"
-export APP__DATABASE__PASSWORD="your-password"
+export APP__DATABASE__PASSWORD_FILE="/run/secrets/app_database_password"
 
 # 覆盖JWT密钥
-export APP__JWT__SECRET="your-production-secret"
+export APP__JWT__SECRET_FILE="/run/secrets/app_jwt_secret"
 ```
 
 ## 数据库配置
@@ -136,7 +136,7 @@ export APP__JWT__SECRET="your-production-secret"
 ### 当前配置
 
 - **开发环境**: `postgres://postgres:<your-local-password>@127.0.0.1:5432/electricity_dev`
-- **生产环境**: `postgres://postgres:postgres@47.92.117.121:5432/electricity-pro`
+- **生产环境**: 通过 Compose secrets 注入数据库密码与 JWT/QQ token
 
 开发环境运行时会校验数据库和 Redis 主机，拒绝非本地地址，防止误连远端环境。
 

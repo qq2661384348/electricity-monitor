@@ -5,11 +5,12 @@
 pub mod cache;
 pub mod database;
 pub mod electricity;
+pub mod external;
 pub mod notification;
 pub mod redis;
 pub mod repositories;
 
-pub use cache::{SimpleCacheConfig, SimpleCacheManager};
+pub use cache::{CacheManager, CacheManagerConfig, SimpleCacheConfig, SimpleCacheManager};
 pub use database::DbPool;
 pub use notification::QQClient;
 pub use redis::RedisPool;

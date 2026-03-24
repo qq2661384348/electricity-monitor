@@ -186,8 +186,21 @@ pub async fn verify_and_login(
     // 创建用户仓储
     let user_repo = UserRepository::new(state.db_pool.clone());
 
-    // 创建或查找用户
-    let user = user_repo.create_or_find(&req.qq_number, "user").await?;
+    let config = AppConfig::global();
+    let desired_role = if req.qq_number == config.admin.default_qq_number {
+        "admin"
+    } else {
+        "user"
+    };
+
+    let user = user_repo
+        .ensure_role(
+            user_repo
+                .create_or_find(&req.qq_number, desired_role)
+                .await?,
+            desired_role,
+        )
+        .await?;
 
     // 检查用户是否激活
     if !user.is_active {
@@ -200,22 +213,21 @@ pub async fn verify_and_login(
     }
 
     // 生成JWT Token
-    let config = AppConfig::global();
     let now = Utc::now().timestamp() as usize;
     let expiration = (config.jwt.expiration_hours * 3600) as usize;
 
-    // 访问Token Claims（普通用户JWT，不包含role）
     let access_claims = Claims {
         sub: user.qq_number.clone(),
         user_id: user.id.to_string(),
+        role: user.role.clone(),
         exp: now + expiration,
         iat: now,
     };
 
-    // 刷新Token Claims（7天有效期，不包含role）
     let refresh_claims = Claims {
         sub: user.qq_number.clone(),
         user_id: user.id.to_string(),
+        role: user.role.clone(),
         exp: now + (7 * 24 * 3600),
         iat: now,
     };
@@ -301,6 +313,7 @@ pub async fn refresh_token(
     let new_access_claims = Claims {
         sub: old_claims.sub.clone(),
         user_id: old_claims.user_id.clone(),
+        role: user.role.clone(),
         exp: now + expiration,
         iat: now,
     };
@@ -308,6 +321,7 @@ pub async fn refresh_token(
     let new_refresh_claims = Claims {
         sub: old_claims.sub.clone(),
         user_id: old_claims.user_id.clone(),
+        role: user.role.clone(),
         exp: now + (7 * 24 * 3600),
         iat: now,
     };
@@ -352,39 +366,22 @@ pub async fn refresh_token(
 ///
 /// GET /auth/me
 ///
-/// 需要JWT认证或admin_token
+/// 需要JWT认证
 pub async fn get_current_user(
     State(state): State<AppState>,
     Extension(user_ctx): Extension<crate::middleware::auth::UserContext>,
 ) -> Result<Json<UserInfo>> {
-    // 如果是管理员
-    if user_ctx.is_admin {
-        // 管理员使用固定QQ号
-        let config = AppConfig::global();
-        let admin_qq = &config.admin.default_qq_number;
-
-        return Ok(Json(UserInfo {
-            id: "00000000-0000-0000-0000-000000000000".to_string(), // 管理员固定UUID
-            qq_number: admin_qq.clone(),
-            role: "admin".to_string(),
-            is_active: true,
-        }));
-    }
-
-    // 普通用户：从UserContext中获取user_id
     let user_id_str = user_ctx
         .user_id
         .ok_or(AppError::Unauthorized("用户ID缺失".to_string()))?;
-
-    let user_repo = UserRepository::new(state.db_pool.clone());
 
     // 从user_id解析UUID
     let user_id = uuid::Uuid::parse_str(&user_id_str)
         .map_err(|_| AppError::Internal("无效的用户ID格式".to_string()))?;
 
-    // 查询用户
-    let user = user_repo
-        .find_by_id(user_id)
+    let user = state
+        .cache_manager
+        .get_user(user_id)
         .await?
         .ok_or(AppError::NotFound)?;
 

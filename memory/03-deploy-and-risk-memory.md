@@ -12,12 +12,14 @@
   - Redis 镜像归档
   - `compose.yaml`
   - `deploy.sh`
+  - `smoke.sh`
   - `.env.example`
   - `README.md`
+  - `release-manifest.json`
 
 ## 仓库内部署资产布局
 - `deploy/Dockerfile` 与 `deploy/Dockerfile.dockerignore` 负责 GitHub Actions 镜像构建。
-- `deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`、`deploy/README.release.md` 负责 release 包模板。
+- `deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`、`deploy/smoke.sh`、`deploy/README.release.md` 负责 release 包模板。
 - `deploy/build.sh` 与 `deploy/docker-compose.local.yml` 只保留为本地 Docker 调试入口，不是生产发布真源。
 - 根目录已不再直接放置部署相关文件，部署边界以 `deploy/` 目录为准。
 
@@ -25,8 +27,11 @@
 - 服务器不再从源码构建。
 - 服务器职责：
   - `docker load`
+  - 校验 `release-manifest.json`
+  - 挂载 Compose secrets 指向的宿主机 secret files
   - `docker compose up`
   - 健康检查
+  - 写出 `deploy-result.json`
   - 失败回滚
 - 稳定容器名：
   - `electricity-app`
@@ -55,9 +60,8 @@
   - `src/domain/services/notification_gate.rs` 约 803 行
   - `src/domain/services/notification_service.rs` 约 636 行
   - `src/main.rs` 约 426 行
-- 存在平行实现/重复实现：
-  - `electricity_service.rs` 与 `electricity_service_optimized.rs`
-  - `room_sync/sync_service.rs` 与 `room_sync/sync_service_optimized.rs`
+- 当前仍需继续关注的平行/过渡态实现：
+  - 通知域和仓储边界仍有集中点，但 `room_sync/sync_service_optimized.rs` 与 `electricity_service_optimized.rs` 已删除
 - 前端也存在职责集中：
   - `frontend/src/pages/DashboardPage.tsx` 同时承担容器状态、查询协调、模态编排
   - `frontend/src/components/BindRoomModal.tsx` 体量较大
@@ -70,3 +74,11 @@
   - 缓存架构是否真正落地
   - 通知域拆分
   - 前端页面容器与复用组件的关系
+
+## 当前补齐进展
+- release artifact 已开始携带 `release-manifest.json`，包含 tag、git SHA、镜像 digest 与归档校验值。
+- `deploy.sh` 会读取 manifest 做基础一致性校验，并在 release 目录落 `deploy-result.json` 作为部署结果记录。
+- release 包已提供 `smoke.sh`，用于部署后验证 `/api/health`、`/api/health/db` 与 manifest/result 文件。
+- release 包的 `.env.example` 现在只暴露 `*_SECRET_FILE` 路径，不再要求把秘密原文写进 `.env`。
+- `electricity_service_optimized.rs` 已移除，电费写入主线明确为 `electricity_service.rs`。
+- `room_sync/sync_service_optimized.rs` 已移除，房间同步主线明确为 `room_sync/sync_service.rs`。

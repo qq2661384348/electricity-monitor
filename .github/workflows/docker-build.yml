@@ -102,23 +102,51 @@ jobs:
           app_archive="${IMAGE_NAME}-${GIT_TAG}-linux-amd64.tar"
           redis_archive="redis-8-alpine-linux-amd64.tar"
           package_name="release-${GIT_TAG}.tar.gz"
+          git_sha="$(git rev-parse HEAD)"
+          created_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
           rm -rf "${RELEASE_ROOT}"
-          mkdir -p "${RELEASE_ROOT}/images"
+          mkdir -p "${RELEASE_ROOT}/images" "${RELEASE_ROOT}/secrets"
 
           docker save "${IMAGE_NAME}:${GIT_TAG}" | gzip > "${RELEASE_ROOT}/images/${app_archive}.gz"
           docker save "${REDIS_IMAGE}" | gzip > "${RELEASE_ROOT}/images/${redis_archive}.gz"
 
+          app_image_digest="$(docker image inspect "${IMAGE_NAME}:${GIT_TAG}" --format '{{.Id}}')"
+          redis_image_digest="$(docker image inspect "${REDIS_IMAGE}" --format '{{.Id}}')"
+          app_archive_sha256="$(sha256sum "${RELEASE_ROOT}/images/${app_archive}.gz" | cut -d' ' -f1)"
+          redis_archive_sha256="$(sha256sum "${RELEASE_ROOT}/images/${redis_archive}.gz" | cut -d' ' -f1)"
+          config_toml_sha256="$(find config -maxdepth 1 -type f -name '*.toml' -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
+          frontend_static_sha256="$(find static -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
+
           cp deploy/deploy.sh "${RELEASE_ROOT}/deploy.sh"
+          cp deploy/smoke.sh "${RELEASE_ROOT}/smoke.sh"
           cp deploy/compose.release.yml "${RELEASE_ROOT}/compose.yaml"
           sed "s/__RELEASE_TAG__/${GIT_TAG}/g" deploy/release.env.example > "${RELEASE_ROOT}/.env.example"
           sed "s/__RELEASE_TAG__/${GIT_TAG}/g" deploy/README.release.md > "${RELEASE_ROOT}/README.md"
+          touch "${RELEASE_ROOT}/secrets/.gitkeep"
+          cat > "${RELEASE_ROOT}/release-manifest.json" <<EOF
+          {
+            "manifest_version": "release-manifest/v1",
+            "git_tag": "${GIT_TAG}",
+            "git_sha": "${git_sha}",
+            "app_image_ref": "${IMAGE_NAME}:${GIT_TAG}",
+            "app_image_digest": "${app_image_digest}",
+            "app_archive_sha256": "${app_archive_sha256}",
+            "redis_image_ref": "${REDIS_IMAGE}",
+            "redis_image_digest": "${redis_image_digest}",
+            "redis_archive_sha256": "${redis_archive_sha256}",
+            "frontend_static_sha256": "${frontend_static_sha256}",
+            "config_toml_sha256": "${config_toml_sha256}",
+            "artifact_created_at": "${created_at}"
+          }
+          EOF
 
           tar -czf "${package_name}" "${RELEASE_ROOT}"
 
           echo "PACKAGE_NAME=${package_name}" >> "${GITHUB_ENV}"
           echo "APP_ARCHIVE=${app_archive}.gz" >> "${GITHUB_ENV}"
           echo "REDIS_ARCHIVE=${redis_archive}.gz" >> "${GITHUB_ENV}"
+          echo "GIT_SHA=${git_sha}" >> "${GITHUB_ENV}"
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
@@ -141,6 +169,8 @@ jobs:
             echo "- Package: \`${PACKAGE_NAME}\`"
             echo "- App image archive: \`${APP_ARCHIVE}\`"
             echo "- Redis image archive: \`${REDIS_ARCHIVE}\`"
+            echo "- Git SHA: \`${GIT_SHA}\`"
+            echo "- Manifest: \`release/release-manifest.json\`"
             echo
             echo "### Deploy steps"
             echo "1. Download artifact \`electricity-monitor-release-${GIT_TAG}\`"

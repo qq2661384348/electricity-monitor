@@ -3,6 +3,7 @@
 use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::fs;
 use std::sync::OnceLock;
 
 use super::{
@@ -28,11 +29,12 @@ pub struct JwtConfig {
     /// JWT密钥
     pub secret: String,
 
+    /// JWT secret file 路径
+    #[serde(default)]
+    pub secret_file: Option<String>,
+
     /// 过期时间（小时）
     pub expiration_hours: u64,
-
-    /// 管理员固定Token（配置文件中定义，永久有效）
-    pub admin_token: String,
 }
 
 /// 日志配置
@@ -136,8 +138,9 @@ impl AppConfig {
             .add_source(environment_source)
             .build()?;
 
-        let app_config = config.try_deserialize::<Self>()?;
+        let app_config = Self::resolve_secrets(config.try_deserialize::<Self>()?, &environment)?;
         Self::validate_environment_rules(&app_config, &environment)?;
+        Self::validate_sensitive_config(&app_config, &environment)?;
         Ok(app_config)
     }
 
@@ -202,6 +205,93 @@ impl AppConfig {
         Ok(())
     }
 
+    fn resolve_secrets(mut config: Self, environment: &str) -> Result<Self, ConfigError> {
+        if let Some(secret_file) = config.jwt.secret_file.as_deref() {
+            config.jwt.secret = Self::read_secret_file(secret_file, "jwt.secret_file")?;
+        }
+
+        if let Some(secret_file) = config.database.password_file.as_deref() {
+            config.database.password =
+                Self::read_secret_file(secret_file, "database.password_file")?;
+        }
+
+        if let Some(secret_file) = config.qq_bot.bearer_token_file.as_deref() {
+            config.qq_bot.bearer_token =
+                Self::read_secret_file(secret_file, "qq_bot.bearer_token_file")?;
+        }
+
+        tracing::info!(
+            environment = environment,
+            jwt_secret_from_file = config.jwt.secret_file.is_some(),
+            database_password_from_file = config.database.password_file.is_some(),
+            qq_bot_token_from_file = config.qq_bot.bearer_token_file.is_some(),
+            "敏感配置解析完成"
+        );
+
+        Ok(config)
+    }
+
+    fn validate_sensitive_config(config: &Self, environment: &str) -> Result<(), ConfigError> {
+        if environment != "production" {
+            return Ok(());
+        }
+
+        let missing = [
+            (
+                "jwt.secret_file",
+                config.jwt.secret_file.as_ref(),
+                config.jwt.secret.trim(),
+            ),
+            (
+                "database.password_file",
+                config.database.password_file.as_ref(),
+                config.database.password.trim(),
+            ),
+            (
+                "qq_bot.bearer_token_file",
+                config.qq_bot.bearer_token_file.as_ref(),
+                config.qq_bot.bearer_token.trim(),
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(field, file, value)| {
+            if file.is_none() || value.is_empty() || value.starts_with("CHANGE-THIS") {
+                Some(field)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+        if missing.is_empty() {
+            return Ok(());
+        }
+
+        Err(ConfigError::Message(format!(
+            "production 环境要求通过 Compose secrets 注入敏感配置，以下字段缺失或未通过 secret file 提供: {}",
+            missing.join(", ")
+        )))
+    }
+
+    fn read_secret_file(path: &str, field_name: &str) -> Result<String, ConfigError> {
+        let content = fs::read_to_string(path).map_err(|error| {
+            ConfigError::Message(format!(
+                "读取 secret file 失败: field={}, path={}, error={}",
+                field_name, path, error
+            ))
+        })?;
+
+        let secret = content.trim().to_string();
+        if secret.is_empty() {
+            return Err(ConfigError::Message(format!(
+                "secret file 为空: field={}, path={}",
+                field_name, path
+            )));
+        }
+
+        Ok(secret)
+    }
+
     fn is_local_host(host: &str) -> bool {
         matches!(
             host.trim().to_ascii_lowercase().as_str(),
@@ -215,6 +305,7 @@ mod tests {
     use super::*;
     use crate::config::database::DatabaseType;
     use std::collections::HashMap;
+    use std::fs;
 
     #[test]
     fn test_server_addr() {
@@ -229,6 +320,7 @@ mod tests {
                 port: 5432,
                 username: "test".to_string(),
                 password: "test".to_string(),
+                password_file: None,
                 database: "test".to_string(),
                 max_connections: 10,
                 min_connections: 2,
@@ -236,8 +328,8 @@ mod tests {
             },
             jwt: JwtConfig {
                 secret: "test-secret".to_string(),
+                secret_file: None,
                 expiration_hours: 24,
-                admin_token: "test-admin-token-12345".to_string(),
             },
             logging: LoggingConfig {
                 level: "info".to_string(),
@@ -279,6 +371,7 @@ mod tests {
                 port: 5432,
                 username: "postgres".to_string(),
                 password: "secret".to_string(),
+                password_file: None,
                 database: "electricity_dev".to_string(),
                 max_connections: 10,
                 min_connections: 2,
@@ -286,8 +379,8 @@ mod tests {
             },
             jwt: JwtConfig {
                 secret: "test-secret".to_string(),
+                secret_file: None,
                 expiration_hours: 24,
-                admin_token: "test-admin-token-12345".to_string(),
             },
             logging: LoggingConfig {
                 level: "info".to_string(),
@@ -332,6 +425,7 @@ mod tests {
                 port: 5432,
                 username: "postgres".to_string(),
                 password: "secret".to_string(),
+                password_file: None,
                 database: "electricity_dev".to_string(),
                 max_connections: 10,
                 min_connections: 2,
@@ -339,8 +433,8 @@ mod tests {
             },
             jwt: JwtConfig {
                 secret: "test-secret".to_string(),
+                secret_file: None,
                 expiration_hours: 24,
-                admin_token: "test-admin-token-12345".to_string(),
             },
             logging: LoggingConfig {
                 level: "info".to_string(),
@@ -422,5 +516,55 @@ mod tests {
 
         assert_eq!(config.jwt.secret, "00123456");
         assert_eq!(config.admin.default_qq_number, "00100000001");
+    }
+
+    #[test]
+    fn test_secret_file_overrides_sensitive_values() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "electricity-monitor-config-test-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&temp_dir).unwrap();
+        let jwt_secret_path = temp_dir.join("jwt_secret");
+        let db_password_path = temp_dir.join("db_password");
+        let qq_token_path = temp_dir.join("qq_token");
+
+        fs::write(&jwt_secret_path, "secret-from-file\n").unwrap();
+        fs::write(&db_password_path, "db-password-from-file\n").unwrap();
+        fs::write(&qq_token_path, "qq-token-from-file\n").unwrap();
+
+        let mut env = HashMap::new();
+        env.insert(
+            "APP__JWT__SECRET_FILE".to_string(),
+            jwt_secret_path.to_string_lossy().to_string(),
+        );
+        env.insert(
+            "APP__DATABASE__PASSWORD_FILE".to_string(),
+            db_password_path.to_string_lossy().to_string(),
+        );
+        env.insert(
+            "APP__QQ_BOT__BEARER_TOKEN_FILE".to_string(),
+            qq_token_path.to_string_lossy().to_string(),
+        );
+
+        let config = AppConfig::load_for_environment_with_source("development", Some(env))
+            .expect("secret file 覆盖应成功");
+
+        assert_eq!(config.jwt.secret, "secret-from-file");
+        assert_eq!(config.database.password, "db-password-from-file");
+        assert_eq!(config.qq_bot.bearer_token, "qq-token-from-file");
+
+        let _ = fs::remove_file(jwt_secret_path);
+        let _ = fs::remove_file(db_password_path);
+        let _ = fs::remove_file(qq_token_path);
+        let _ = fs::remove_dir(temp_dir);
+    }
+
+    #[test]
+    fn test_production_requires_secret_files() {
+        let err = AppConfig::load_for_environment_with_source("production", Some(HashMap::new()))
+            .expect_err("production 环境缺少 secret file 时应失败");
+
+        assert!(err.to_string().contains("Compose secrets"));
     }
 }

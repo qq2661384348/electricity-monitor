@@ -1,0 +1,1 @@
+export { BindRoomModal } from './BindRoomModal';

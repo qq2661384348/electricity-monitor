@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { AxiosError } from 'axios';
 import { useAuthStore } from '@/stores/authStore';
-import { authApi } from '@/services/api';
+import { authApi } from '@/features/auth-login';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { CaptchaModal } from '@/components/CaptchaModal';

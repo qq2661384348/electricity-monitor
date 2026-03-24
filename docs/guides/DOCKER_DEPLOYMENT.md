@@ -22,7 +22,9 @@ release-<git-tag>.tar.gz
     │   └── redis-8-alpine-linux-amd64.tar.gz
     ├── compose.yaml
     ├── deploy.sh
+    ├── smoke.sh
     ├── .env.example
+    ├── release-manifest.json
     └── README.md
 ```
 
@@ -61,8 +63,11 @@ deploy/
 2. 构建前端并复制到 `static/`
 3. 使用 `deploy/Dockerfile` 在 GitHub Actions Linux runner 中构建 `linux/amd64` Docker 镜像
 4. 导出应用镜像与 Redis 镜像
-5. 组装 release 目录并压缩成单个归档
-6. 上传为 GitHub Actions artifact
+5. 生成 `release-manifest.json`，写入 tag、git SHA、镜像 digest 与归档校验值
+6. 组装 release 目录并压缩成单个归档
+7. 上传为 GitHub Actions artifact
+
+`static/` 是前端构建产物目录，不再作为仓库真源提交；CI 在 `pnpm build:prod` 后生成它，再由 `deploy/Dockerfile` 复制进入镜像。
 
 ### 构建性能优化
 
@@ -98,14 +103,15 @@ vim .env
 
 至少需要修改：
 
-- `APP__JWT__SECRET`
+- `APP_DATABASE_PASSWORD_SECRET_FILE`
+- `APP_JWT_SECRET_SECRET_FILE`
+- `APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE`
 
 可按需覆盖：
 
 - `APP__DATABASE__HOST`
 - `APP__DATABASE__PORT`
 - `APP__DATABASE__USERNAME`
-- `APP__DATABASE__PASSWORD`
 - `APP__DATABASE__DATABASE`
 - `APP_HOST_PORT`
 - `APP_BIND_ADDRESS`
@@ -120,11 +126,27 @@ chmod +x deploy.sh
 `deploy.sh` 会自动完成：
 
 1. 校验 `docker` / `docker compose` / `gzip` / `curl`
-2. 加载 `images/` 下的镜像归档
-3. 备份现有 `electricity-app` / `electricity-redis`
-4. 使用 `compose.yaml` 启动新版本
-5. 对 `GET /api/health` 做重试健康检查
-6. 若健康检查失败，则自动回滚到旧容器
+2. 读取 `release-manifest.json` 并校验 `APP_IMAGE_REF`
+3. 加载 `images/` 下的镜像归档
+4. 备份现有 `electricity-app` / `electricity-redis`
+5. 使用 `compose.yaml` 启动新版本
+6. 对 `GET /api/health` 做重试健康检查
+7. 将本次部署结果写入 `deploy-result.json`
+8. 若健康检查失败，则自动回滚到旧容器
+
+### 5. 执行 smoke 检查
+
+```bash
+chmod +x smoke.sh
+./smoke.sh
+```
+
+`smoke.sh` 会校验：
+
+- `/api/health`
+- `/api/health/db`
+- `release-manifest.json` 是否存在并包含 `git_tag` / `git_sha`
+- `deploy-result.json` 是否存在并包含 `status`
 
 ## 运行时约定
 
@@ -164,6 +186,11 @@ chmod +x deploy.sh
    - 重新启动旧容器
 
 这意味着脚本不会只“报错退出”，而是会尝试恢复到上一个可运行状态。
+
+## 发布身份记录
+
+- `release-manifest.json`：由 GitHub Actions 生成，记录 `git_tag`、`git_sha`、镜像 digest、归档 SHA256、前端静态资源校验值。
+- `deploy-result.json`：由服务器侧 `deploy.sh` 生成，记录本次部署状态、使用的 manifest 身份信息和健康检查目标。
 
 ## 本地调试说明
 

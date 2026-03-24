@@ -14,6 +14,9 @@
 
 - [README.md](./README.md) - 项目介绍、技术栈、环境配置
 - [ARCHITECTURE.md](./architecture/ARCHITECTURE.md) - 分层架构与设计决策
+- [ADR_INDEX.md](./architecture/ADR_INDEX.md) - 当前架构升级决策索引
+- [DUAL_IMPLEMENTATION_LEDGER.md](./architecture/DUAL_IMPLEMENTATION_LEDGER.md) - 双实现收敛台账
+- [MAINTAINABILITY_METRICS.md](./architecture/MAINTAINABILITY_METRICS.md) - 当前维护性指标与质量门禁 owner
 - [DEPRECATED_CODE_HISTORY.md](./architecture/DEPRECATED_CODE_HISTORY.md) - 历史代码与遗留背景
 
 ### 开发与测试
@@ -23,6 +26,9 @@
 - [DATABASE_MIGRATION.md](./guides/DATABASE_MIGRATION.md) - 迁移命令与数据库演进
 - [TESTING.md](./guides/TESTING.md) - 测试策略与本地依赖示例
 - [TECHNICAL_DEBT.md](./guides/TECHNICAL_DEBT.md) - 技术债与后续重构切入点
+- [SECRETS_INVENTORY.md](./guides/SECRETS_INVENTORY.md) - 生产 secrets 清单与轮换约定
+- [RELEASE_SMOKE_CHECKLIST.md](./guides/RELEASE_SMOKE_CHECKLIST.md) - release 验收与回滚触发清单
+- [ARCHITECTURE_REVIEW_CHECKLIST.md](./guides/ARCHITECTURE_REVIEW_CHECKLIST.md) - 架构升级后的 code review 审查清单
 - [第三方验证码集成.md](./guides/第三方验证码集成.md) - 第三方验证码接入记录
 - [QQ机器人调用API测试报告.md](./guides/QQ机器人调用API测试报告.md) - 机器人接口验证记录
 
@@ -37,6 +43,7 @@
 ## 当前真源约定
 
 - 生产发布以 `.github/workflows/docker-build.yml` 和仓库 `deploy/` 目录为准。
+- release artifact 内的 `release-manifest.json` 是发布包身份真源，`deploy-result.json` 是服务器侧部署结果记录。
 - `deploy/build.sh` 与 `deploy/docker-compose.local.yml` 仅用于本地 Docker 调试。
 - 服务器上线消费 GitHub Actions 产出的 release artifact，不从源码重新构建。
 

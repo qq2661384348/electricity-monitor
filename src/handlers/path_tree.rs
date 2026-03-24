@@ -8,7 +8,8 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::errors::{AppError, Result};
+use crate::errors::Result;
+use crate::modules::room::application::RoomAccessUseCase;
 use crate::state::AppState;
 use crate::utils::hash::calculate_roompath_hash;
 
@@ -131,20 +132,8 @@ pub async fn get_room_by_path(
 ) -> Result<Json<RoomByPathResponse>> {
     tracing::debug!("根据路径查询房间: path={}", params.path);
 
-    // 1. 从路径树查找 roomid
-    let tree = state.room_path_tree.read().await;
-    let roomid = tree
-        .find_roomid_by_path(&params.path)
-        .await
-        .ok_or_else(|| AppError::NotFound)?;
-
-    // 2. 从数据库查询房间详情
-    let repository =
-        crate::infrastructure::repositories::RoomRepository::new(state.db_pool.clone());
-    let room = repository
-        .find_by_roomid(roomid)
-        .await?
-        .ok_or_else(|| AppError::NotFound)?;
+    let use_case = RoomAccessUseCase::from_state(&state);
+    let room = use_case.get_room_by_path(&params.path).await?;
 
     Ok(Json(RoomByPathResponse {
         roomid: room.roomid,
@@ -185,20 +174,8 @@ pub async fn get_room_by_hash(
         params.path
     );
 
-    // 1. 从路径树查找 roomid（使用哈希索引）
-    let tree = state.room_path_tree.read().await;
-    let roomid = tree
-        .find_roomid_by_hash(params.hash, &params.path)
-        .await
-        .ok_or_else(|| AppError::NotFound)?;
-
-    // 2. 从数据库查询房间详情
-    let repository =
-        crate::infrastructure::repositories::RoomRepository::new(state.db_pool.clone());
-    let room = repository
-        .find_by_roomid(roomid)
-        .await?
-        .ok_or_else(|| AppError::NotFound)?;
+    let use_case = RoomAccessUseCase::from_state(&state);
+    let room = use_case.get_room_by_hash(params.hash, &params.path).await?;
 
     Ok(Json(RoomByPathResponse {
         roomid: room.roomid,

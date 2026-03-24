@@ -11,6 +11,10 @@ pub struct QQBotConfig {
     /// Bearer Token
     pub bearer_token: String,
 
+    /// Bearer Token secret file 路径
+    #[serde(default)]
+    pub bearer_token_file: Option<String>,
+
     /// 请求超时（秒）
     pub timeout_seconds: u64,
 }
@@ -20,6 +24,7 @@ impl Default for QQBotConfig {
         Self {
             api_url: "http://47.92.117.121:3000/send_private_msg".to_string(),
             bearer_token: String::new(),
+            bearer_token_file: None,
             timeout_seconds: 10,
         }
     }

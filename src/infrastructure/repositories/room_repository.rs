@@ -808,6 +808,23 @@ impl RoomRepository {
             .map_err(AppError::Database)
     }
 
+    pub async fn get_sync_log(
+        &self,
+        id: Uuid,
+    ) -> Result<Option<crate::domain::models::RoomSyncLog>> {
+        use crate::infrastructure::database::schema::room_sync_log;
+
+        let mut conn = self.get_conn().await?;
+
+        room_sync_log::table
+            .find(id)
+            .select(crate::domain::models::RoomSyncLog::as_select())
+            .first(&mut conn)
+            .await
+            .optional()
+            .map_err(AppError::Database)
+    }
+
     /// 创建同步日志记录
     pub async fn create_sync_log(
         &self,

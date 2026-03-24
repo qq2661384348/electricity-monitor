@@ -142,6 +142,7 @@ pub async fn create_binding(
     };
 
     let binding = binding_repo.create(new_binding).await?;
+    state.cache_manager.invalidate_binding(req.roomid).await?;
 
     tracing::info!(
         user_id = %user_id,
@@ -306,6 +307,10 @@ pub async fn update_notification(
     let updated_binding = binding_repo
         .update_notification_enabled(id, req.notification_enabled)
         .await?;
+    state
+        .cache_manager
+        .invalidate_binding(binding.roomid)
+        .await?;
 
     let user_info = if user_ctx.is_admin {
         "admin".to_string()
@@ -365,6 +370,12 @@ pub async fn delete_binding(
 
     // 删除绑定
     let deleted = binding_repo.delete(id).await?;
+    if deleted > 0 {
+        state
+            .cache_manager
+            .invalidate_binding(binding.roomid)
+            .await?;
+    }
 
     if deleted > 0 {
         let user_info = if user_ctx.is_admin {

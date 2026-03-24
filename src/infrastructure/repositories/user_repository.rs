@@ -168,6 +168,14 @@ impl UserRepository {
         Ok(user)
     }
 
+    pub async fn ensure_role(&self, user: User, desired_role: &str) -> Result<User> {
+        if user.role == desired_role {
+            return Ok(user);
+        }
+
+        self.update_role(user.id, desired_role).await
+    }
+
     /// 更新用户激活状态
     ///
     /// # 参数

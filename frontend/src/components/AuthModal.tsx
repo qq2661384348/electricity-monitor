@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Zap } from 'lucide-react';
 import { AxiosError } from 'axios';
-import { authApi } from '@/services/api';
+import { authApi } from '@/features/auth-login';
 import { useAuthStore } from '@/stores/authStore';
 import { getMarvelQuote } from '@/lib/utils';
 import { CaptchaModal } from '@/components/CaptchaModal';

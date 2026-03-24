@@ -227,8 +227,8 @@ $env:RUST_LOG="debug,electricity_monitor_backend=trace"
 ```bash
 export APP_ENV=production
 export RUST_LOG=info
-export APP__DATABASE__PASSWORD="your-secure-password"
-export APP__JWT__SECRET="your-jwt-secret-key"
+export APP__DATABASE__PASSWORD_FILE="/run/secrets/app_database_password"
+export APP__JWT__SECRET_FILE="/run/secrets/app_jwt_secret"
 ```
 
 ## 🐛 常见问题
@@ -276,7 +276,7 @@ cargo build --release --target x86_64-unknown-linux-gnu
 ### 部署检查清单
 
 - [ ] 修改 `config/production.toml` 中的数据库密码
-- [ ] 设置环境变量 `APP__JWT__SECRET`
+- [ ] 设置环境变量 `APP__JWT__SECRET_FILE`
 - [ ] 设置 `RUST_LOG=info` 减少日志输出
 - [ ] 配置反向代理（Nginx/Caddy）
 - [ ] 配置HTTPS证书

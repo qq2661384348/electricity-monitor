@@ -227,7 +227,9 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 **Token结构**:
 ```rust
 struct Claims {
-    sub: String,        // 用户ID
+    sub: String,        // QQ号
+    user_id: String,    // 用户ID
+    role: String,       // admin / user
     exp: usize,         // 过期时间
     iat: usize,         // 签发时间
 }
@@ -235,7 +237,7 @@ struct Claims {
 
 **密钥管理**:
 - 开发环境: 配置文件
-- 生产环境: 环境变量覆盖
+- 生产环境: Compose secrets + `*_FILE` 覆盖
 
 ### 密码安全
 
@@ -302,10 +304,10 @@ cargo build --release
 
 **必需**:
 - `APP_ENV`: development / production
-- `APP__DATABASE__PASSWORD`: 生产环境密码
+- `APP_DATABASE_PASSWORD_SECRET_FILE`: 生产环境数据库密码 secret file 路径
 
 **可选**:
-- `APP__JWT__SECRET`: JWT密钥
+- `APP_JWT_SECRET_SECRET_FILE`: JWT secret file 路径
 - `RUST_LOG`: 日志级别
 
 ### 容器化（可选）

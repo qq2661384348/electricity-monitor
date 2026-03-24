@@ -29,9 +29,17 @@ services:
       APP__DATABASE__HOST: ${APP__DATABASE__HOST:-47.92.117.121}
       APP__DATABASE__PORT: ${APP__DATABASE__PORT:-5432}
       APP__DATABASE__USERNAME: ${APP__DATABASE__USERNAME:-postgres}
-      APP__DATABASE__PASSWORD: ${APP__DATABASE__PASSWORD:-postgres}
+      APP__DATABASE__PASSWORD_FILE: /run/secrets/app_database_password
       APP__DATABASE__DATABASE: ${APP__DATABASE__DATABASE:-electricity_pro}
-      APP__JWT__SECRET: ${APP__JWT__SECRET:?APP__JWT__SECRET is required}
+      APP__JWT__SECRET_FILE: /run/secrets/app_jwt_secret
+      APP__QQ_BOT__BEARER_TOKEN_FILE: /run/secrets/app_qq_bot_bearer_token
+    secrets:
+      - source: app_database_password
+        target: app_database_password
+      - source: app_jwt_secret
+        target: app_jwt_secret
+      - source: app_qq_bot_bearer_token
+        target: app_qq_bot_bearer_token
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
@@ -45,3 +53,11 @@ networks:
   internal:
     name: ${COMPOSE_PROJECT_NAME:-electricity-monitor}-internal
     driver: bridge
+
+secrets:
+  app_database_password:
+    file: ${APP_DATABASE_PASSWORD_SECRET_FILE:?APP_DATABASE_PASSWORD_SECRET_FILE is required}
+  app_jwt_secret:
+    file: ${APP_JWT_SECRET_SECRET_FILE:?APP_JWT_SECRET_SECRET_FILE is required}
+  app_qq_bot_bearer_token:
+    file: ${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE:?APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE is required}

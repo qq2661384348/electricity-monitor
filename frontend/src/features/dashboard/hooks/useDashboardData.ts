@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { roomApi, bindingApi } from '@/services/api';
+import { bindingApi } from '@/entities/binding';
+import { roomApi } from '@/entities/room';
+import { bindingKeys, roomKeys } from '@/shared/api/queryKeys';
 import { useAuthStore } from '@/stores/authStore';
 import type { Room } from '@/types';
 
@@ -11,24 +13,10 @@ export const useBindingsQuery = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   
   return useQuery({
-    queryKey: ['bindings'],
+    queryKey: bindingKeys.all,
     queryFn: () => bindingApi.getMyBindings(),
     enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000, // 5分钟缓存
-  });
-};
-
-/**
- * @deprecated 使用 useBindingsQuery 替代
- * 保留以兼容预警墙功能
- */
-export const useRoomsQuery = () => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  
-  return useQuery({
-    queryKey: ['rooms', 'list'],
-    queryFn: () => roomApi.getRooms(100, 0), // 获取更多房间
-    enabled: isAuthenticated, // 只有登录后才请求
   });
 };
 
@@ -36,7 +24,7 @@ export const useFlaggedRoomsQuery = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   return useQuery({
-    queryKey: ['rooms', 'flagged'],
+    queryKey: roomKeys.flagged(),
     queryFn: () => roomApi.getFlaggedRooms(),
     enabled: isAuthenticated,
     refetchInterval: 1000 * 60, // 每分钟轮询一次预警

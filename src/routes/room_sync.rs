@@ -30,8 +30,8 @@ pub fn routes() -> Router<AppState> {
         // 查询房间所有路径
         .route("/rooms/{roomid}/paths", get(room_sync::get_room_paths))
         // 注意：route_layer从下往上执行
-        // require_admin放在下面（后执行，此时AdminMarker已注入）
+        // require_admin 放在下面（后执行，此时 Actor 已注入）
         .route_layer(middleware::from_fn(require_admin))
-        // auth_middleware放在上面（先执行，注入AdminMarker）
+        // auth_middleware 放在上面（先执行，注入 Actor / UserContext）
         .route_layer(middleware::from_fn(auth_middleware))
 }

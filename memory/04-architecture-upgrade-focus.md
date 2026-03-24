@@ -1,17 +1,13 @@
 # Electricity Monitor 仓库记忆：第二轮架构升级关注点
 
 ## 后端维护性热点
-- `src/main.rs` 当前承担配置初始化、DB/Redis 初始化、路径树初始化、房间同步、后台任务启动、静态文件挂载等多职责。
 - `src/infrastructure/repositories/room_repository.rs` 规模过大，混合了查询、更新、同步日志、缓存支持、恢复时间持久化等多类职责。
 - `src/domain/services/notification_gate.rs` 与 `src/domain/services/notification_service.rs` 体量较大，说明通知域内部边界仍不够收敛。
-- `src/handlers/room.rs`、`src/handlers/room_sync.rs` 已经出现“权限判断 + 查询编排 + 响应装配”混合。
+- `src/handlers/binding.rs` 与 `src/handlers/auth.rs` 仍有直接依赖 repository 的旧入口，需要继续往 application/usecase 层收敛。
 
 ## 重复/过渡态实现
 - 同时存在优化版与非优化版服务：
-  - `electricity_service.rs`
-  - `electricity_service_optimized.rs`
-  - `room_sync/sync_service.rs`
-  - `room_sync/sync_service_optimized.rs`
+  - 当前已收敛删除 `electricity_service_optimized.rs` 与 `room_sync/sync_service_optimized.rs`
 - 这类平行文件会增加认知成本、修改重复成本和未来行为漂移风险。
 
 ## 前端维护性热点
@@ -29,8 +25,8 @@
 ## 第二轮方案设计建议输入
 - 优先做“边界收敛”而不是只做风格重写。
 - 重点关注：
-  - 启动编排与后台任务解耦
   - 仓储职责拆分
-  - 优化版/旧版服务收敛
+  - 通知域边界收敛
+  - binding/auth handler 下沉
   - 前端页面容器瘦身与 feature 分层
   - 文档真源和发布真源统一

@@ -10,7 +10,7 @@
 
 ## 当前环境语义
 - `development` 环境被明确限制为只能连接本地 PostgreSQL 和本地 Redis。
-- `production` 环境仍允许远端数据库配置。
+- `production` 环境仍允许远端数据库配置，但敏感值必须通过 Compose secrets 对应的 `*_FILE` 链路注入。
 - 日志优先级：`RUST_LOG` 高于配置文件 `logging.level`。
 
 ## 关键运行依赖
@@ -26,19 +26,23 @@
 - `APP__DATABASE__HOST`
 - `APP__DATABASE__PORT`
 - `APP__DATABASE__USERNAME`
-- `APP__DATABASE__PASSWORD`
+- `APP__DATABASE__PASSWORD_FILE`
 - `APP__DATABASE__DATABASE`
 - `APP__REDIS__HOST`
 - `APP__REDIS__PORT`
-- `APP__JWT__SECRET`
+- `APP__JWT__SECRET_FILE`
+- `APP__QQ_BOT__BEARER_TOKEN_FILE`
 - `APP__LOGGING__LEVEL`
 
 ## 环境变量链路的已验证结论
 - `APP__SECTION__KEY` 双下划线嵌套覆盖可用。
+- `APP__SECTION__KEY_FILE` 同样可用于 secret file 覆盖。
 - 数值和布尔类型字段可正确反序列化，不需要额外启用全局 `try_parsing(true)`。
 - 不能启用全局 `try_parsing(true)`，否则会破坏带前导零的字符串型配置值。
+- `production` 环境缺少 `jwt.secret_file`、`database.password_file` 或 `qq_bot.bearer_token_file` 时会 fail-fast。
 
 ## 测试链路记忆
 - 数据库集成测试通过 `RUN_INTEGRATION_TESTS=1` 显式开启。
 - Redis 相关测试通过 `RUN_INTEGRATION_TESTS=1` 或 `REDIS_HOST/REDIS_PORT` 启用。
-- 当前仓库完整测试在最近一次验证中为 `109 passed`。
+- 当前仓库完整 Rust 测试在最近一次验证中为 `111 passed`。
+- `tests/release_readiness_test.rs` 当前覆盖 `/api/health`、`/api/health/db` 和静态资源入口 `/`。
