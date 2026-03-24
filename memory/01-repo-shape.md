@@ -28,8 +28,20 @@
 - 前端使用 `createBrowserRouter`，核心页面为 `/` 和 `/login`。
 - API 通过 `frontend/src/services/api.ts` 访问 `/api` 前缀接口，依赖 Zustand 中的 token 注入。
 - 当前前端构建产物会复制到根目录 `static/`，由后端静态文件服务托管。
+- 前端基础运行骨架是：
+  - `main.tsx` 注入 QueryClientProvider
+  - `App.tsx` 仅转发到 Router
+  - `routes.tsx` 负责页面级 lazy load
 
 ## 当前工程形态记忆
 - 后端是单体服务，但运行时依赖 Redis。
 - 数据库当前是 PostgreSQL 主路径，MySQL 是预留类型，不是当前主实现。
 - 发布链路已从“本地构建上传服务器”转为“GitHub Actions 构建 release artifact -> 服务器 deploy.sh”。
+
+## 第二轮扫描补充
+- 当前仓库的主要改进方向已经从“补功能”转向“升级架构并增强可维护性”。
+- 第二轮基线应重点关注：
+  - 后端大文件与职责集中点
+  - 平行实现/重复实现
+  - 前端页面容器与 UI 组件的状态聚合问题
+  - 文档与真实代码基线的漂移
