@@ -11,7 +11,9 @@
 - `config/`: TOML 配置，按 default/development/production 分层。
 - `migrations/`: Diesel 数据库迁移。
 - `.github/workflows/`: CI/CD 工作流，当前有手动发布工作流。
+- `.github/workflows/ci.yml`: 当前 Pull Request / 手动质量门禁工作流，负责后端测试、前端质量检查与架构守护。
 - `deploy/`: 部署真源目录，包含 Dockerfile / Dockerfile.dockerignore、release 包模板，以及本地 Docker 调试脚本。
+- `tests/`: 顶层集成测试入口；`tests/support/` 保存共享 app factory、认证 fixture 与 smoke 契约读取。
 - `docs/`: 架构、部署、测试、迁移等文档。
 
 ## 后端分层记忆
@@ -47,6 +49,7 @@
 - 后端是单体服务，但运行时依赖 Redis。
 - 数据库当前是 PostgreSQL 主路径，MySQL 是预留类型，不是当前主实现。
 - 发布链路已从“本地构建上传服务器”转为“GitHub Actions 构建 release artifact -> 服务器 deploy.sh”。
+- release smoke 与本地 readiness test 已通过 `deploy/smoke.targets` 收敛到同一份检查契约。
 - release artifact 当前会附带 `release-manifest.json`，服务器部署结果写到 `deploy-result.json`。
 - release 包当前还会携带 `smoke.sh` 和 `secrets/.gitkeep`。
 - 根目录不再直接存放部署脚本、Dockerfile 或 compose 文件，相关资产统一收敛到 `deploy/`。

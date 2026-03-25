@@ -1,334 +1,138 @@
 # 测试指南
 
-## 测试概览
+## 当前测试真相
 
-项目当前包含 **109个测试用例**，涵盖单元测试和集成测试。
+当前仓库的默认质量门禁由以下入口组成：
 
-```bash
-# 运行所有测试
+- Rust 单元/源码内测试：`cargo test --lib`
+- 认证契约测试：`cargo test --test auth_integration_test`
+- runtime / readiness 契约测试：`cargo test --test release_readiness_test`
+- 前端质量检查：`pnpm --dir frontend lint`、`pnpm --dir frontend build:prod`
+- 架构守护：`powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`
+- Pull Request / 手动门禁：`.github/workflows/ci.yml`
+
+这份文档只描述当前仓库里已经存在且可执行的测试入口；前端行为测试框架仍未落地，不在本文档里伪装成“已完成”。
+
+## 当前分层
+
+### 后端
+
+- `src/**`：单元测试与少量带环境门槛的基础设施测试
+- `tests/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me` 和 `/api/bindings` 权限契约
+- `tests/release_readiness_test.rs`：读取 `deploy/smoke.targets`，校验 health / db health / 静态入口契约
+- `tests/support/`：共享 app factory、登录 fixture、smoke 契约读取
+
+### 前端
+
+- 当前只有 `lint` 与 `build:prod`
+- 尚未接入 Vitest / React Testing Library / MSW
+
+### 发布 smoke
+
+- `deploy/smoke.targets`：release smoke 与 readiness test 的检查目标真源
+- `deploy/smoke.sh`：目标环境 smoke，读取同一份 `smoke.targets`
+
+## 本地前置条件
+
+运行后端契约测试前，需要满足：
+
+1. 本地 PostgreSQL 与 Redis 已启动
+2. `APP_ENV=development`
+3. 已执行迁移：`cargo run --bin migrate`
+
+开发环境只允许连接本地 PostgreSQL / Redis；不要把 `development` 指向远端库。
+
+## 推荐命令矩阵
+
+### 日常快速回归
+
+```powershell
 cargo test --lib
-
-# 测试结果
-running 109 tests
-test result: ok. 109 passed; 0 failed; 0 ignored
+pnpm --dir frontend lint
+powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 ```
 
----
+### 后端关键链路回归
 
-## 测试类型
+```powershell
+$env:APP_ENV="development"
+cargo run --bin migrate
+cargo test --test auth_integration_test
+cargo test --test release_readiness_test
+```
 
-### 1. 默认运行测试
+### 前端构建回归
 
-这些测试会被 `cargo test --lib` 自动发现；依赖数据库、Redis 或外部网络的测试在条件不满足时会自动跳过：
+```powershell
+pnpm --dir frontend build:prod
+```
 
-| 模块 | 测试数量 | 说明 |
-|------|---------|------|
-| utils::hash | 5 | 哈希算法测试 |
-| crawler::fetcher | 4 | 1:N数据分组与去重 |
-| crawler::models | 4 | RoomData与统计计算 |
-| crawler::parser | 5 | 安全解析与树解析 |
-| crawler::client | 3 | 客户端构造/默认配置/退避 |
-| domain::models::room_aggregate | 3 | 聚合模型 |
-| electricity_fetcher_service | 1 | 统计计算 |
-| electricity_service | 1 | 数据序列化 |
-| notification_service | 1 | Mock sender |
-| roomid_cache | 1 | 结构与基本行为 |
-| room_sync::sync_service | 2 | 同步统计 |
-| rate_limiter | 2 | 键生成与配置校验 |
-| config::app | 1 | Server地址拼装 |
-| middleware::auth | 1 | JWT编码解码 |
-| infra::electricity::http_client | 1 | HTTP客户端创建 |
-| infra::electricity::fetcher | 2 | 创建与URL校验 |
-| infra::electricity::parser | 4 | 电费解析（JSON） |
-| infra::redis::batch_writer | 2 | 结构与Key格式 |
-| infra::redis::pool | 1 | 配置验证 |
-| infra::database::pool | 1 | 连接池创建（需显式启用数据库集成测试） |
-| infra::repositories::room_repository | 3 | CRUD/查询（需显式启用数据库集成测试） |
-| infra::repositories::electricity_history_repository | 1 | 历史仓储 |
+`build:prod` 会先生成 `frontend/dist/`，再复制到仓库根目录 `static/`，供后端静态文件服务与 Docker 构建使用。
 
-**说明**: 测试数量会随模块增长而增加，实际数量以 `cargo test` 输出为准。
+## 环境型测试说明
 
----
+仓库里仍有一批源码内环境型测试通过 `RUN_INTEGRATION_TESTS=1` 或 Redis 连接变量显式启用，例如：
 
-### 2. 集成测试（需要外部服务）
+- `src/infrastructure/database/pool.rs`
+- `src/infrastructure/redis/pool.rs`
+- `src/domain/services/rate_limiter.rs`
+- `src/infrastructure/repositories/room_repository.rs`
+- `src/domain/services/room_sync/crawler/client.rs`
 
-这些测试在没有外部服务时会自动跳过，不影响CI/CD流程。特殊说明：
-- `test_parse_real_api_response`（真实电费API）默认执行；若网络不可达或响应读取失败，会打印提示并自动跳过。
-- 其他集成测试（Redis、爬虫）通过环境变量启用或在外部服务可用时执行。
+这些测试目前仍属于“可选 infra 覆盖”，不是默认 PR 门禁。启用示例：
 
-#### 数据库相关测试（4个）
-
-**测试**:
-- `test_create_pool` - 数据库连接池创建和验证
-- `test_create_room` - 房间仓储创建
-- `test_find_by_roomid` - 房间仓储查询
-- `test_get_sync_history` - 同步历史查询
-
-**启用方式**:
-```bash
+```powershell
 $env:RUN_INTEGRATION_TESTS="1"
 cargo test --lib
 ```
 
-**要求**:
-- 本地 PostgreSQL 运行在 `127.0.0.1:5432`
-- `config/development.toml` 中的数据库账号与local environment一致
-- development 环境禁止指向远端数据库
+如果同时需要 Redis 单独覆盖，也可以显式设置：
 
----
-
-#### Redis相关测试（2个）
-
-**测试**: 
-- `test_create_redis_pool` - Redis连接池创建和验证
-- `test_rate_limiter` - 限流器功能测试
-
-**启用方式**:
-```bash
-# 方式1: 设置环境变量
-$env:RUN_INTEGRATION_TESTS="1"
-cargo test --lib
-
-# 方式2: 配置Redis连接
+```powershell
 $env:REDIS_HOST="127.0.0.1"
 $env:REDIS_PORT="6379"
 cargo test --lib
 ```
 
-**要求**: 
-- Redis服务运行在 `127.0.0.1:6379`（默认）
-- 或通过环境变量指定其他地址
+## CI 门禁
 
----
+`.github/workflows/ci.yml` 当前包含三类 job：
 
-#### 网络相关测试（2个）
+- `backend-tests`
+  - 启动 PostgreSQL / Redis service containers
+  - 执行 `cargo run --bin migrate`
+  - 运行 `cargo test --lib`
+  - 运行 `cargo test --test auth_integration_test`
+  - 运行 `cargo test --test release_readiness_test`
+- `frontend-quality`
+  - 执行 `pnpm install --frozen-lockfile`
+  - 运行 `pnpm lint`
+  - 运行 `pnpm build:prod`
+- `architecture-guard`
+  - 运行 `scripts/check-architecture.ps1`
 
-**测试**: 
-- `test_fetch_room_tree` - 爬虫API请求测试（需要启用环境变量）
-- `test_parse_real_api_response` - 真实电费API请求解析（默认执行，网络失败自动跳过）
+当前 CI 还没有前端行为测试 job，因为对应测试基础设施尚未接入。
 
-**启用方式**:
-```bash
-# 对于 test_fetch_room_tree（需要启用环境变量）
-$env:RUN_INTEGRATION_TESTS="1"
-cargo test --lib
+## readiness 与 smoke 的关系
 
-# 对于 test_parse_real_api_response（默认执行）
-# 无需设置环境变量；测试将尝试访问网络，若失败会自动跳过
+- `tests/release_readiness_test.rs` 在本地 / CI 中读取 `deploy/smoke.targets`
+- `deploy/smoke.sh` 在 release 目录中读取同一份 `smoke.targets`
+- 当前共用的检查目标包括：
+  - `/api/health`
+  - `/api/health/db`
+  - `/`
+  - `release-manifest.json`
+  - `deploy-result.json`
 
-# 仅运行真实API测试（输出原始响应）
-cargo test --lib infrastructure::electricity::parser::tests::test_parse_real_api_response -- --nocapture
-```
+这意味着如果你修改健康检查路径或 release 产物文件名，必须同时更新 `deploy/smoke.targets`，而不是只改单边硬编码。
 
-**要求**: 
-- 网络可达外部API
-- 爬虫API地址: `https://zywxhd02.gxust.edu.cn/Home/GetRoomTree`
-- 电费API地址: `https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid=4330`（示例roomid，可替换）
+## 当前缺口
 
----
+以下事项仍然未在本批次内完成：
 
-## 测试策略
+- 前端行为测试 runner / setup / mock 基础设施
+- 独立的前端行为测试 job
+- `tests/` 目录进一步细分到 `contracts/`、`runtime/`、`infra/`
+- 真实 Linux Docker 主机上的部署与回滚演练
 
-### 本地开发
-```bash
-# 运行默认测试（数据库/Redis/网络集成测试会按条件自动跳过）
-cargo test --lib
-
-# 输出
-running 109 tests
-跳过数据库测试：设置 RUN_INTEGRATION_TESTS=1 以启用
-跳过Redis测试：设置 RUN_INTEGRATION_TESTS=1 或 REDIS_HOST/REDIS_PORT 以启用
-跳过网络测试（RoomTree）：设置 RUN_INTEGRATION_TESTS=1 以启用
-（电费API测试默认执行；若网络不可达将自动跳过并打印提示）
-跳过限流器测试：设置 RUN_INTEGRATION_TESTS=1 或 REDIS_HOST/REDIS_PORT 以启用
-跳过数据库仓储测试：设置 RUN_INTEGRATION_TESTS=1 以启用
-test result: ok. 109 passed; 0 failed; 0 ignored
-```
-
-### CI/CD环境
-```bash
-# 启用所有集成测试
-export RUN_INTEGRATION_TESTS=1
-export REDIS_HOST=redis
-export REDIS_PORT=6379
-
-cargo test --lib
-
-# 预期输出
-running 109 tests
-✓ Redis连接池测试通过
-✓ 爬虫网络测试通过，获取到XXX字节数据
-✓ 限流器测试通过
-test result: ok. 109 passed; 0 failed; 0 ignored
-```
-
----
-
-## 测试覆盖率
-
-### 核心模块覆盖
-
-| 模块 | 单元测试 | 集成测试 | 覆盖率 |
-|------|---------|----------|--------|
-| **爬虫模块** | ✅ 4个 | ✅ 1个 | 95% |
-| **数据库层** | ✅ 3个 | ✅ 1个 | 90% |
-| **限流器** | ✅ 2个 | ✅ 1个 | 95% |
-| **同步服务** | ✅ 集成到repository | ✅ 端到端 | 85% |
-| **哈希工具** | ✅ 5个 | N/A | 100% |
-
----
-
-## 测试最佳实践
-
-### ✅ 已实现
-
-1. **条件执行**: 集成测试通过环境变量控制
-2. **友好提示**: 跳过测试时提供清晰说明
-3. **失败处理**: 集成测试失败时提供调试信息
-4. **并行安全**: 所有测试可以并行运行
-5. **数据隔离**: 测试使用独特ID避免冲突
-
-### 🔧 测试辅助函数
-
-```rust
-// 数据库测试辅助
-async fn setup_test_pool() -> DbPool {
-    let config = AppConfig::load_for_environment("development")
-        .expect("无法加载 development 配置");
-    create_pool(&config.database).await.unwrap()
-}
-
-// 测试数据清理
-if let Ok(room) = result {
-    let _ = repo.delete(room.id).await;  // 清理测试数据
-}
-```
-
----
-
-## Docker环境测试
-
-### deploy/docker-compose.local.yml（示意）
-
-以下片段用于说明本地 Docker 依赖的最小配置；真实仓库文件位于 `deploy/docker-compose.local.yml`。
-
-```yaml
-version: '3.8'
-services:
-  redis:
-    image: redis:8-alpine
-    ports:
-      - "6379:6379"
-  
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: electricity_dev
-    ports:
-      - "5432:5432"
-```
-
-### 运行测试
-```bash
-# 启动依赖服务
-docker-compose up -d
-
-# 运行所有测试
-$env:RUN_INTEGRATION_TESTS="1"
-cargo test --lib
-
-# 停止服务
-docker-compose down
-```
-
----
-
-## 故障排查
-
-### Redis连接失败
-```
-⚠ Redis连接失败（这是预期的，如果Redis未运行）: Connection refused
-```
-
-**解决方案**:
-1. 启动Redis: `redis-server`
-2. 或跳过测试（默认行为）
-
-### 网络请求超时
-```
-⚠ 网络请求失败（这是预期的，如果网络不可达）: timeout
-```
-
-**解决方案**:
-1. 检查网络连接
-2. 或跳过测试（默认行为）
-
-### 数据库连接失败
-```
-数据库连接池创建失败: Connection refused
-```
-
-**解决方案**:
-1. 确认本地数据库运行：`psql -h 127.0.0.1 -U postgres`
-2. 检查配置：`config/development.toml`
-
----
-
-## 性能测试（预留）
-
-性能测试将在后续阶段实现：
-
-- [ ] 6000条数据同步≤10秒
-- [ ] API吞吐量>100K req/s
-- [ ] P99延迟<10ms
-- [ ] 内存占用<100MB
-
----
-
-## 持续集成
-
-### GitHub Actions示例
-```yaml
-name: Tests
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    services:
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: test_db
-        ports:
-          - 5432:5432
-    
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-      - name: Run tests
-        env:
-          RUN_INTEGRATION_TESTS: 1
-        run: cargo test --lib
-```
-
----
-
-## 总结
-
-- ✅ **109个测试全部通过**
-- ✅ **0个ignored测试**
-- ✅ **单元测试自动运行**
-- ✅ **集成测试**：数据库/Redis/RoomTree 按需启用，真实电费API默认执行且网络失败自动跳过
-- ✅ **友好的错误提示**
-- ✅ **CI/CD就绪**
-
-**测试命令**: `cargo test --lib`  
-**完成时间**: 2025-11-12  
-**维护者**: Development Team
+这些都应作为下一批次继续推进，但不要在当前仓库里假装已经存在。

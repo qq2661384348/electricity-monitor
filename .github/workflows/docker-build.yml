@@ -120,6 +120,7 @@ jobs:
 
           cp deploy/deploy.sh "${RELEASE_ROOT}/deploy.sh"
           cp deploy/smoke.sh "${RELEASE_ROOT}/smoke.sh"
+          cp deploy/smoke.targets "${RELEASE_ROOT}/smoke.targets"
           cp deploy/compose.release.yml "${RELEASE_ROOT}/compose.yaml"
           sed "s/__RELEASE_TAG__/${GIT_TAG}/g" deploy/release.env.example > "${RELEASE_ROOT}/.env.example"
           sed "s/__RELEASE_TAG__/${GIT_TAG}/g" deploy/README.release.md > "${RELEASE_ROOT}/README.md"

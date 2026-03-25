@@ -73,6 +73,7 @@ deploy/
 ├── docker-compose.local.yml  # 本地 Docker 调试编排
 ├── compose.release.yml       # release 包内 compose 模板
 ├── deploy.sh                 # release 包内一键部署脚本模板
+├── smoke.targets             # readiness / smoke 共用检查契约
 ├── release.env.example       # release 包内 .env 模板
 └── README.release.md         # release 包内说明模板
 ```
@@ -99,16 +100,21 @@ export RUST_LOG=info
 ```bash
 cargo fmt      # 代码格式化
 cargo clippy   # 代码检查
-cargo test     # 运行测试
+cargo test --lib
+cargo test --test auth_integration_test
+cargo test --test release_readiness_test
+powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 ```
 
 ## 部署
 
 生产部署已调整为 GitHub Actions 手动触发打包，仓库内部署资产统一收敛在 `deploy/`：
 
+- PR / 手动质量门禁：`.github/workflows/ci.yml`
 - 工作流：`.github/workflows/docker-build.yml`
 - 镜像构建：`deploy/Dockerfile`
 - release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
+- smoke 契约：`deploy/smoke.targets`，由 `tests/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用
 - release manifest：artifact 内的 `release/release-manifest.json`
 - 本地 Docker 调试：`deploy/build.sh`、`deploy/docker-compose.local.yml`
 - `static/` 由前端 `build:prod` 在本地或 CI 生成，仓库只保留目录占位，不再跟踪构建产物

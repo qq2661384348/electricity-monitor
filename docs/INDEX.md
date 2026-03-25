@@ -24,7 +24,7 @@
 - [QUICKSTART.md](./guides/QUICKSTART.md) - 本地开发启动路径
 - [BUILD_CONFIGURATION.md](./guides/BUILD_CONFIGURATION.md) - 编译配置与构建问题排查
 - [DATABASE_MIGRATION.md](./guides/DATABASE_MIGRATION.md) - 迁移命令与数据库演进
-- [TESTING.md](./guides/TESTING.md) - 测试策略与本地依赖示例
+- [TESTING.md](./guides/TESTING.md) - 当前测试真源、CI 门禁与 smoke/readiness 契约
 - [TECHNICAL_DEBT.md](./guides/TECHNICAL_DEBT.md) - 技术债与后续重构切入点
 - [SECRETS_INVENTORY.md](./guides/SECRETS_INVENTORY.md) - 生产 secrets 清单与轮换约定
 - [RELEASE_SMOKE_CHECKLIST.md](./guides/RELEASE_SMOKE_CHECKLIST.md) - release 验收与回滚触发清单
@@ -43,7 +43,9 @@
 ## 当前真源约定
 
 - 生产发布以 `.github/workflows/docker-build.yml` 和仓库 `deploy/` 目录为准。
+- PR / 手动质量门禁以 `.github/workflows/ci.yml` 为准。
 - release artifact 内的 `release-manifest.json` 是发布包身份真源，`deploy-result.json` 是服务器侧部署结果记录。
+- `deploy/smoke.targets` 是 readiness test 与 release smoke 共用的检查目标真源。
 - `deploy/build.sh` 与 `deploy/docker-compose.local.yml` 仅用于本地 Docker 调试。
 - 服务器上线消费 GitHub Actions 产出的 release artifact，不从源码重新构建。
 

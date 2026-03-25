@@ -1,318 +1,134 @@
 //! 认证流程集成测试
 //!
-//! 测试管理员 JWT 和普通 JWT 认证的完整流程
+//! 覆盖真实验证码登录、JWT 访问与 `/api/bindings` 权限边界。
+
+mod support;
 
 use axum::{
     body::Body,
     http::{header, Request, StatusCode},
-    Router,
 };
-use chrono::Utc;
-use std::sync::{Arc, Once};
+use serde_json::Value;
 use tower::ServiceExt;
 
-// 引入项目模块
-use electricity_monitor_backend::{
-    config::AppConfig,
-    domain::services::RateLimiter,
-    infrastructure::{
-        database::pool::create_pool, repositories::UserRepository, CacheManager, CacheManagerConfig,
+use support::{
+    app_factory::create_test_app,
+    auth_fixture::{
+        admin_qq_number, get_with_bearer, login_with_seeded_code, post_json, read_json,
+        unique_qq_number, UserInfo,
     },
-    middleware::auth::Claims,
-    routes,
-    state::AppState,
 };
 
-use jsonwebtoken::{encode, EncodingKey, Header};
+#[tokio::test]
+async fn admin_login_flow_returns_admin_profile() {
+    let test_app = create_test_app().await;
+    let login =
+        login_with_seeded_code(&test_app.app, &test_app.state, &admin_qq_number(), "123456").await;
 
-// 全局配置初始化标志
-static INIT: Once = Once::new();
+    assert_eq!(login.token_type, "Bearer");
+    assert!(!login.access_token.is_empty());
+    assert!(!login.refresh_token.is_empty());
+    assert!(login.expires_in > 0);
+    assert_eq!(login.user.role, "admin");
+    assert!(login.user.is_active);
+    assert_eq!(login.user.qq_number, admin_qq_number());
 
-/// 确保配置只初始化一次
-fn ensure_config_init() {
-    INIT.call_once(|| {
-        AppConfig::init().expect("配置初始化失败");
-    });
+    let response = get_with_bearer(&test_app.app, "/api/auth/me", &login.access_token).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let current_user: UserInfo = read_json(response).await;
+    assert_eq!(current_user.id, login.user.id);
+    assert_eq!(current_user.qq_number, login.user.qq_number);
+    assert_eq!(current_user.role, "admin");
 }
 
-/// 辅助函数：创建测试用的App实例
-async fn create_test_app() -> Router {
-    // 确保配置已初始化（只会执行一次）
-    ensure_config_init();
-    let config = AppConfig::global();
+#[tokio::test]
+async fn admin_bindings_endpoint_returns_stable_empty_array() {
+    let test_app = create_test_app().await;
+    let login =
+        login_with_seeded_code(&test_app.app, &test_app.state, &admin_qq_number(), "123456").await;
 
-    // 创建数据库连接池
-    let db_pool = create_pool(&config.database)
-        .await
-        .expect("数据库连接池创建失败");
+    let response = get_with_bearer(&test_app.app, "/api/bindings", &login.access_token).await;
+    assert_eq!(response.status(), StatusCode::OK);
 
-    // 创建Redis连接池（如果测试环境没有Redis，这里会失败）
-    let redis_pool =
-        electricity_monitor_backend::infrastructure::redis::pool::create_redis_pool(&config.redis)
-            .await
-            .expect("Redis连接池创建失败");
-
-    // 创建限流器
-    let rate_limiter = Arc::new(RateLimiter::new(
-        redis_pool.clone(),
-        config.rate_limit.clone(),
-    ));
-
-    // 创建应用状态（测试环境不需要电费服务）
-    let cache_manager = Arc::new(CacheManager::new(
-        CacheManagerConfig::default(),
-        db_pool.clone(),
-        Some(redis_pool.clone()),
-    ));
-    let state = AppState::new(
-        db_pool,
-        redis_pool,
-        rate_limiter,
-        None, // 测试环境不创建电费服务
-        cache_manager,
+    let bindings: Vec<Value> = read_json(response).await;
+    assert!(
+        bindings.is_empty(),
+        "管理员当前应返回稳定的空数组，而不是不确定状态"
     );
-
-    // 创建路由
-    routes::create_routes().with_state(state)
 }
 
-async fn create_admin_jwt() -> String {
-    ensure_config_init();
-    let config = AppConfig::global();
-    let db_pool = create_pool(&config.database)
-        .await
-        .expect("数据库连接池创建失败");
-    let user_repo = UserRepository::new(db_pool);
-    let user = user_repo
-        .ensure_role(
-            user_repo
-                .create_or_find(&config.admin.default_qq_number, "admin")
-                .await
-                .expect("创建管理员用户失败"),
-            "admin",
-        )
-        .await
-        .expect("提升管理员角色失败");
+#[tokio::test]
+async fn invalid_verification_code_is_rejected() {
+    let test_app = create_test_app().await;
+    let qq_number = unique_qq_number();
 
-    let now = chrono::Utc::now().timestamp() as usize;
-    let claims = Claims {
-        sub: user.qq_number.clone(),
-        user_id: user.id.to_string(),
-        role: "admin".to_string(),
-        exp: now + 3600,
-        iat: now,
-    };
-
-    encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(config.jwt.secret.as_bytes()),
+    let response = post_json(
+        &test_app.app,
+        "/api/auth/verify-and-login",
+        serde_json::json!({
+            "qq_number": qq_number,
+            "code": "123456",
+        }),
     )
-    .expect("管理员JWT生成失败")
+    .await;
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let body: Value = read_json(response).await;
+    assert!(
+        body.to_string().contains("验证码"),
+        "登录失败响应应保留验证码错误语义"
+    );
 }
 
 #[tokio::test]
-async fn test_admin_jwt_auth_middleware() {
-    println!("\n========================================");
-    println!("测试1: admin JWT 认证中间件");
-    println!("========================================\n");
-
-    // 确保配置已初始化
-    ensure_config_init();
-    let app = create_test_app().await;
-    let admin_jwt = create_admin_jwt().await;
+async fn missing_bearer_prefix_is_rejected() {
+    let test_app = create_test_app().await;
+    let login =
+        login_with_seeded_code(&test_app.app, &test_app.state, &admin_qq_number(), "123456").await;
 
     let request = Request::builder()
         .uri("/api/auth/me")
-        .header(header::AUTHORIZATION, format!("Bearer {}", admin_jwt))
+        .header(header::AUTHORIZATION, login.access_token)
         .body(Body::empty())
-        .unwrap();
+        .expect("构造请求失败");
 
-    let response = app.clone().oneshot(request).await.unwrap();
-
-    println!("请求URI: /api/auth/me");
-    println!("Authorization: Bearer <ADMIN_JWT>");
-    println!("响应状态码: {:?}", response.status());
-
-    assert_eq!(
-        response.status(),
-        StatusCode::OK,
-        "管理员 JWT 应该能成功访问 /auth/me"
-    );
-
-    // 解析响应体
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(request)
         .await
-        .unwrap();
-    let body_str = String::from_utf8(body.to_vec()).unwrap();
-    println!("响应体: {}", body_str);
+        .expect("请求执行失败");
 
-    let user_info: serde_json::Value =
-        serde_json::from_str(&body_str).expect("响应体应该是有效的JSON");
-
-    println!("用户角色: {}", user_info["role"]);
-    assert_eq!(
-        user_info["role"].as_str().unwrap(),
-        "admin",
-        "管理员 JWT 应该返回管理员角色"
-    );
-
-    println!("✅ 测试1通过：管理员 JWT 认证成功\n");
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
-async fn test_admin_jwt_access_bindings() {
-    println!("\n========================================");
-    println!("测试2: admin JWT 访问 /bindings");
-    println!("========================================\n");
+async fn user_login_can_access_me_and_bindings() {
+    let test_app = create_test_app().await;
+    let qq_number = unique_qq_number();
+    let login = login_with_seeded_code(&test_app.app, &test_app.state, &qq_number, "654321").await;
 
-    // 确保配置已初始化
-    ensure_config_init();
-    let app = create_test_app().await;
-    let admin_jwt = create_admin_jwt().await;
+    assert_eq!(login.user.role, "user");
+    assert_eq!(login.user.qq_number, qq_number);
 
-    let request = Request::builder()
-        .uri("/api/bindings")
-        .header(header::AUTHORIZATION, format!("Bearer {}", admin_jwt))
-        .body(Body::empty())
-        .unwrap();
+    let profile_response =
+        get_with_bearer(&test_app.app, "/api/auth/me", &login.access_token).await;
+    assert_eq!(profile_response.status(), StatusCode::OK);
 
-    let response = app.oneshot(request).await.unwrap();
+    let current_user: UserInfo = read_json(profile_response).await;
+    assert_eq!(current_user.id, login.user.id);
+    assert_eq!(current_user.role, "user");
+    assert_eq!(current_user.qq_number, qq_number);
 
-    println!("请求URI: /api/bindings");
-    println!("Authorization: Bearer <ADMIN_JWT>");
-    println!("响应状态码: {:?}", response.status());
+    let bindings_response =
+        get_with_bearer(&test_app.app, "/api/bindings", &login.access_token).await;
+    assert_eq!(bindings_response.status(), StatusCode::OK);
 
-    // 打印响应体以查看错误详情
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let body_str = String::from_utf8(body.to_vec()).unwrap();
-    println!("响应体: {}", body_str);
-
-    // 注意：如果数据库中没有绑定，返回空数组是正常的
-    // assert!(
-    //     response.status() == StatusCode::OK || response.status() == StatusCode::NO_CONTENT,
-    //     "管理员 JWT 应该能成功访问 /bindings，实际状态码: {:?}",
-    //     response.status()
-    // );
-
-    println!("✅ 测试2通过：管理员 JWT 可以访问 /bindings\n");
-}
-
-#[tokio::test]
-async fn test_invalid_admin_jwt() {
-    println!("\n========================================");
-    println!("测试3: 无效的 admin JWT 应该返回401");
-    println!("========================================\n");
-
-    let app = create_test_app().await;
-
-    let fake_token = "invalid_admin_jwt_12345";
-    let request = Request::builder()
-        .uri("/api/auth/me")
-        .header(header::AUTHORIZATION, format!("Bearer {}", fake_token))
-        .body(Body::empty())
-        .unwrap();
-
-    let response = app.oneshot(request).await.unwrap();
-
-    println!("请求URI: /api/auth/me");
-    println!("Authorization: Bearer {}", fake_token);
-    println!("响应状态码: {:?}", response.status());
-
-    assert_eq!(
-        response.status(),
-        StatusCode::UNAUTHORIZED,
-        "无效的管理员 JWT 应该返回401"
+    let bindings: Vec<Value> = read_json(bindings_response).await;
+    assert!(
+        bindings.is_empty(),
+        "新创建的普通用户在未绑定房间时应返回空数组"
     );
-
-    println!("✅ 测试3通过：无效token正确拒绝\n");
-}
-
-#[tokio::test]
-async fn test_missing_bearer_prefix() {
-    println!("\n========================================");
-    println!("测试4: 缺少Bearer前缀应该返回401");
-    println!("========================================\n");
-
-    // 确保配置已初始化
-    ensure_config_init();
-    let app = create_test_app().await;
-    let admin_jwt = create_admin_jwt().await;
-
-    let request = Request::builder()
-        .uri("/api/auth/me")
-        .header(header::AUTHORIZATION, admin_jwt)
-        .body(Body::empty())
-        .unwrap();
-
-    let response = app.oneshot(request).await.unwrap();
-
-    println!("请求URI: /api/auth/me");
-    println!("Authorization: <ADMIN_JWT> (无Bearer前缀)");
-    println!("响应状态码: {:?}", response.status());
-
-    assert_eq!(
-        response.status(),
-        StatusCode::UNAUTHORIZED,
-        "缺少Bearer前缀应该返回401"
-    );
-
-    println!("✅ 测试4通过：缺少Bearer前缀正确拒绝\n");
-}
-
-#[tokio::test]
-async fn test_jwt_token_auth() {
-    println!("\n========================================");
-    println!("测试5: JWT token认证");
-    println!("========================================\n");
-
-    // 确保配置已初始化
-    ensure_config_init();
-
-    let app = create_test_app().await;
-
-    // 生成一个有效的JWT token
-    let config = AppConfig::global();
-    let now = Utc::now().timestamp() as usize;
-
-    let claims = Claims {
-        sub: "123456789".to_string(),
-        user_id: "550e8400-e29b-41d4-a716-446655440000".to_string(),
-        role: "user".to_string(),
-        exp: now + 3600, // 1小时后过期
-        iat: now,
-    };
-
-    let jwt_token = encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(config.jwt.secret.as_bytes()),
-    )
-    .expect("JWT生成失败");
-
-    // 测试：使用JWT token访问（注意：用户可能不存在，会返回404或其他错误）
-    let request = Request::builder()
-        .uri("/api/auth/me")
-        .header(header::AUTHORIZATION, format!("Bearer {}", jwt_token))
-        .body(Body::empty())
-        .unwrap();
-
-    let response = app.oneshot(request).await.unwrap();
-
-    println!("请求URI: /api/auth/me");
-    println!("Authorization: Bearer <JWT_TOKEN>");
-    println!("响应状态码: {:?}", response.status());
-
-    // JWT token格式正确，但用户可能不存在
-    // 应该返回404（用户不存在）或200（如果用户存在）
-    // 不应该返回401（认证失败）
-    assert_ne!(
-        response.status(),
-        StatusCode::UNAUTHORIZED,
-        "有效的JWT token不应该返回401"
-    );
-
-    println!("✅ 测试5通过：JWT token认证正常\n");
 }

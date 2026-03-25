@@ -1,76 +1,59 @@
+mod support;
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use std::sync::{Arc, Once};
 use tower::ServiceExt;
 
-use electricity_monitor_backend::{
-    bootstrap::router::create_app,
-    config::AppConfig,
-    domain::services::RateLimiter,
-    infrastructure::{database::pool::create_pool, redis::pool::create_redis_pool, CacheManager, CacheManagerConfig},
-    state::AppState,
+use support::{
+    app_factory::create_test_app,
+    smoke_contract::{load_smoke_targets, smoke_targets_path},
 };
 
-static INIT: Once = Once::new();
+#[tokio::test]
+async fn runtime_endpoints_from_smoke_contract_pass() {
+    let test_app = create_test_app().await;
+    let targets = load_smoke_targets();
 
-fn ensure_config_init() {
-    INIT.call_once(|| {
-        AppConfig::init().expect("配置初始化失败");
-    });
-}
+    for endpoint in [
+        targets.health_endpoint,
+        targets.db_health_endpoint,
+        targets.static_entry,
+    ] {
+        let response = test_app
+            .app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(endpoint.as_str())
+                    .body(Body::empty())
+                    .expect("构造请求失败"),
+            )
+            .await
+            .expect("请求执行失败");
 
-async fn create_test_app() -> axum::Router {
-    ensure_config_init();
-    let config = AppConfig::global();
-
-    let db_pool = create_pool(&config.database)
-        .await
-        .expect("数据库连接池创建失败");
-    let redis_pool = create_redis_pool(&config.redis)
-        .await
-        .expect("Redis连接池创建失败");
-    let rate_limiter = Arc::new(RateLimiter::new(
-        redis_pool.clone(),
-        config.rate_limit.clone(),
-    ));
-    let cache_manager = Arc::new(CacheManager::new(
-        CacheManagerConfig::default(),
-        db_pool.clone(),
-        Some(redis_pool.clone()),
-    ));
-
-    let state = AppState::new(db_pool, redis_pool, rate_limiter, None, cache_manager);
-    create_app(state)
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "smoke 契约中的运行时端点应全部可用: {endpoint}"
+        );
+    }
 }
 
 #[tokio::test]
-async fn test_health_endpoints_pass() {
-    let app = create_test_app().await;
+async fn smoke_contract_tracks_release_artifact_files() {
+    let targets = load_smoke_targets();
 
-    let health = app
-        .clone()
-        .oneshot(Request::builder().uri("/api/health").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(health.status(), StatusCode::OK);
-
-    let health_db = app
-        .oneshot(Request::builder().uri("/api/health/db").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(health_db.status(), StatusCode::OK);
-}
-
-#[tokio::test]
-async fn test_static_index_accessible() {
-    let app = create_test_app().await;
-
-    let response = app
-        .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        smoke_targets_path().exists(),
+        "release smoke 契约文件必须存在"
+    );
+    assert_eq!(
+        targets.required_release_files,
+        vec![
+            "release-manifest.json".to_string(),
+            "deploy-result.json".to_string(),
+        ]
+    );
 }

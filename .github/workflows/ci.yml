@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  APP_ENV: development
+  RUST_BACKTRACE: 1
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: electricity_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d electricity_dev"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev libssl-dev pkg-config redis-tools
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install diesel_cli
+        run: cargo install diesel_cli --no-default-features --features postgres
+
+      - name: Wait for PostgreSQL and Redis
+        run: |
+          until pg_isready -h 127.0.0.1 -p 5432 -U postgres -d electricity_dev; do
+            sleep 2
+          done
+          until redis-cli -h 127.0.0.1 -p 6379 ping; do
+            sleep 2
+          done
+
+      - name: Run migrations
+        run: cargo run --bin migrate
+
+      - name: Run Rust library tests
+        run: cargo test --lib
+
+      - name: Run auth integration tests
+        run: cargo test --test auth_integration_test
+
+      - name: Run release readiness tests
+        run: cargo test --test release_readiness_test
+
+  frontend-quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+          run_install: false
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run frontend lint
+        run: pnpm lint
+
+      - name: Run frontend production build
+        run: pnpm build:prod
+
+  architecture-guard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run architecture guard
+        shell: pwsh
+        run: ./scripts/check-architecture.ps1

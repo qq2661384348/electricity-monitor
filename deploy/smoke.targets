@@ -1,0 +1,4 @@
+SMOKE_HEALTH_ENDPOINT=/api/health
+SMOKE_DB_HEALTH_ENDPOINT=/api/health/db
+SMOKE_STATIC_ENTRY=/
+SMOKE_REQUIRED_FILES="release-manifest.json deploy-result.json"

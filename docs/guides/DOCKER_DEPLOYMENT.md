@@ -23,6 +23,7 @@ release-<git-tag>.tar.gz
     ├── compose.yaml
     ├── deploy.sh
     ├── smoke.sh
+    ├── smoke.targets
     ├── .env.example
     ├── release-manifest.json
     └── README.md
@@ -46,6 +47,7 @@ deploy/
 
 - `deploy/Dockerfile` + `deploy/Dockerfile.dockerignore`：GitHub Actions 构建镜像的真源
 - `deploy/compose.release.yml` / `deploy/release.env.example` / `deploy/deploy.sh` / `deploy/README.release.md`：release 包模板
+- `deploy/smoke.targets`：本地 readiness test 与 release smoke 共用的检查契约
 - `deploy/build.sh` / `deploy/docker-compose.local.yml`：仅用于本地 Docker 调试，不是生产发布主线
 
 ## GitHub Actions 工作流
@@ -63,9 +65,10 @@ deploy/
 2. 构建前端并复制到 `static/`
 3. 使用 `deploy/Dockerfile` 在 GitHub Actions Linux runner 中构建 `linux/amd64` Docker 镜像
 4. 导出应用镜像与 Redis 镜像
-5. 生成 `release-manifest.json`，写入 tag、git SHA、镜像 digest 与归档校验值
-6. 组装 release 目录并压缩成单个归档
-7. 上传为 GitHub Actions artifact
+5. 复制 `deploy/smoke.targets` 作为 release smoke 契约文件
+6. 生成 `release-manifest.json`，写入 tag、git SHA、镜像 digest 与归档校验值
+7. 组装 release 目录并压缩成单个归档
+8. 上传为 GitHub Actions artifact
 
 `static/` 是前端构建产物目录，不再作为仓库真源提交；CI 在 `pnpm build:prod` 后生成它，再由 `deploy/Dockerfile` 复制进入镜像。
 
@@ -143,10 +146,13 @@ chmod +x smoke.sh
 
 `smoke.sh` 会校验：
 
-- `/api/health`
-- `/api/health/db`
-- `release-manifest.json` 是否存在并包含 `git_tag` / `git_sha`
-- `deploy-result.json` 是否存在并包含 `status`
+- `smoke.targets` 中声明的 `/api/health`
+- `smoke.targets` 中声明的 `/api/health/db`
+- `smoke.targets` 中声明的静态入口 `/`
+- `smoke.targets` 中声明的 `release-manifest.json`
+- `smoke.targets` 中声明的 `deploy-result.json`
+
+本地 `tests/release_readiness_test.rs` 与 release 包内 `smoke.sh` 读取同一份 `smoke.targets`，避免两边各自硬编码检查目标。
 
 ## 运行时约定
 

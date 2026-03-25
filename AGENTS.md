@@ -7,17 +7,20 @@
 - 运行时依赖 PostgreSQL 与 Redis。
 - 配置加载顺序固定为：`config/default.toml` -> `config/{APP_ENV}.toml` -> `APP__<SECTION>__<KEY>` 环境变量覆盖。
 - 后端当前的模块化迁移入口已经存在于 `src/modules/`，已落地 `auth`、`room`、`room_sync` 三个模块样板。
+- 当前测试真源是：`tests/auth_integration_test.rs`、`tests/release_readiness_test.rs`、`tests/support/`、`docs/guides/TESTING.md`、`.github/workflows/ci.yml`。
+- 前端目前只有 `lint` 和 `build:prod` 质量门禁，尚未接入行为测试 runner。
 
 ## Deployment Truth
 
 - 生产发布唯一主线是 `.github/workflows/docker-build.yml`。
 - 仓库内部署相关文件统一位于 `deploy/`，不要再把 Dockerfile、compose、部署脚本放回根目录。
 - `deploy/Dockerfile` 与 `deploy/Dockerfile.dockerignore` 是镜像构建真源。
-- `deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`、`deploy/smoke.sh`、`deploy/README.release.md` 是 release 包模板。
+- `deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`、`deploy/smoke.sh`、`deploy/smoke.targets`、`deploy/README.release.md` 是 release 包模板。
 - `deploy/build.sh` 与 `deploy/docker-compose.local.yml` 仅用于本地 Docker 调试，不是生产发布真源。
 - 服务器部署契约是：消费 GitHub Actions artifact，执行 `docker load`、`docker compose up`、健康检查 `/api/health`，失败时由 `deploy.sh` 回滚。
 - release artifact 会携带 `release-manifest.json`；服务器部署结果写入 `deploy-result.json`。
 - 生产敏感配置通过 Compose secrets 提供，`.env` 只保留 `*_SECRET_FILE` 路径，不保留秘密原文。
+- `deploy/smoke.targets` 是本地 readiness test 与 release smoke 共用的检查目标真源。
 
 ## Runtime Constraints
 
@@ -29,6 +32,7 @@
   - `APP__JWT__SECRET_FILE`
   - `APP__QQ_BOT__BEARER_TOKEN_FILE`
 - 固定 `admin_token` 已移除；管理员通过 `config.admin.default_qq_number` 对应账号登录后获取 `admin` 角色 JWT。
+- 认证集成测试必须走真实 `/api/auth/verify-and-login` 链路，不要回退到本地签发 JWT 伪造主路径。
 - 前端真实 HTTP client 真源是 `frontend/src/shared/api/http-client.ts`，`frontend/src/services/api.ts` 仅保留兼容 facade。
 - `static/` 只保留目录占位 `.gitkeep`，不要再把构建产物重新纳入版本控制。
 
@@ -38,6 +42,7 @@
 - 修改仓库结构或目录职责时，同步更新 `memory/01-repo-shape.md`。
 - 修改运行时、secrets 或环境变量链路时，同步更新 `memory/02-runtime-and-config.md`。
 - 修改鉴权、缓存、handler/usecase 边界时，同步更新 `memory/06-maintainability-seams.md`。
+- 修改测试入口、测试 support、CI 门禁或 smoke/readiness 契约时，同步更新 `docs/guides/TESTING.md`、`.github/workflows/ci.yml`、`deploy/smoke.targets`、`memory/07-testing-and-quality-gates.md`。
 - 更新文档时，明确区分“生产发布主线”和“本地 Docker 调试路径”，不要把两者混写。
 - `docs/README.md` 和 `docs/INDEX.md` 只能保留与当前代码、workflow 一致的描述；发现漂移时优先修正。
 - 继续做架构升级时，优先进入 `src/modules/*/application`，不要把新的复杂编排回流到 `handlers/`。
@@ -46,6 +51,8 @@
 
 - 部署相关改动至少要做路径/引用扫描，并在 Docker 可用时跑 `docker compose -f deploy/docker-compose.local.yml config`。
 - 前端或发布链路改动后，确认生产构建仍会先生成 `static/`，再进入 Docker 镜像构建。
+- 测试或 CI 改动后，至少跑 `cargo test --lib`、`cargo test --test auth_integration_test`、`cargo test --test release_readiness_test`。
+- 前端质量门禁相关改动后，至少跑 `pnpm --dir frontend lint` 与 `pnpm --dir frontend build:prod`。
 - 架构相关改动后，跑 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。
 - 鉴权相关改动后，至少跑 `cargo test --test auth_integration_test`。
 - 发布 readiness 相关改动后，至少跑 `cargo test --test release_readiness_test`。
