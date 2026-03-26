@@ -152,7 +152,7 @@ chmod +x smoke.sh
 - `smoke.targets` 中声明的 `release-manifest.json`
 - `smoke.targets` 中声明的 `deploy-result.json`
 
-本地 `tests/release_readiness_test.rs` 与 release 包内 `smoke.sh` 读取同一份 `smoke.targets`，避免两边各自硬编码检查目标。
+本地 `tests/runtime/release_readiness_test.rs` 与 release 包内 `smoke.sh` 读取同一份 `smoke.targets`，避免两边各自硬编码检查目标。
 
 ## 运行时约定
 

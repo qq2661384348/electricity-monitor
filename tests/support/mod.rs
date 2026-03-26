@@ -2,4 +2,5 @@
 
 pub mod app_factory;
 pub mod auth_fixture;
+pub mod seed;
 pub mod smoke_contract;

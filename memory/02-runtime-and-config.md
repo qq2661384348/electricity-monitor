@@ -45,4 +45,4 @@
 - 数据库集成测试通过 `RUN_INTEGRATION_TESTS=1` 显式开启。
 - Redis 相关测试通过 `RUN_INTEGRATION_TESTS=1` 或 `REDIS_HOST/REDIS_PORT` 启用。
 - 当前仓库完整 Rust 测试在最近一次验证中为 `111 passed`。
-- `tests/release_readiness_test.rs` 当前覆盖 `/api/health`、`/api/health/db` 和静态资源入口 `/`。
+- `tests/runtime/release_readiness_test.rs` 当前覆盖 `/api/health`、`/api/health/db` 和静态资源入口 `/`。

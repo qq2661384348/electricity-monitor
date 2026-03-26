@@ -958,8 +958,14 @@ impl RoomRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::models::NewRoom;
+    use crate::domain::models::{NewRoom, NewRoomSyncLog};
     use crate::infrastructure::database::create_pool;
+    use chrono::Utc;
+
+    fn unique_roomid() -> i32 {
+        let millis = Utc::now().timestamp_millis().rem_euclid(1_000_000);
+        900_000 + millis as i32
+    }
 
     async fn setup_test_pool() -> Option<DbPool> {
         if std::env::var("RUN_INTEGRATION_TESTS").is_err() {
@@ -1010,10 +1016,40 @@ mod tests {
             return;
         };
         let repo = RoomRepository::new(pool);
+        let roomid = unique_roomid();
 
-        // 查询一个可能存在的roomid
-        let result = repo.find_by_roomid(1).await;
-        assert!(result.is_ok(), "查询失败: {:?}", result.err());
+        let created = repo
+            .create(NewRoom {
+                roomid,
+                electricity_fee: 12.5,
+                threshold: 80.0,
+                room_name: "查询测试房间".to_string(),
+                primary_roompath: format!("测试/查询/{}", roomid),
+                primary_roompath_hash: crate::utils::hash::calculate_roompath_hash(&format!(
+                    "测试/查询/{}",
+                    roomid
+                )),
+                has_additional_paths: false,
+                is_active: true,
+                source_type: "test".to_string(),
+                external_id: None,
+                last_synced_at: None,
+                last_recovered_at: None,
+            })
+            .await
+            .expect("预置测试房间失败");
+
+        let result = repo
+            .find_by_roomid(roomid)
+            .await
+            .expect("根据 roomid 查询失败");
+        let found = result.expect("应能查到刚创建的房间");
+
+        assert_eq!(found.id, created.id);
+        assert_eq!(found.roomid, roomid);
+        assert_eq!(found.room_name, "查询测试房间");
+
+        let _ = repo.delete(created.id).await;
     }
 
     #[tokio::test]
@@ -1022,8 +1058,21 @@ mod tests {
             return;
         };
         let repo = RoomRepository::new(pool);
+        let created = repo
+            .create_sync_log(NewRoomSyncLog {
+                id: None,
+                sync_type: "test-sync".to_string(),
+                started_at: Utc::now().naive_utc(),
+                status: "running".to_string(),
+            })
+            .await
+            .expect("创建同步日志失败");
 
-        let result = repo.get_sync_history(10).await;
-        assert!(result.is_ok(), "查询同步历史失败: {:?}", result.err());
+        let result = repo.get_sync_history(10).await.expect("查询同步历史失败");
+
+        assert!(
+            result.iter().any(|log| log.id == created.id),
+            "同步历史中应包含刚创建的日志记录"
+        );
     }
 }

@@ -114,10 +114,11 @@ powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 - 工作流：`.github/workflows/docker-build.yml`
 - 镜像构建：`deploy/Dockerfile`
 - release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
-- smoke 契约：`deploy/smoke.targets`，由 `tests/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用
+- smoke 契约：`deploy/smoke.targets`，由 `tests/runtime/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用
 - release manifest：artifact 内的 `release/release-manifest.json`
 - 本地 Docker 调试：`deploy/build.sh`、`deploy/docker-compose.local.yml`
 - `static/` 由前端 `build:prod` 在本地或 CI 生成，仓库只保留目录占位，不再跟踪构建产物
+- 前端行为测试：`pnpm --dir frontend test`，由 `Vitest + Testing Library + MSW` 驱动并纳入 `.github/workflows/ci.yml`
 1. 在 GitHub Actions 中手动触发发布工作流并指定 `git_tag`
 2. 下载生成的 release artifact
 3. 在服务器解压后准备 `.env` 与 `secrets/` 中的 Compose secrets 文件

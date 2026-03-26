@@ -94,10 +94,55 @@ async fn login_with_seeded_code_inner(
 }
 
 pub async fn post_json(app: &Router, uri: &str, payload: serde_json::Value) -> Response {
+    json_request(app, "POST", uri, None, payload).await
+}
+
+pub async fn post_json_with_bearer(
+    app: &Router,
+    uri: &str,
+    token: &str,
+    payload: serde_json::Value,
+) -> Response {
+    json_request(app, "POST", uri, Some(token), payload).await
+}
+
+pub async fn put_json_with_bearer(
+    app: &Router,
+    uri: &str,
+    token: &str,
+    payload: serde_json::Value,
+) -> Response {
+    json_request(app, "PUT", uri, Some(token), payload).await
+}
+
+pub async fn delete_with_bearer(app: &Router, uri: &str, token: &str) -> Response {
     let request = Request::builder()
-        .method("POST")
+        .method("DELETE")
         .uri(uri)
-        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .body(Body::empty())
+        .expect("构造删除请求失败");
+
+    app.clone().oneshot(request).await.expect("请求执行失败")
+}
+
+async fn json_request(
+    app: &Router,
+    method: &str,
+    uri: &str,
+    token: Option<&str>,
+    payload: serde_json::Value,
+) -> Response {
+    let mut request = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json");
+
+    if let Some(token) = token {
+        request = request.header(header::AUTHORIZATION, format!("Bearer {}", token));
+    }
+
+    let request = request
         .body(Body::from(payload.to_string()))
         .expect("构造 JSON 请求失败");
 

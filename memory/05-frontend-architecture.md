@@ -6,6 +6,7 @@
 - 状态管理：Zustand + `persist`，主要用于认证状态持久化。
 - 服务端状态：React Query，统一在 `frontend/src/lib/queryClient.ts` 定义默认策略。
 - HTTP 层：Axios，底层 client 在 `frontend/src/shared/api/http-client.ts`，`frontend/src/services/api.ts` 仅保留兼容 facade。
+- 测试层：`Vitest + React Testing Library + MSW`，测试支撑位于 `frontend/src/test/`。
 
 ## 前端目录职责
 - `frontend/src/main.tsx`：挂载根节点并注入 QueryClientProvider。
@@ -44,3 +45,7 @@
 - bind-room 已有独立 feature public API，`DashboardPage` 通过 feature 出口装配，而不是直接依赖旧组件路径。
 - query key 已收敛，绑定成功后会正确失效 `rooms.flagged` 与 `bindings`，不再使用散落字符串。
 - 登录页和认证弹窗已经切到 `features/auth-login`，`services/api.ts` 不再是认证逻辑真源。
+- 首批行为测试已覆盖：
+  - 登录页成功/失败登录状态
+  - `useBindRoomModal` 的路径选择、绑定成功、错误提示与 query invalidation
+  - `useDashboardPage` 的认证门禁、房间装配与 mutation 后失效

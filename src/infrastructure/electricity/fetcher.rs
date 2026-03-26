@@ -152,6 +152,9 @@ impl RoomBatchFetcher {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{extract::Query, http::StatusCode, response::IntoResponse, routing::get, Router};
+    use std::collections::HashMap as StdHashMap;
+    use tokio::net::TcpListener;
 
     #[test]
     fn test_fetcher_creation() {
@@ -163,5 +166,43 @@ mod tests {
     fn test_invalid_url_template() {
         let fetcher = RoomBatchFetcher::new("https://example.com/api".to_string(), 50);
         assert!(fetcher.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_fetch_batch_with_mock_server_filters_failures() {
+        async fn handler(Query(query): Query<StdHashMap<String, String>>) -> impl IntoResponse {
+            let room_id = query
+                .get("roomid")
+                .and_then(|value| value.parse::<i32>().ok())
+                .unwrap_or_default();
+
+            if room_id == 1001 {
+                (
+                    StatusCode::OK,
+                    "\"{\\\"BS\\\":\\\"1\\\",\\\"Msg\\\":\\\"成功\\\",\\\"component\\\":[{\\\"Name\\\":\\\"剩余\\\",\\\"Value\\\":\\\"12.34\\\"}]}\"",
+                )
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, "error")
+            }
+        }
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("启动电费 mock server 失败");
+        let addr = listener.local_addr().expect("获取电费 mock 地址失败");
+        let app = Router::new().route("/electricity", get(handler));
+
+        tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("运行电费 mock server 失败");
+        });
+
+        let fetcher = RoomBatchFetcher::new(format!("http://{addr}/electricity?roomid="), 5)
+            .expect("创建 fetcher 失败");
+        let result = fetcher.fetch_batch(vec![1001, 1002]).await;
+
+        assert_eq!(result.get(&1001), Some(&12.34));
+        assert!(!result.contains_key(&1002));
     }
 }

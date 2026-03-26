@@ -64,6 +64,20 @@ impl CaptchaVerificationService {
         }
     }
 
+    #[cfg(test)]
+    fn with_api_url(redis_pool: RedisPool, api_url: String) -> Self {
+        let http_client = Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .expect("Failed to create HTTP client");
+
+        Self {
+            http_client,
+            redis_pool,
+            api_url,
+        }
+    }
+
     /// 校验验证码（网关代理）
     ///
     /// # 参数
@@ -197,6 +211,9 @@ impl CaptchaVerificationService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{extract::Query, routing::get, Json, Router};
+    use std::collections::HashMap;
+    use tokio::net::TcpListener;
 
     #[test]
     fn test_captcha_type_serialization() {
@@ -216,5 +233,123 @@ mod tests {
         assert_eq!(response.code, 200);
         assert_eq!(response.msg, "数据请求成功");
         assert_eq!(response.data.unwrap(), "验证成功");
+    }
+
+    fn redis_test_requested() -> bool {
+        std::env::var("RUN_INTEGRATION_TESTS").is_ok()
+            || std::env::var("REDIS_HOST").is_ok()
+            || std::env::var("REDIS_PORT").is_ok()
+    }
+
+    async fn test_redis_pool() -> Option<RedisPool> {
+        if !redis_test_requested() {
+            println!("跳过验证码服务集成测试：设置 RUN_INTEGRATION_TESTS=1 或 REDIS_HOST/REDIS_PORT 以启用");
+            return None;
+        }
+
+        let config = crate::config::RedisConfig {
+            host: std::env::var("REDIS_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
+            port: std::env::var("REDIS_PORT")
+                .ok()
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(6379),
+            max_connections: 10,
+            min_connections: 2,
+            connection_timeout: 30,
+        };
+
+        match crate::infrastructure::redis::create_redis_pool(&config).await {
+            Ok(pool) => Some(pool),
+            Err(error) => {
+                if redis_test_requested() {
+                    panic!("验证码服务集成测试模式下 Redis 必须可用: {error}");
+                }
+                None
+            }
+        }
+    }
+
+    async fn start_mock_captcha_server() -> String {
+        async fn handler(Query(query): Query<HashMap<String, String>>) -> Json<serde_json::Value> {
+            let key = query.get("key").cloned().unwrap_or_default();
+
+            if key == "42" {
+                Json(serde_json::json!({
+                    "code": 200,
+                    "msg": "验证成功",
+                    "data": "ok"
+                }))
+            } else {
+                Json(serde_json::json!({
+                    "code": 400,
+                    "msg": "验证码错误",
+                    "data": null
+                }))
+            }
+        }
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("启动验证码 mock server 失败");
+        let addr = listener.local_addr().expect("获取验证码 mock 地址失败");
+        let app = Router::new().route("/captcha", get(handler));
+
+        tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("运行验证码 mock server 失败");
+        });
+
+        format!("http://{addr}/captcha")
+    }
+
+    #[tokio::test]
+    async fn test_verify_captcha_with_mock_server_stores_and_consumes_token() {
+        let Some(redis_pool) = test_redis_pool().await else {
+            return;
+        };
+        let api_url = start_mock_captcha_server().await;
+        let service = CaptchaVerificationService::with_api_url(redis_pool, api_url);
+
+        let token = service
+            .verify_captcha(
+                "captcha-id".to_string(),
+                "42".to_string(),
+                CaptchaType::Math,
+            )
+            .await
+            .expect("mock 验证码成功路径应返回 token");
+
+        assert!(service
+            .verify_and_consume_token(&token)
+            .await
+            .expect("首次消费 token 应成功"));
+        assert!(!service
+            .verify_and_consume_token(&token)
+            .await
+            .expect("二次消费 token 应失败"));
+    }
+
+    #[tokio::test]
+    async fn test_verify_captcha_with_mock_server_rejects_invalid_answer() {
+        let Some(redis_pool) = test_redis_pool().await else {
+            return;
+        };
+        let api_url = start_mock_captcha_server().await;
+        let service = CaptchaVerificationService::with_api_url(redis_pool, api_url);
+
+        let error = service
+            .verify_captcha(
+                "captcha-id".to_string(),
+                "invalid".to_string(),
+                CaptchaType::Math,
+            )
+            .await
+            .expect_err("mock 验证码失败路径应返回 Unauthorized");
+
+        match error {
+            AppError::Unauthorized(message) => assert!(message.contains("验证码")),
+            other => panic!("期望 Unauthorized，实际为 {other:?}"),
+        }
     }
 }

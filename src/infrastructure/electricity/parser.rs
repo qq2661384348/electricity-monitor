@@ -93,6 +93,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_real_api_response() {
+        if std::env::var("RUN_EXTERNAL_INTEGRATION_TESTS").is_err() {
+            println!("跳过真实电费 API 测试：设置 RUN_EXTERNAL_INTEGRATION_TESTS=1 以启用");
+            return;
+        }
+
         let api_url = "https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid=4330";
 
         // 发起HTTP请求
@@ -104,16 +109,14 @@ mod tests {
         let response = match client.get(api_url).send().await {
             Ok(resp) => resp,
             Err(e) => {
-                println!("网络请求失败（跳过测试）: {}", e);
-                return;
+                panic!("外部网络测试模式下请求真实电费 API 失败: {}", e);
             }
         };
 
         let raw_data = match response.text().await {
             Ok(text) => text,
             Err(e) => {
-                println!("读取响应失败（跳过测试）: {}", e);
-                return;
+                panic!("外部网络测试模式下读取真实电费 API 响应失败: {}", e);
             }
         };
 

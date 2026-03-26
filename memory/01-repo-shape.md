@@ -1,11 +1,14 @@
 # Electricity Monitor 仓库记忆：仓库形态与模块边界
 
 ## 仓库定位
+
 - 仓库是一个前后端同仓的电费监控系统，不是 monorepo 工具链仓，也不是纯基础设施仓。
 - 后端主程序是 Rust/Axum 服务，前端是 React + Vite 单页应用。
 - 生产交付当前以 Docker 镜像和 GitHub Actions 手动打包发布为主线。
+- 项目级工作约束要求：每次任务开始前先阅读 `./memory`，交付前同步更新 `./memory`。
 
 ## 关键目录
+
 - `src/`: 后端主代码，采用分层结构。
 - `frontend/`: 前端 SPA。
 - `config/`: TOML 配置，按 default/development/production 分层。
@@ -13,10 +16,11 @@
 - `.github/workflows/`: CI/CD 工作流，当前有手动发布工作流。
 - `.github/workflows/ci.yml`: 当前 Pull Request / 手动质量门禁工作流，负责后端测试、前端质量检查与架构守护。
 - `deploy/`: 部署真源目录，包含 Dockerfile / Dockerfile.dockerignore、release 包模板，以及本地 Docker 调试脚本。
-- `tests/`: 顶层集成测试入口；`tests/support/` 保存共享 app factory、认证 fixture 与 smoke 契约读取。
+- `tests/`: 集成测试入口；当前已按 `contracts/`、`runtime/`、`support/`、`infra/` 分层。
 - `docs/`: 架构、部署、测试、迁移等文档。
 
 ## 后端分层记忆
+
 - `src/bootstrap/`: 启动装配入口，承接配置初始化、日志、路由装配、运行时初始化和 shutdown。
 - `src/config/`: 配置模型与加载逻辑。
 - `src/domain/models/`: 领域模型，如用户、房间、绑定、电费历史。
@@ -33,6 +37,7 @@
 - `scripts/check-architecture.ps1`: 当前架构守护脚本，校验前端导入边界、optimized 文件残留和 room handler 直接实例化 repository。
 
 ## 前端边界
+
 - 前端使用 `createBrowserRouter`，核心页面为 `/` 和 `/login`。
 - API 通过 `frontend/src/services/api.ts` 访问 `/api` 前缀接口，依赖 Zustand 中的 token 注入。
 - 共享 HTTP client 已收敛到 `frontend/src/shared/api/http-client.ts`，query key 真源在 `frontend/src/shared/api/queryKeys.ts`。
@@ -46,15 +51,18 @@
   - `routes.tsx` 负责页面级 lazy load
 
 ## 当前工程形态记忆
+
 - 后端是单体服务，但运行时依赖 Redis。
 - 数据库当前是 PostgreSQL 主路径，MySQL 是预留类型，不是当前主实现。
 - 发布链路已从“本地构建上传服务器”转为“GitHub Actions 构建 release artifact -> 服务器 deploy.sh”。
 - release smoke 与本地 readiness test 已通过 `deploy/smoke.targets` 收敛到同一份检查契约。
+- 前端现已接入 `Vitest + Testing Library + MSW` 的最小行为测试基建。
 - release artifact 当前会附带 `release-manifest.json`，服务器部署结果写到 `deploy-result.json`。
 - release 包当前还会携带 `smoke.sh` 和 `secrets/.gitkeep`。
 - 根目录不再直接存放部署脚本、Dockerfile 或 compose 文件，相关资产统一收敛到 `deploy/`。
 
 ## 第二轮扫描补充
+
 - 当前仓库的主要改进方向已经从“补功能”转向“升级架构并增强可维护性”。
 - 第二轮基线应重点关注：
   - 后端大文件与职责集中点

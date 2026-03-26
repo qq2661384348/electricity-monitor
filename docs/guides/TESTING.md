@@ -7,25 +7,31 @@
 - Rust 单元/源码内测试：`cargo test --lib`
 - 认证契约测试：`cargo test --test auth_integration_test`
 - runtime / readiness 契约测试：`cargo test --test release_readiness_test`
+- 前端行为测试：`pnpm --dir frontend test`
 - 前端质量检查：`pnpm --dir frontend lint`、`pnpm --dir frontend build:prod`
 - 架构守护：`powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`
 - Pull Request / 手动门禁：`.github/workflows/ci.yml`
 
-这份文档只描述当前仓库里已经存在且可执行的测试入口；前端行为测试框架仍未落地，不在本文档里伪装成“已完成”。
+这份文档只描述当前仓库里已经存在且可执行的测试入口。
 
 ## 当前分层
 
 ### 后端
 
 - `src/**`：单元测试与少量带环境门槛的基础设施测试
-- `tests/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me` 和 `/api/bindings` 权限契约
-- `tests/release_readiness_test.rs`：读取 `deploy/smoke.targets`，校验 health / db health / 静态入口契约
-- `tests/support/`：共享 app factory、登录 fixture、smoke 契约读取
+- `tests/contracts/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me`、`/api/auth/refresh`、`/api/bindings` CRUD、越权访问与 admin 限制契约
+- `tests/runtime/release_readiness_test.rs`：读取 `deploy/smoke.targets`，校验 health / db health / 静态入口契约
+- `tests/contracts/send_verification_code_integration_test.rs`：通过本地 mock QQ API 覆盖 `/api/auth/send-verification-code` 的成功发送与 `USER_NOT_FRIEND` 分支
+- `tests/support/`：共享 app factory、登录 fixture、seed helper、smoke 契约读取
+- `tests/infra/`：环境型独立 test target 的预留分层；当前目录中记录了仍在源码内的 infra 覆盖位置
 
 ### 前端
 
-- 当前只有 `lint` 与 `build:prod`
-- 尚未接入 Vitest / React Testing Library / MSW
+- 已接入 `Vitest + React Testing Library + MSW`
+- 首批自动回归覆盖：
+  - `src/pages/LoginPage.test.tsx`
+  - `src/features/bind-room/model/useBindRoomModal.test.tsx`
+  - `src/features/dashboard/model/useDashboardPage.test.tsx`
 
 ### 发布 smoke
 
@@ -48,6 +54,7 @@
 
 ```powershell
 cargo test --lib
+pnpm --dir frontend test
 pnpm --dir frontend lint
 powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 ```
@@ -64,6 +71,7 @@ cargo test --test release_readiness_test
 ### 前端构建回归
 
 ```powershell
+pnpm --dir frontend test
 pnpm --dir frontend build:prod
 ```
 
@@ -94,6 +102,32 @@ $env:REDIS_PORT="6379"
 cargo test --lib
 ```
 
+外部网络测试已从默认 infra 门禁中分离，避免 CI 因公网依赖失真。当前需要显式启用的外部测试包括：
+
+- `src/domain/services/room_sync/crawler/client.rs::test_fetch_room_tree`
+- `src/infrastructure/electricity/parser.rs::test_parse_real_api_response`
+
+这些链路当前采用“真实测试 + mock 测试”双轨：
+
+- 房间树：
+  - 真实：`test_fetch_room_tree`
+  - mock：`test_fetch_room_tree_with_mock_server`、`test_fetch_tree_retries_until_success_with_mock_server`
+- 电费抓取：
+  - 真实：`test_parse_real_api_response`
+  - mock：`test_fetch_batch_with_mock_server_filters_failures`
+
+启用方式：
+
+```powershell
+$env:RUN_EXTERNAL_INTEGRATION_TESTS="1"
+cargo test --lib
+```
+
+云服务依赖已改为 mock 驱动的自动回归：
+
+- QQ 机器人发送链：`cargo test --test send_verification_code_integration_test`
+- 第三方验证码校验服务：`test_verify_captcha_with_mock_server_*`
+
 ## CI 门禁
 
 `.github/workflows/ci.yml` 当前包含三类 job：
@@ -103,19 +137,28 @@ cargo test --lib
   - 执行 `cargo run --bin migrate`
   - 运行 `cargo test --lib`
   - 运行 `cargo test --test auth_integration_test`
+  - 运行 `cargo test --test send_verification_code_integration_test`
   - 运行 `cargo test --test release_readiness_test`
+  - 默认设置 `RUN_INTEGRATION_TESTS=1` 与 Redis 连接变量，确保本地 DB/Redis 相关测试不再被短路
+- `backend-external-tests`
+  - 仅在 `workflow_dispatch` 且 `run_external_integration_tests=true` 时执行
+  - 运行真实房间树测试
+  - 运行真实电费抓取测试
 - `frontend-quality`
   - 执行 `pnpm install --frozen-lockfile`
   - 运行 `pnpm lint`
   - 运行 `pnpm build:prod`
+- `frontend-tests`
+  - 执行 `pnpm install --frozen-lockfile`
+  - 运行 `pnpm test`
 - `architecture-guard`
   - 运行 `scripts/check-architecture.ps1`
 
-当前 CI 还没有前端行为测试 job，因为对应测试基础设施尚未接入。
+各 job 当前都会上传对应日志 artifact，便于失败定位。
 
 ## readiness 与 smoke 的关系
 
-- `tests/release_readiness_test.rs` 在本地 / CI 中读取 `deploy/smoke.targets`
+- `tests/runtime/release_readiness_test.rs` 在本地 / CI 中读取 `deploy/smoke.targets`
 - `deploy/smoke.sh` 在 release 目录中读取同一份 `smoke.targets`
 - 当前共用的检查目标包括：
   - `/api/health`
@@ -130,9 +173,10 @@ cargo test --lib
 
 以下事项仍然未在本批次内完成：
 
-- 前端行为测试 runner / setup / mock 基础设施
-- 独立的前端行为测试 job
-- `tests/` 目录进一步细分到 `contracts/`、`runtime/`、`infra/`
+- 把源码内的环境型测试逐步迁移成 `tests/infra/` 下的独立 test target
+- `cargo-nextest` 试点
+- Playwright 浏览器 smoke
+- 外部网络测试的独立 workflow / 独立 test target
 - 真实 Linux Docker 主机上的部署与回滚演练
 
 这些都应作为下一批次继续推进，但不要在当前仓库里假装已经存在。

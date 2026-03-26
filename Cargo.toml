@@ -120,3 +120,15 @@ path = "src/main.rs"
 [[bin]]
 name = "migrate"
 path = "src/bin/migrate.rs"
+
+[[test]]
+name = "auth_integration_test"
+path = "tests/contracts/auth_integration_test.rs"
+
+[[test]]
+name = "release_readiness_test"
+path = "tests/runtime/release_readiness_test.rs"
+
+[[test]]
+name = "send_verification_code_integration_test"
+path = "tests/contracts/send_verification_code_integration_test.rs"

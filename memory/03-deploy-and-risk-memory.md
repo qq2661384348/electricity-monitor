@@ -81,6 +81,7 @@
 - `deploy.sh` 会读取 manifest 做基础一致性校验，并在 release 目录落 `deploy-result.json` 作为部署结果记录。
 - release 包已提供 `smoke.sh`，用于部署后验证 `/api/health`、`/api/health/db`、静态入口与 manifest/result 文件。
 - `release_readiness_test.rs` 与 `deploy/smoke.sh` 现通过 `deploy/smoke.targets` 共享 health / static / artifact 检查目标，避免双轨硬编码漂移。
+- `.github/workflows/ci.yml` 现已补齐 frontend-tests job，并统一上传 backend/frontend/architecture 日志 artifact 供失败定位。
 - release 包的 `.env.example` 现在只暴露 `*_SECRET_FILE` 路径，不再要求把秘密原文写进 `.env`。
 - `electricity_service_optimized.rs` 已移除，电费写入主线明确为 `electricity_service.rs`。
 - `room_sync/sync_service_optimized.rs` 已移除，房间同步主线明确为 `room_sync/sync_service.rs`。

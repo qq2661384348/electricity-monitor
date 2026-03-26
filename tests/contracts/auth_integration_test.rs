@@ -1,0 +1,324 @@
+//! 认证流程集成测试
+//!
+//! 覆盖真实验证码登录、JWT 访问与 `/api/bindings` 权限边界。
+
+#[path = "../support/mod.rs"]
+mod support;
+
+use axum::{
+    body::Body,
+    http::{header, Request, StatusCode},
+};
+use serde_json::Value;
+use tower::ServiceExt;
+
+use support::{
+    app_factory::create_test_app,
+    auth_fixture::{
+        admin_qq_number, delete_with_bearer, get_with_bearer, login_with_seeded_code, post_json,
+        post_json_with_bearer, put_json_with_bearer, read_json, unique_qq_number, UserInfo,
+    },
+    seed::{delete_room, seed_room},
+};
+
+#[tokio::test]
+async fn admin_login_flow_returns_admin_profile() {
+    let test_app = create_test_app().await;
+    let login =
+        login_with_seeded_code(&test_app.app, &test_app.state, &admin_qq_number(), "123456").await;
+
+    assert_eq!(login.token_type, "Bearer");
+    assert!(!login.access_token.is_empty());
+    assert!(!login.refresh_token.is_empty());
+    assert!(login.expires_in > 0);
+    assert_eq!(login.user.role, "admin");
+    assert!(login.user.is_active);
+    assert_eq!(login.user.qq_number, admin_qq_number());
+
+    let response = get_with_bearer(&test_app.app, "/api/auth/me", &login.access_token).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let current_user: UserInfo = read_json(response).await;
+    assert_eq!(current_user.id, login.user.id);
+    assert_eq!(current_user.qq_number, login.user.qq_number);
+    assert_eq!(current_user.role, "admin");
+}
+
+#[tokio::test]
+async fn admin_bindings_endpoint_returns_stable_empty_array() {
+    let test_app = create_test_app().await;
+    let login =
+        login_with_seeded_code(&test_app.app, &test_app.state, &admin_qq_number(), "123456").await;
+
+    let response = get_with_bearer(&test_app.app, "/api/bindings", &login.access_token).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let bindings: Vec<Value> = read_json(response).await;
+    assert!(
+        bindings.is_empty(),
+        "管理员当前应返回稳定的空数组，而不是不确定状态"
+    );
+}
+
+#[tokio::test]
+async fn invalid_verification_code_is_rejected() {
+    let test_app = create_test_app().await;
+    let qq_number = unique_qq_number();
+
+    let response = post_json(
+        &test_app.app,
+        "/api/auth/verify-and-login",
+        serde_json::json!({
+            "qq_number": qq_number,
+            "code": "123456",
+        }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    let body: Value = read_json(response).await;
+    assert!(
+        body.to_string().contains("验证码"),
+        "登录失败响应应保留验证码错误语义"
+    );
+}
+
+#[tokio::test]
+async fn send_verification_code_rejects_invalid_captcha_token() {
+    let test_app = create_test_app().await;
+    let response = post_json(
+        &test_app.app,
+        "/api/auth/send-verification-code",
+        serde_json::json!({
+            "qq_number": unique_qq_number(),
+            "captcha_token": "invalid-captcha-token",
+        }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn missing_bearer_prefix_is_rejected() {
+    let test_app = create_test_app().await;
+    let login =
+        login_with_seeded_code(&test_app.app, &test_app.state, &admin_qq_number(), "123456").await;
+
+    let request = Request::builder()
+        .uri("/api/auth/me")
+        .header(header::AUTHORIZATION, login.access_token)
+        .body(Body::empty())
+        .expect("构造请求失败");
+
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("请求执行失败");
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn user_login_can_access_me_and_bindings() {
+    let test_app = create_test_app().await;
+    let qq_number = unique_qq_number();
+    let login = login_with_seeded_code(&test_app.app, &test_app.state, &qq_number, "654321").await;
+
+    assert_eq!(login.user.role, "user");
+    assert_eq!(login.user.qq_number, qq_number);
+
+    let profile_response =
+        get_with_bearer(&test_app.app, "/api/auth/me", &login.access_token).await;
+    assert_eq!(profile_response.status(), StatusCode::OK);
+
+    let current_user: UserInfo = read_json(profile_response).await;
+    assert_eq!(current_user.id, login.user.id);
+    assert_eq!(current_user.role, "user");
+    assert_eq!(current_user.qq_number, qq_number);
+
+    let bindings_response =
+        get_with_bearer(&test_app.app, "/api/bindings", &login.access_token).await;
+    assert_eq!(bindings_response.status(), StatusCode::OK);
+
+    let bindings: Vec<Value> = read_json(bindings_response).await;
+    assert!(
+        bindings.is_empty(),
+        "新创建的普通用户在未绑定房间时应返回空数组"
+    );
+}
+
+#[tokio::test]
+async fn refresh_token_returns_new_access_token_for_same_user() {
+    let test_app = create_test_app().await;
+    let qq_number = unique_qq_number();
+    let login = login_with_seeded_code(&test_app.app, &test_app.state, &qq_number, "654321").await;
+
+    let response = post_json(
+        &test_app.app,
+        "/api/auth/refresh",
+        serde_json::json!({
+            "refresh_token": login.refresh_token,
+        }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let refreshed: Value = read_json(response).await;
+    assert_eq!(refreshed["user"]["qq_number"], qq_number);
+    assert_eq!(refreshed["user"]["role"], "user");
+    assert_eq!(refreshed["token_type"], "Bearer");
+    assert_ne!(
+        refreshed["access_token"],
+        Value::String(String::new()),
+        "刷新后应返回新的 access token"
+    );
+}
+
+#[tokio::test]
+async fn user_can_complete_binding_crud_flow() {
+    let test_app = create_test_app().await;
+    let room = seed_room(&test_app.state).await;
+    let qq_number = unique_qq_number();
+    let login = login_with_seeded_code(&test_app.app, &test_app.state, &qq_number, "654321").await;
+
+    let create_response = post_json_with_bearer(
+        &test_app.app,
+        "/api/bindings",
+        &login.access_token,
+        serde_json::json!({
+            "roomid": room.roomid,
+            "notification_enabled": false,
+        }),
+    )
+    .await;
+
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+    let created_binding: Value = read_json(create_response).await;
+    let binding_id = created_binding["id"]
+        .as_str()
+        .expect("绑定 ID 应为字符串")
+        .to_string();
+    assert_eq!(created_binding["roomid"], room.roomid);
+    assert_eq!(created_binding["notification_enabled"], false);
+
+    let list_response = get_with_bearer(&test_app.app, "/api/bindings", &login.access_token).await;
+    assert_eq!(list_response.status(), StatusCode::OK);
+    let bindings: Vec<Value> = read_json(list_response).await;
+    assert_eq!(bindings.len(), 1);
+    assert_eq!(bindings[0]["room"]["roomid"], room.roomid);
+
+    let detail_response = get_with_bearer(
+        &test_app.app,
+        &format!("/api/bindings/{binding_id}"),
+        &login.access_token,
+    )
+    .await;
+    assert_eq!(detail_response.status(), StatusCode::OK);
+
+    let update_response = put_json_with_bearer(
+        &test_app.app,
+        &format!("/api/bindings/{binding_id}/notification"),
+        &login.access_token,
+        serde_json::json!({ "notification_enabled": true }),
+    )
+    .await;
+    assert_eq!(update_response.status(), StatusCode::OK);
+    let updated_binding: Value = read_json(update_response).await;
+    assert_eq!(updated_binding["notification_enabled"], true);
+
+    let delete_response = delete_with_bearer(
+        &test_app.app,
+        &format!("/api/bindings/{binding_id}"),
+        &login.access_token,
+    )
+    .await;
+    assert_eq!(delete_response.status(), StatusCode::NO_CONTENT);
+
+    let list_after_delete =
+        get_with_bearer(&test_app.app, "/api/bindings", &login.access_token).await;
+    let bindings_after_delete: Vec<Value> = read_json(list_after_delete).await;
+    assert!(bindings_after_delete.is_empty());
+
+    delete_room(&test_app.state, room.id).await;
+}
+
+#[tokio::test]
+async fn user_cannot_access_other_users_binding() {
+    let test_app = create_test_app().await;
+    let room = seed_room(&test_app.state).await;
+    let owner_login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "111111",
+    )
+    .await;
+    let other_login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "222222",
+    )
+    .await;
+
+    let create_response = post_json_with_bearer(
+        &test_app.app,
+        "/api/bindings",
+        &owner_login.access_token,
+        serde_json::json!({
+            "roomid": room.roomid,
+            "notification_enabled": false,
+        }),
+    )
+    .await;
+    let created_binding: Value = read_json(create_response).await;
+    let binding_id = created_binding["id"]
+        .as_str()
+        .expect("绑定 ID 应为字符串")
+        .to_string();
+
+    let detail_response = get_with_bearer(
+        &test_app.app,
+        &format!("/api/bindings/{binding_id}"),
+        &other_login.access_token,
+    )
+    .await;
+    assert_eq!(detail_response.status(), StatusCode::UNAUTHORIZED);
+
+    let _ = delete_with_bearer(
+        &test_app.app,
+        &format!("/api/bindings/{binding_id}"),
+        &owner_login.access_token,
+    )
+    .await;
+
+    delete_room(&test_app.state, room.id).await;
+}
+
+#[tokio::test]
+async fn admin_cannot_create_binding() {
+    let test_app = create_test_app().await;
+    let room = seed_room(&test_app.state).await;
+    let admin_login =
+        login_with_seeded_code(&test_app.app, &test_app.state, &admin_qq_number(), "123456").await;
+
+    let create_response = post_json_with_bearer(
+        &test_app.app,
+        "/api/bindings",
+        &admin_login.access_token,
+        serde_json::json!({
+            "roomid": room.roomid,
+            "notification_enabled": false,
+        }),
+    )
+    .await;
+
+    assert_eq!(create_response.status(), StatusCode::FORBIDDEN);
+
+    delete_room(&test_app.state, room.id).await;
+}

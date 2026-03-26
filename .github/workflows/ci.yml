@@ -3,10 +3,19 @@ name: CI
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      run_external_integration_tests:
+        description: Run real external room-tree and electricity fetch tests
+        required: false
+        default: false
+        type: boolean
 
 env:
   APP_ENV: development
   RUST_BACKTRACE: 1
+  RUN_INTEGRATION_TESTS: 1
+  REDIS_HOST: 127.0.0.1
+  REDIS_PORT: 6379
 
 jobs:
   backend-tests:
@@ -52,6 +61,9 @@ jobs:
       - name: Install diesel_cli
         run: cargo install diesel_cli --no-default-features --features postgres
 
+      - name: Prepare backend log directory
+        run: mkdir -p artifacts/backend
+
       - name: Wait for PostgreSQL and Redis
         run: |
           until pg_isready -h 127.0.0.1 -p 5432 -U postgres -d electricity_dev; do
@@ -62,16 +74,62 @@ jobs:
           done
 
       - name: Run migrations
-        run: cargo run --bin migrate
+        shell: bash
+        run: cargo run --bin migrate 2>&1 | tee artifacts/backend/migrate.log
 
       - name: Run Rust library tests
-        run: cargo test --lib
+        shell: bash
+        run: cargo test --lib 2>&1 | tee artifacts/backend/lib.log
 
       - name: Run auth integration tests
-        run: cargo test --test auth_integration_test
+        shell: bash
+        run: cargo test --test auth_integration_test 2>&1 | tee artifacts/backend/auth-integration.log
+
+      - name: Run send-verification-code integration tests
+        shell: bash
+        run: cargo test --test send_verification_code_integration_test 2>&1 | tee artifacts/backend/send-verification-code.log
 
       - name: Run release readiness tests
-        run: cargo test --test release_readiness_test
+        shell: bash
+        run: cargo test --test release_readiness_test 2>&1 | tee artifacts/backend/release-readiness.log
+
+      - name: Upload backend logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-logs
+          path: artifacts/backend
+
+  backend-external-tests:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_external_integration_tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Prepare external test log directory
+        run: mkdir -p artifacts/backend-external
+
+      - name: Run real external integration tests
+        shell: bash
+        run: |
+          export RUN_EXTERNAL_INTEGRATION_TESTS=1
+          cargo test --lib room_sync::crawler::client::tests::test_fetch_room_tree -- --nocapture 2>&1 | tee artifacts/backend-external/room-tree.log
+          cargo test --lib infrastructure::electricity::parser::tests::test_parse_real_api_response -- --nocapture 2>&1 | tee artifacts/backend-external/electricity.log
+
+      - name: Upload external test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-external-test-logs
+          path: artifacts/backend-external
 
   frontend-quality:
     runs-on: ubuntu-latest
@@ -93,17 +151,69 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
           run_install: false
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare frontend quality log directory
+        run: mkdir -p ../artifacts/frontend-quality
+
       - name: Run frontend lint
-        run: pnpm lint
+        shell: bash
+        run: pnpm lint 2>&1 | tee ../artifacts/frontend-quality/lint.log
 
       - name: Run frontend production build
-        run: pnpm build:prod
+        shell: bash
+        run: pnpm build:prod 2>&1 | tee ../artifacts/frontend-quality/build.log
+
+      - name: Upload frontend quality logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-quality-logs
+          path: artifacts/frontend-quality
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare frontend test log directory
+        run: mkdir -p ../artifacts/frontend-tests
+
+      - name: Run frontend behavior tests
+        shell: bash
+        run: pnpm test 2>&1 | tee ../artifacts/frontend-tests/vitest.log
+
+      - name: Upload frontend test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-logs
+          path: artifacts/frontend-tests
 
   architecture-guard:
     runs-on: ubuntu-latest
@@ -112,6 +222,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Prepare architecture log directory
+        run: mkdir -p artifacts/architecture
+
       - name: Run architecture guard
         shell: pwsh
-        run: ./scripts/check-architecture.ps1
+        run: ./scripts/check-architecture.ps1 2>&1 | Tee-Object -FilePath artifacts/architecture/guard.log
+
+      - name: Upload architecture logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: architecture-guard-logs
+          path: artifacts/architecture

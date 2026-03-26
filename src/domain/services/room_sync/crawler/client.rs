@@ -177,6 +177,12 @@ impl RoomClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{http::StatusCode, response::IntoResponse, routing::post, Router};
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    use tokio::net::TcpListener;
 
     #[test]
     fn test_client_creation() {
@@ -194,9 +200,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_room_tree() {
-        // 检查是否运行集成测试（需要网络环境）
-        if std::env::var("RUN_INTEGRATION_TESTS").is_err() {
-            println!("跳过网络测试：设置 RUN_INTEGRATION_TESTS=1 以启用");
+        // 外部网络测试与本地 DB/Redis 集成测试分离，避免默认门禁依赖公网可用性
+        if std::env::var("RUN_EXTERNAL_INTEGRATION_TESTS").is_err() {
+            println!("跳过外部网络测试：设置 RUN_EXTERNAL_INTEGRATION_TESTS=1 以启用");
             return;
         }
 
@@ -218,9 +224,8 @@ mod tests {
             }
             Err(e) => {
                 println!("⚠ 网络请求失败（这是预期的，如果网络不可达）: {}", e);
-                // 集成测试模式下应该成功
-                if std::env::var("RUN_INTEGRATION_TESTS").is_ok() {
-                    panic!("集成测试模式下网络请求应该成功: {}", e);
+                if std::env::var("RUN_EXTERNAL_INTEGRATION_TESTS").is_ok() {
+                    panic!("外部网络测试模式下请求应该成功: {}", e);
                 }
             }
         }
@@ -253,5 +258,95 @@ mod tests {
         assert!(!config.api_url.is_empty());
 
         println!("✓ 爬虫配置默认值验证通过");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_room_tree_with_mock_server() {
+        async fn handler() -> impl IntoResponse {
+            (
+                StatusCode::OK,
+                "{\"BS\":\"1\",\"Msg\":\"成功\",\"total\":1}",
+            )
+        }
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("启动房间树 mock server 失败");
+        let addr = listener.local_addr().expect("获取房间树 mock 地址失败");
+        let app = Router::new().route("/room-tree", post(handler));
+
+        tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("运行房间树 mock server 失败");
+        });
+
+        let config = CrawlerConfig {
+            api_url: format!("http://{addr}/room-tree"),
+            timeout_seconds: 30,
+            connect_timeout_seconds: 10,
+            max_retries: 3,
+            concurrency: 50,
+        };
+
+        let client = RoomClient::new(&config).expect("创建 RoomClient 失败");
+        let result = client
+            .fetch_room_tree()
+            .await
+            .expect("mock 房间树请求应成功");
+
+        assert!(result.contains("\"BS\":\"1\""));
+    }
+
+    #[tokio::test]
+    async fn test_fetch_tree_retries_until_success_with_mock_server() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let attempts_for_handler = Arc::clone(&attempts);
+
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("启动房间树重试 mock server 失败");
+        let addr = listener.local_addr().expect("获取房间树重试 mock 地址失败");
+        let app = Router::new().route(
+            "/retry",
+            post(move || {
+                let attempts = Arc::clone(&attempts_for_handler);
+                async move {
+                    let current = attempts.fetch_add(1, Ordering::Relaxed);
+                    if current == 0 {
+                        (StatusCode::INTERNAL_SERVER_ERROR, "error").into_response()
+                    } else {
+                        (
+                            StatusCode::OK,
+                            "{\"BS\":\"1\",\"Msg\":\"成功\",\"total\":1}",
+                        )
+                            .into_response()
+                    }
+                }
+            }),
+        );
+
+        tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("运行房间树重试 mock server 失败");
+        });
+
+        let config = CrawlerConfig {
+            api_url: format!("http://{addr}/retry"),
+            timeout_seconds: 30,
+            connect_timeout_seconds: 10,
+            max_retries: 3,
+            concurrency: 50,
+        };
+
+        let client = RoomClient::new(&config).expect("创建 RoomClient 失败");
+        let result = client
+            .fetch_tree("yzm=123&Id=000&level=1")
+            .await
+            .expect("重试后应成功");
+
+        assert!(result.contains("\"BS\":\"1\""));
+        assert_eq!(attempts.load(Ordering::Relaxed), 2);
     }
 }
