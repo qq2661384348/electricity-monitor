@@ -10,7 +10,12 @@
 ## 关键目录
 
 - `src/`: 后端主代码，采用分层结构。
+- `src/AGENTS.md`: 后端本地协作说明，补充根级 AGENTS，对 `src/` 的入口、分层与验证负责。
+- `src/modules/AGENTS.md`: 后端模块化迁移说明，补充 `src/modules/` 的边界与迁移规则。
 - `frontend/`: 前端 SPA。
+- `frontend/src/AGENTS.md`: 前端本地协作说明，补充根级 AGENTS，对 `frontend/src/` 的启动骨架、HTTP 真源与验证负责。
+- `frontend/src/features/AGENTS.md`: 前端 feature 层协作说明，约束 `api / model / ui / index.ts` 形态。
+- `frontend/src/entities/AGENTS.md`: 前端 entity 层协作说明，约束单域网关与公共出口。
 - `config/`: TOML 配置，按 default/development/production 分层。
 - `migrations/`: Diesel 数据库迁移。
 - `.github/workflows/`: CI/CD 工作流，当前有手动发布工作流。
@@ -39,8 +44,9 @@
 ## 前端边界
 
 - 前端使用 `createBrowserRouter`，核心页面为 `/` 和 `/login`。
-- API 通过 `frontend/src/services/api.ts` 访问 `/api` 前缀接口，依赖 Zustand 中的 token 注入。
-- 共享 HTTP client 已收敛到 `frontend/src/shared/api/http-client.ts`，query key 真源在 `frontend/src/shared/api/queryKeys.ts`。
+- 前端真实 HTTP client 真源是 `frontend/src/shared/api/http-client.ts`，负责 `/api` 前缀、token 注入和 401 处理。
+- `frontend/src/services/api.ts` 仅保留兼容 facade，不再是前端 API 真源。
+- query key 真源在 `frontend/src/shared/api/queryKeys.ts`。
 - `frontend/src/features/auth-login/` 已成为认证 API 的真实 feature 出口。
 - `frontend/src/features/bind-room/` 已作为 feature 样板建立 public API，`entities/room` 与 `entities/binding` 承担领域 API 出口。
 - `frontend/src/features/dashboard/model/useDashboardPage.ts` 已成为 dashboard 页面装配逻辑的主入口。
@@ -60,6 +66,12 @@
 - release artifact 当前会附带 `release-manifest.json`，服务器部署结果写到 `deploy-result.json`。
 - release 包当前还会携带 `smoke.sh` 和 `secrets/.gitkeep`。
 - 根目录不再直接存放部署脚本、Dockerfile 或 compose 文件，相关资产统一收敛到 `deploy/`。
+
+## AGENTS 导航补充
+
+- 根目录 `AGENTS.md` 仍是全仓默认协作约束真源。
+- 后端与前端核心目录现在额外提供子级 `AGENTS.md`，用于补充局部边界、反模式和最小验证。
+- 进入 `src/`、`src/modules/`、`frontend/src/`、`frontend/src/features/`、`frontend/src/entities/` 工作时，应同时遵守根级与对应子级 AGENTS。
 
 ## 第二轮扫描补充
 
