@@ -1,20 +1,24 @@
 # NapCat HTTP 机器人服务接入说明
 
-## 测试概述
-本报告针对QQ机器人发送私聊消息API (`http://47.92.117.121:3000/send_private_msg`) 进行了全面的错误处理和边界条件测试。
-
-## 测试环境
-- **测试时间**: 2025-11-12
-- **API端点**: POST http://47.92.117.121:3000/send_private_msg
+## 当前运行基线
+- **当前API端点**: `http://example.invalid:3000/send_private_msg`
 - **认证方式**: Bearer Token
-- **Bearer Token**: `lvjrg,o[y)f89CB&`
+- **当前token管理方式**: 运行时通过 `qq_bot.bearer_token` 或 `APP__QQ_BOT__BEARER_TOKEN(_FILE)` 注入，文档不再明文记录 token
+- **最近联通性验证**: 2026-03-30 向 `100000001` 发送字符串消息 `"你好"`，返回 `status=ok`、`retcode=0`、`message_id=992143794`
+
+## 历史测试概述
+以下错误处理和边界条件测试记录形成于 2025-11-12，保留其行为观察结论；当前运行真源以上面的最新 API 端点和 token 管理方式为准。
+
+## 历史测试环境
+- **测试时间**: 2025-11-12
+- **认证方式**: Bearer Token
+- **说明**: 历史测试所用 token 已轮换失效，当前请以运行时配置或 secret file 为准
 
 ### 认证信息说明
-本次测试使用的Bearer Token为：`lvjrg,o[y)f89CB&`
-- 该令牌用于API的身份验证
-- 在HTTP请求头中以 `Authorization: Bearer lvjrg,o[y)f89CB&` 格式发送
-- 令牌验证失败时API会返回HTTP 403状态码
-- **安全提醒**: 此令牌应妥善保管，避免在日志或公共代码库中暴露
+- Bearer Token 用于 API 身份验证
+- 请求头格式为 `Authorization: Bearer <token>`
+- 令牌验证失败时 API 会返回 HTTP 403 状态码
+- 当前 token 已轮换，避免在日志、文档或公共代码库中暴露
 
 ## 测试用例与结果
 

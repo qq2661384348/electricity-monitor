@@ -22,7 +22,7 @@ pub struct QQBotConfig {
 impl Default for QQBotConfig {
     fn default() -> Self {
         Self {
-            api_url: "http://47.92.117.121:3000/send_private_msg".to_string(),
+            api_url: "http://example.invalid:3000/send_private_msg".to_string(),
             bearer_token: String::new(),
             bearer_token_file: None,
             timeout_seconds: 10,

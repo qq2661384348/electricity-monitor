@@ -63,7 +63,7 @@ connection_timeout = 30
 ```toml
 # config/production.toml
 [database]
-host = "47.92.117.121"
+host = "example.invalid"
 database = "electricity_pro"
 max_connections = 20
 min_connections = 5
