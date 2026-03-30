@@ -56,12 +56,11 @@ impl IntoResponse for AppError {
             AppError::NotFound => (StatusCode::NOT_FOUND, "资源未找到"),
             AppError::UserNotFriend { ref qq_number } => {
                 tracing::warn!(qq_number = qq_number, "用户未添加机器人为好友");
-                // 返回特殊的JSON响应，包含错误码和QQ号
+                // 返回特殊的 JSON 响应，避免在公开仓库中暴露具体机器人账号
                 let body = Json(json!({
                     "error": "USER_NOT_FRIEND",
-                    "message": format!("请先添加当前通知机器人为好友后再发送验证码"),
-                    "qq_number": qq_number,
-                    "qq_bot": "100000002"
+                    "message": "请先添加当前通知机器人为好友后再发送验证码",
+                    "qq_number": qq_number
                 }));
                 return (StatusCode::BAD_REQUEST, body).into_response();
             }

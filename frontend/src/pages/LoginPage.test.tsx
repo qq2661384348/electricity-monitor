@@ -14,7 +14,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<LoginPage />, { route: '/login' });
 
-    await user.type(screen.getByLabelText('QQ号码'), '100000001');
+    await user.type(screen.getByLabelText('QQ号码'), '123456789');
     await user.type(screen.getByLabelText('验证码'), '123456');
     await user.click(screen.getByRole('button', { name: '确认进入' }));
 
@@ -23,7 +23,7 @@ describe('LoginPage', () => {
     });
 
     expect(useAuthStore.getState().token).toBe('access-token');
-    expect(useAuthStore.getState().user?.qq_number).toBe('100000001');
+    expect(useAuthStore.getState().user?.qq_number).toBe('123456789');
   });
 
   it('shows backend error detail when login fails', async () => {
@@ -36,7 +36,7 @@ describe('LoginPage', () => {
     const user = userEvent.setup();
     renderWithProviders(<LoginPage />, { route: '/login' });
 
-    await user.type(screen.getByLabelText('QQ号码'), '100000001');
+    await user.type(screen.getByLabelText('QQ号码'), '123456789');
     await user.type(screen.getByLabelText('验证码'), '123456');
     await user.click(screen.getByRole('button', { name: '确认进入' }));
 

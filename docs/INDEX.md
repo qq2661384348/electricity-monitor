@@ -30,7 +30,7 @@
 - [RELEASE_SMOKE_CHECKLIST.md](./guides/RELEASE_SMOKE_CHECKLIST.md) - release 验收与回滚触发清单
 - [ARCHITECTURE_REVIEW_CHECKLIST.md](./guides/ARCHITECTURE_REVIEW_CHECKLIST.md) - 架构升级后的 code review 审查清单
 - [第三方验证码集成.md](./guides/第三方验证码集成.md) - 第三方验证码接入记录
-- [QQ机器人调用API测试报告.md](./guides/QQ机器人调用API测试报告.md) - 机器人接口验证记录
+- [NAPCAT_HTTP_SERVICE_GUIDE.md](./guides/NAPCAT_HTTP_SERVICE_GUIDE.md) - NapCat HTTP 机器人服务接入说明
 
 ### 部署与运维
 

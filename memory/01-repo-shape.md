@@ -31,7 +31,7 @@
 - `src/domain/models/`: 领域模型，如用户、房间、绑定、电费历史。
 - `src/domain/services/`: 业务服务，如房间同步、电费抓取、通知、限流、验证码。
 - `src/infrastructure/external/`: 统一 `reqwest` 客户端构造与 HTTP 状态错误映射。
-- `src/infrastructure/`: 数据库、Redis、外部 HTTP、电费接口、QQ 机器人、缓存、仓储。
+- `src/infrastructure/`: 数据库、Redis、外部 HTTP、电费接口、NapCat HTTP 机器人服务、缓存、仓储。
 - `src/handlers/`: HTTP handler。
 - `src/routes/`: API 路由编排。
 - `src/middleware/`: JWT 鉴权与日志中间件。

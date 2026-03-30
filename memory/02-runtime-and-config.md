@@ -18,7 +18,7 @@
 - Redis：验证码、限流、缓存、后台任务协作。
 - 外部房间树接口：`room_sync.crawler.api_url`
 - 外部电费查询接口：`electricity_fetcher.api_url`
-- QQ 机器人接口：`qq_bot.api_url`，当前默认目标为 `http://example.invalid:3000/send_private_msg`，如再次迁移需同步更新配置、文档与项目记忆。
+- NapCat HTTP 机器人服务：`qq_bot.api_url` 默认指向local environment action endpoint，占位值为 `http://127.0.0.1:3000/send_private_msg`；部署时按实际地址覆盖。
 
 ## 关键环境变量记忆
 - `APP_ENV`
@@ -41,7 +41,7 @@
 - `APP__SECTION__KEY_FILE` 同样可用于 secret file 覆盖。
 - 数值和布尔类型字段可正确反序列化，不需要额外启用全局 `try_parsing(true)`。
 - 不能启用全局 `try_parsing(true)`，否则会破坏带前导零的字符串型配置值。
-- 2026-03-30 已确认 QQ 机器人默认地址迁移为 `example.invalid`，默认 token 已轮换；生产环境仍应优先通过 `APP__QQ_BOT__BEARER_TOKEN_FILE` 注入。
+- 公开仓库只保留 loopback/placeholder 形式的机器人地址；真实地址与 token 必须通过运行时配置或 secret file 注入，不写回仓库。
 - `production` 环境缺少 `jwt.secret_file`、`database.password_file` 或 `qq_bot.bearer_token_file` 时会 fail-fast。
 
 ## 测试链路记忆

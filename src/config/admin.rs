@@ -5,7 +5,7 @@ use serde::Deserialize;
 /// 管理员配置
 #[derive(Debug, Clone, Deserialize)]
 pub struct AdminConfig {
-    /// 默认管理员QQ号
+    /// 默认管理员 QQ 号占位值
     pub default_qq_number: String,
 }
 

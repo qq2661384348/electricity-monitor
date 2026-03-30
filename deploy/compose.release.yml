@@ -26,7 +26,7 @@ services:
       APP__REDIS__HOST: ${APP__REDIS__HOST:-redis}
       APP__REDIS__PORT: ${APP__REDIS__PORT:-6379}
       APP__LOGGING__LEVEL: ${APP__LOGGING__LEVEL:-info}
-      APP__DATABASE__HOST: ${APP__DATABASE__HOST:-example.invalid}
+      APP__DATABASE__HOST: ${APP__DATABASE__HOST:-db.example.internal}
       APP__DATABASE__PORT: ${APP__DATABASE__PORT:-5432}
       APP__DATABASE__USERNAME: ${APP__DATABASE__USERNAME:-postgres}
       APP__DATABASE__PASSWORD_FILE: /run/secrets/app_database_password

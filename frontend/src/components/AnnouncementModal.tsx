@@ -48,7 +48,7 @@ export function AnnouncementModal({ isOpen, onClose }: AnnouncementModalProps) {
             </div>
             <div>
               <p className="text-xs font-black uppercase tracking-widest text-gray-600">支持公告</p>
-              <p className="text-base font-black text-black">联系当前部署维护者</p>
+              <p className="text-base font-black text-black">需要帮助？请联系当前部署维护者</p>
             </div>
           </div>
 

@@ -12,7 +12,7 @@
 | --- | --- | --- | --- | --- |
 | Database password | 运维 / 部署执行人 | `APP_DATABASE_PASSWORD_SECRET_FILE` -> `/run/secrets/app_database_password` | 数据库密码变更时同步轮换 | app 容器运行时 |
 | JWT secret | 运维 / 部署执行人 | `APP_JWT_SECRET_SECRET_FILE` -> `/run/secrets/app_jwt_secret` | JWT 密钥轮换时同步失效旧 token | app 容器运行时 |
-| QQ bot bearer token | 机器人接口 owner / 运维 | `APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE` -> `/run/secrets/app_qq_bot_bearer_token` | 第三方 token 更新时轮换 | app 容器运行时 |
+| NapCat HTTP service bearer token | 机器人接口 owner / 运维 | `APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE` -> `/run/secrets/app_qq_bot_bearer_token` | 机器人 token 更新时轮换 | app 容器运行时 |
 
 ## Rules
 

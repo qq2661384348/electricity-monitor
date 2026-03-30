@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, UserPlus, LogIn, Link2, Settings, Bell, ChevronDown, ChevronUp } from 'lucide-react';
-import { CopyableQQNumber } from './CopyableQQNumber';
 
 // 导入本地图片
 import tutorialStep2Img1 from '@/assets/images/tutorial-step2-img1.png';
@@ -19,16 +18,14 @@ interface TutorialStep {
   description: string;
   image?: string;
   images?: string[];
-  highlight?: string;
 }
 
 const tutorialSteps: TutorialStep[] = [
   {
     id: 1,
     icon: <UserPlus className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
-    title: '添加QQ好友',
+    title: '添加机器人好友',
     description: '先添加已经部署并登录的 NapCat 机器人账号为好友；具体账号由部署者在私有渠道提供。',
-    highlight: '100000002',
   },
   {
     id: 2,
@@ -170,14 +167,7 @@ export function HeroDashboard() {
 
                   {/* 描述 */}
                   <div className="text-sm md:text-base lg:text-lg text-gray-700 font-bold mb-3 md:mb-4 leading-relaxed">
-                    {step.description.split(step.highlight || '').map((part, i, arr) => (
-                      <span key={`${step.id}-desc-${i}`}>
-                        {part}
-                        {i < arr.length - 1 && step.highlight && (
-                          <CopyableQQNumber value={step.highlight} />
-                        )}
-                      </span>
-                    ))}
+                    {step.description}
                   </div>
 
                   {/* 图片 */}

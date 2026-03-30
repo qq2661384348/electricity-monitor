@@ -49,7 +49,7 @@
 - 配置文件中仍存在明文敏感信息：
   - 数据库账号/密码
   - JWT 默认 secret / admin token
-  - QQ 机器人 bearer token
+  - NapCat HTTP 机器人服务 bearer token
 - 文档存在一定漂移：
   - `docs/INDEX.md` 仍有“待创建”描述，未完全反映当前部署文档状态。
 - 仓库当前是 dirty worktree，后续做方案和交付时应注意区分已有用户修改与本次任务新增内容。

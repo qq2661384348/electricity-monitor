@@ -57,7 +57,7 @@
 - 部署相关改动至少要做路径/引用扫描，并在 Docker 可用时跑 `docker compose -f deploy/docker-compose.local.yml config`。
 - 前端或发布链路改动后，确认生产构建仍会先生成 `static/`，再进入 Docker 镜像构建。
 - 测试或 CI 改动后，至少跑 `cargo test --lib`、`cargo test --test auth_integration_test`、`cargo test --test release_readiness_test`。
-- 涉及验证码发送、QQ 机器人或外部 HTTP mock 相关改动后，额外跑 `cargo test --test send_verification_code_integration_test`。
+- 涉及验证码发送、NapCat HTTP 机器人服务或外部 HTTP mock 相关改动后，额外跑 `cargo test --test send_verification_code_integration_test`。
 - 前端测试或质量门禁相关改动后，至少跑 `pnpm --dir frontend test`、`pnpm --dir frontend lint` 与 `pnpm --dir frontend build:prod`。
 - 涉及真实房间树或真实电费抓取链路时，先确认本地真实测试通过，再看 mock 回归；真实链路的手动 CI 入口在 `.github/workflows/ci.yml` 的 `backend-external-tests`。
 - 架构相关改动后，跑 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。

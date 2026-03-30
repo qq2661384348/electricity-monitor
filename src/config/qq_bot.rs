@@ -1,11 +1,11 @@
-//! QQ机器人配置
+//! NapCat HTTP 机器人服务配置
 
 use serde::Deserialize;
 
-/// QQ机器人配置
+/// NapCat HTTP 机器人服务配置
 #[derive(Debug, Clone, Deserialize)]
 pub struct QQBotConfig {
-    /// QQ机器人API地址
+    /// NapCat action API 地址
     pub api_url: String,
 
     /// Bearer Token
@@ -22,7 +22,7 @@ pub struct QQBotConfig {
 impl Default for QQBotConfig {
     fn default() -> Self {
         Self {
-            api_url: "http://example.invalid:3000/send_private_msg".to_string(),
+            api_url: "http://127.0.0.1:3000/send_private_msg".to_string(),
             bearer_token: String::new(),
             bearer_token_file: None,
             timeout_seconds: 10,

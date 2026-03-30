@@ -21,7 +21,7 @@
 - `src/**`：单元测试与少量带环境门槛的基础设施测试
 - `tests/contracts/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me`、`/api/auth/refresh`、`/api/bindings` CRUD、越权访问与 admin 限制契约
 - `tests/runtime/release_readiness_test.rs`：读取 `deploy/smoke.targets`，校验 health / db health / 静态入口契约
-- `tests/contracts/send_verification_code_integration_test.rs`：通过本地 mock QQ API 覆盖 `/api/auth/send-verification-code` 的成功发送与 `USER_NOT_FRIEND` 分支
+- `tests/contracts/send_verification_code_integration_test.rs`：通过本地 mock NapCat HTTP API 覆盖 `/api/auth/send-verification-code` 的成功发送与 `USER_NOT_FRIEND` 分支
 - `tests/support/`：共享 app factory、登录 fixture、seed helper、smoke 契约读取
 - `tests/infra/`：环境型独立 test target 的预留分层；当前目录中记录了仍在源码内的 infra 覆盖位置
 
@@ -125,7 +125,7 @@ cargo test --lib
 
 云服务依赖已改为 mock 驱动的自动回归：
 
-- QQ 机器人发送链：`cargo test --test send_verification_code_integration_test`
+- NapCat HTTP 机器人服务发送链：`cargo test --test send_verification_code_integration_test`
 - 第三方验证码校验服务：`test_verify_captcha_with_mock_server_*`
 
 ## CI 门禁

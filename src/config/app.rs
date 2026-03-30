@@ -367,7 +367,7 @@ mod tests {
             },
             database: DatabaseConfig {
                 db_type: DatabaseType::Postgres,
-                host: "example.invalid".to_string(),
+                host: "db.example.internal".to_string(),
                 port: 5432,
                 username: "postgres".to_string(),
                 password: "secret".to_string(),
@@ -409,7 +409,7 @@ mod tests {
         let err = AppConfig::validate_environment_rules(&config, "development")
             .expect_err("development 环境应拒绝远程数据库");
 
-        assert!(err.to_string().contains("database.host=example.invalid"));
+        assert!(err.to_string().contains("database.host=db.example.internal"));
     }
 
     #[test]

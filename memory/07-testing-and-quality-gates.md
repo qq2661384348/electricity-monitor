@@ -23,7 +23,7 @@
   - 普通用户绑定 CRUD
   - 绑定越权访问
   - admin 禁止创建绑定
-- `tests/contracts/send_verification_code_integration_test.rs` 通过本地 mock QQ API 覆盖：
+- `tests/contracts/send_verification_code_integration_test.rs` 通过本地 mock NapCat HTTP API 覆盖：
   - 发送验证码成功后 Redis 写入验证码
   - `USER_NOT_FRIEND` 错误映射
 
@@ -44,7 +44,7 @@
   - `RoomBatchFetcher` mock HTTP + parser 集成
   - `CaptchaVerificationService` mock 第三方验证码 API
   - `/api/auth/send-verification-code` mock QQ API
-- 2026-03-30 已对真实 QQ 机器人服务做手工联通性验证：请求 `http://example.invalid:3000/send_private_msg`，使用字符串 `message` 负载向 `100000001` 发送 `"你好"` 成功，返回 `message_id=992143794`。
+- 真实 NapCat HTTP 服务联通性验证应在私有运维环境完成，验证记录不写回公开仓库的 memory 或文档。
 - 原则是：真实测试验证真实外部契约，mock 测试承担稳定回归。
 
 ## CI 门禁现状

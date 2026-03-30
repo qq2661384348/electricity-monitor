@@ -62,8 +62,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     // 特殊错误处理: USER_NOT_FRIEND
     if (data.error === 'USER_NOT_FRIEND') {
       const message = data.message?.trim();
-      const qqBot = data.qq_bot || '100000002';
-      return message || `请先添加 ${qqBot} 为QQ好友后再发送验证码`;
+      return message || '请先添加当前通知机器人为好友后再发送验证码';
     }
     
     // 通用错误处理

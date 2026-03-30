@@ -166,7 +166,6 @@ async fn send_verification_code_mocked_qq_api_covers_success_and_user_not_friend
 
     assert_eq!(body["error"], "USER_NOT_FRIEND");
     assert_eq!(body["qq_number"], error_qq_number);
-    assert_eq!(body["qq_bot"], "100000002");
 
     let stored_code = redis_code_for(error_qq_number, &test_app.state).await;
     assert!(

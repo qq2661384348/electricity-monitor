@@ -20,7 +20,7 @@ mod tests {
     #[test]
     fn test_qq_number_regex() {
         assert!(QQ_NUMBER_REGEX.is_match("12345"));
-        assert!(QQ_NUMBER_REGEX.is_match("100000001"));
+        assert!(QQ_NUMBER_REGEX.is_match("123456789"));
         assert!(QQ_NUMBER_REGEX.is_match("12345678901234567890"));
 
         assert!(!QQ_NUMBER_REGEX.is_match("1234")); // 太短
