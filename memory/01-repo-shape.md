@@ -70,7 +70,9 @@
 ## AGENTS 导航补充
 
 - 根目录 `AGENTS.md` 仍是全仓默认协作约束真源。
+- 根目录 `AGENTS.md` 现以共享规则、命令矩阵、验证矩阵和跨目录同步要求为主，不再堆放局部实现细节。
 - 后端与前端核心目录现在额外提供子级 `AGENTS.md`，用于补充局部边界、反模式和最小验证。
+- 局部目录的实现边界、反模式和最小验证应优先写入对应子级 `AGENTS.md`，避免根文件继续膨胀。
 - 进入 `src/`、`src/modules/`、`frontend/src/`、`frontend/src/features/`、`frontend/src/entities/` 工作时，应同时遵守根级与对应子级 AGENTS。
 
 ## 第二轮扫描补充
