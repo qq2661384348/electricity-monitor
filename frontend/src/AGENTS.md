@@ -1,4 +1,4 @@
-# Frontend Local AGENTS
+# 前端本地协作 AGENTS
 
 本文件补充根目录 `AGENTS.md`，只约束 `frontend/src/` 下的前端协作方式。
 

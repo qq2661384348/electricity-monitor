@@ -2,9 +2,9 @@
 
 ## 概述
 
-Electricity Monitor Backend REST API v1.0
+本文档说明 Electricity Monitor 后端当前对外提供的 REST API v1.0。
 
-**基础URL**: `http://localhost:8000/api` (开发环境)  
+**基础 URL**: `http://localhost:8000/api`（开发环境）  
 **认证方式**: JWT Bearer Token  
 **响应格式**: JSON
 
@@ -54,7 +54,7 @@ curl http://localhost:8000/api/health/db
 
 #### 响应示例
 
-**成功响应** (200 OK):
+**成功响应**（200 OK）:
 ```json
 {
   "status": "ok",
@@ -63,7 +63,7 @@ curl http://localhost:8000/api/health/db
 }
 ```
 
-**失败响应** (503 Service Unavailable):
+**失败响应**（503 Service Unavailable）:
 ```json
 {
   "error": "数据库操作失败",

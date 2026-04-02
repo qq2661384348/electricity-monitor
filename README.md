@@ -1,6 +1,6 @@
-# Electricity Monitor Backend
+# Electricity Monitor 后端项目
 
-高性能电力监控系统后端API - 基于 Rust + Axum + Diesel
+高性能电力监控系统后端 API，基于 Rust + Axum + Diesel。
 
 ## 文档导航
 
@@ -29,11 +29,11 @@ cargo run --bin migrate
 # 5. 启动服务
 cargo run
 
-# 6. 测试API
+# 6. 测试 API
 curl http://localhost:8000/api/health
 ```
 
-## 技术栈
+## 技术栈概览
 
 **Web框架**: Axum 0.8 + Tokio + Tower  
 **数据库**: Diesel 2.2 + diesel-async + PostgreSQL  
@@ -41,7 +41,7 @@ curl http://localhost:8000/api/health
 **认证**: JWT + bcrypt  
 **配置**: TOML分层配置  
 
-## 性能特点
+## 性能特性
 
 - JSON序列化速度提升 **2-3倍** (sonic-rs)
 - 内存分配性能提升 **20-40%** (mimalloc)
@@ -80,7 +80,7 @@ deploy/
 
 ## 环境配置
 
-### 开发环境 (Windows)
+### 开发环境（Windows）
 
 ```powershell
 $env:APP_ENV="development"
@@ -88,7 +88,7 @@ $env:RUST_LOG="debug"
 # development 环境只允许连接本地 PostgreSQL / Redis
 ```
 
-### 生产环境 (Linux)
+### 生产环境（Linux）
 
 ```bash
 export APP_ENV=production
@@ -129,11 +129,11 @@ powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 
 ## 更多文档
 
-访问 **[docs/INDEX.md](./docs/INDEX.md)** 查看完整文档索引
+访问 **[docs/INDEX.md](./docs/INDEX.md)** 查看完整文档索引。
 
-## 许可证
+## 许可证说明
 
-MIT License
+本项目采用 MIT License。
 
 ---
 

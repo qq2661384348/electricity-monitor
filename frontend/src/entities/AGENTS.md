@@ -1,4 +1,4 @@
-# Frontend Entities AGENTS
+# 前端实体层 AGENTS
 
 本文件补充根目录 `AGENTS.md` 与 `frontend/src/AGENTS.md`，只约束 `frontend/src/entities/`。
 

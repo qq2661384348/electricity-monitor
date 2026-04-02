@@ -1,12 +1,12 @@
-# Project AGENTS
+# 项目协作 AGENTS
 
-## Scope
+## 作用范围
 
 - 根目录 `AGENTS.md` 只定义全仓共享规则；进入 `src/`、`src/modules/`、`frontend/src/`、`frontend/src/features/`、`frontend/src/entities/` 后，必须同时遵守就近的子级 `AGENTS.md`。
 - 每次任务开始前先阅读 `./memory/`；交付前同步更新受影响的 `memory/*.md`，避免仓库状态和项目记忆漂移。
 - 先以代码、配置、CI、脚本和当前文档真源为准；不要把历史说明或已失效流程重新写回仓库。
 
-## Repo Map
+## 仓库地图
 
 - `src/`: Rust + Axum 后端主代码；启动装配在 `src/bootstrap/`，共享运行时资源在 `src/state.rs`。
 - `src/modules/`: 后端模块化迁移主线；新的复杂编排优先进入 `src/modules/*/application`。
@@ -16,7 +16,7 @@
 - `config/`: `default` / `development` / `production` 分层配置。
 - `memory/`: 当前项目长期记忆、边界和真源摘要。
 
-## Local AGENTS
+## 局部 AGENTS
 
 - `src/AGENTS.md`: 后端入口、分层和共享运行时资源约束。
 - `src/modules/AGENTS.md`: 模块化迁移边界与 `api / application / domain / infrastructure` 规则。
@@ -24,7 +24,7 @@
 - `frontend/src/features/AGENTS.md`: feature 层的 `api / model / ui / index.ts` 约定。
 - `frontend/src/entities/AGENTS.md`: entity 层的单域网关、公共出口与禁用依赖。
 
-## Daily Commands
+## 日常命令
 
 - 启动后端：`cargo run`
 - 运行迁移：`cargo run --bin migrate`
@@ -38,7 +38,7 @@
 - 架构守护：`powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`
 - 部署文件改动后的 Compose 自检：`docker compose -f deploy/docker-compose.local.yml config`
 
-## Stable Constraints
+## 稳定约束
 
 - 后端是 Rust + Axum 单体服务，前端是 React + Vite；运行时依赖 PostgreSQL 与 Redis。
 - 配置加载顺序固定为：`config/default.toml` -> `config/{APP_ENV}.toml` -> `APP__<SECTION>__<KEY>` 环境变量覆盖；`APP_ENV` 默认是 `development`。
@@ -51,7 +51,7 @@
 - 认证集成测试必须走真实 `/api/auth/verify-and-login` 链路；不要回退到本地签发 JWT 伪造主路径。
 - `static/` 只保留目录占位 `.gitkeep`，不要把构建产物重新纳入版本控制。
 
-## Change Hygiene
+## 变更同步要求
 
 - 修改部署链路时，同步更新 `README.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`docs/INDEX.md`、`deploy/README.md`、`memory/03-deploy-and-risk-memory.md`。
 - 修改仓库结构或目录职责时，同步更新 `memory/01-repo-shape.md`。
@@ -61,7 +61,7 @@
 - 更新文档时，明确区分“生产发布主线”和“本地 Docker 调试路径”；不要把两者混写。
 - 发现 `docs/README.md` 或 `docs/INDEX.md` 与当前代码、workflow 漂移时，优先修正文档。
 
-## Validation
+## 验证要求
 
 - 只改文档或 agent 指令时，至少做路径、命令、引用和真源一致性自检。
 - 涉及后端行为改动时，按影响范围运行：`cargo test --lib`、`cargo test --test auth_integration_test`、`cargo test --test send_verification_code_integration_test`、`cargo test --test release_readiness_test`。
@@ -69,7 +69,7 @@
 - 涉及架构边界调整时，运行 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。
 - 涉及部署相关改动时，至少做路径/引用扫描；Docker 可用时再跑 `docker compose -f deploy/docker-compose.local.yml config`。
 
-## References
+## 参考资料
 
 - 文档索引：`docs/INDEX.md`
 - 测试真源：`docs/guides/TESTING.md`

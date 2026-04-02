@@ -1,10 +1,10 @@
 # 快速启动指南
 
-## 🚀 项目已搭建完成
+## 🚀 项目现状
 
 **项目位置**: `c:/Users/Administrator/Desktop/electricity/electricity-monitor/`
 
-## ✅ 已完成的工作
+## ✅ 当前已完成内容
 
 ### 1. 项目结构
 - ✅ DDD分层架构（domain/handlers/infrastructure/middleware）
@@ -97,7 +97,7 @@ cargo install diesel_cli --no-default-features --features postgres
    port = 6379
    ```
 
-### 3. 初始化数据库Schema
+### 3. 初始化数据库 Schema
 
 ```powershell
 # 创建第一个迁移（示例：用户表）

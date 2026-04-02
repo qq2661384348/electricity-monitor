@@ -1,4 +1,4 @@
-# Backend Local AGENTS
+# 后端本地协作 AGENTS
 
 本文件补充根目录 `AGENTS.md`，只约束 `src/` 里的后端代码协作方式。
 

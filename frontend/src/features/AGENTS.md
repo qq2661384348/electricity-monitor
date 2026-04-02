@@ -1,4 +1,4 @@
-# Frontend Features AGENTS
+# 前端功能层 AGENTS
 
 本文件补充根目录 `AGENTS.md` 与 `frontend/src/AGENTS.md`，只约束 `frontend/src/features/`。
 

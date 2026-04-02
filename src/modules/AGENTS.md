@@ -1,4 +1,4 @@
-# Backend Modules AGENTS
+# 后端模块协作 AGENTS
 
 本文件补充根目录 `AGENTS.md` 与 `src/AGENTS.md`，只约束 `src/modules/` 里的模块化迁移代码。
 

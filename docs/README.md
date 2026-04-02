@@ -1,6 +1,6 @@
-# Electricity Monitor Backend - 详细项目文档
+# Electricity Monitor 后端详细文档
 
-> 高性能电力监控系统后端API - Rust实现
+> 高性能电力监控系统后端 API 的详细说明，基于 Rust 实现。
 
 ## 目录
 
@@ -8,7 +8,7 @@
 - [项目结构](#项目结构)
 - [环境配置](#环境配置)
 - [数据库配置](#数据库配置)
-- [API端点](#api端点)
+- [API 端点](#api-端点)
 - [性能优化](#性能优化)
 - [开发工具](#开发工具)
 - [部署指南](#部署指南)
@@ -80,7 +80,7 @@ electricity-monitor-backend/
 
 ## 环境配置
 
-### 开发环境 (Windows)
+### 开发环境（Windows）
 
 ```powershell
 # 设置环境变量
@@ -97,7 +97,7 @@ diesel migration run
 cargo run
 ```
 
-### 生产环境 (Linux)
+### 生产环境（Linux）
 
 ```bash
 # 设置环境变量
@@ -140,7 +140,7 @@ export APP__JWT__SECRET_FILE="/run/secrets/app_jwt_secret"
 
 开发环境运行时会校验数据库和 Redis 主机，拒绝非本地地址，防止误连远端环境。
 
-### 切换到MySQL
+### 切换到 MySQL
 
 修改 `config/default.toml`:
 
@@ -151,14 +151,14 @@ host = "your-mysql-host"
 port = 3306
 ```
 
-## API端点
+## API 端点
 
 ### 健康检查
 
 - `GET /api/health` - 基础健康检查
 - `GET /api/health/db` - 包含数据库连接检查
 
-详细API文档请查看：[API_REFERENCE.md](./api/API_REFERENCE.md)
+详细 API 文档请查看：[API_REFERENCE.md](./api/API_REFERENCE.md)
 
 ## 性能优化
 
@@ -223,7 +223,7 @@ cargo test
 
 ## 部署指南
 
-### Windows -> Linux 跨平台编译
+### Windows 到 Linux 跨平台编译
 
 ```bash
 # 安装目标工具链
@@ -252,7 +252,7 @@ cargo build --release --target x86_64-unknown-linux-gnu
 - `../deploy/Dockerfile`
 - `../deploy/Dockerfile.dockerignore`
 
-## 开发规范
+## 开发约定
 
 ### 添加新功能
 
@@ -271,14 +271,14 @@ cargo build --release --target x86_64-unknown-linux-gnu
 
 - [架构设计](./architecture/ARCHITECTURE.md) - 详细架构设计文档
 - [快速启动](./guides/QUICKSTART.md) - 快速启动指南
-- [API参考](./api/API_REFERENCE.md) - API接口文档
+- [API参考](./api/API_REFERENCE.md) - API 接口文档
 - [文档索引](./INDEX.md) - 所有文档导航
 
-## 许可证
+## 许可证说明
 
-MIT License
+本项目采用 MIT License。
 
-## 贡献
+## 维护说明
 
 Electricity Monitor Team
 

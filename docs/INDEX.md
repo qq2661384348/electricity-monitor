@@ -36,7 +36,7 @@
 
 - [DOCKER_DEPLOYMENT.md](./guides/DOCKER_DEPLOYMENT.md) - GitHub Actions artifact 发布链路
 
-### API
+### API 文档
 
 - [API_REFERENCE.md](./api/API_REFERENCE.md) - HTTP API 参考
 

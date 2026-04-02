@@ -1,8 +1,8 @@
-# Deploy Assets
+# 部署资产说明
 
 `deploy/` 是仓库内部与部署相关文件的统一入口。
 
-## Production release
+## 生产发布资产
 
 - `Dockerfile`: GitHub Actions 构建 release 镜像时使用的 Dockerfile
 - `Dockerfile.dockerignore`: 与 `Dockerfile` 配套的构建忽略规则
@@ -14,12 +14,12 @@
 - `release.env.example`: release 包内的 `.env.example` 模板
 - `README.release.md`: release 包内的 `README.md` 模板
 
-## Local Docker debugging
+## 本地 Docker 调试
 
 - `build.sh`: 本地 Docker 调试入口
 - `docker-compose.local.yml`: 本地 Docker 调试使用的 compose 文件
 
-## Source of truth
+## 当前真源
 
 - 生产发布主线：`.github/workflows/docker-build.yml`
 - PR / 手动质量门禁：`.github/workflows/ci.yml`

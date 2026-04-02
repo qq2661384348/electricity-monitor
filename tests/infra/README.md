@@ -1,4 +1,4 @@
-# Infra Tests
+# 环境型测试说明
 
 `tests/infra/` 预留给需要显式依赖 PostgreSQL、Redis、外部服务或 service container 的环境型测试。
 

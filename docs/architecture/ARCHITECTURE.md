@@ -2,14 +2,14 @@
 
 ## 项目概述
 
-**项目名称**: Electricity Monitor Backend  
+**项目名称**: Electricity Monitor 后端  
 **技术栈**: Rust + Axum + Diesel-async + PostgreSQL  
 **架构模式**: DDD (领域驱动设计) + 分层架构  
 **性能优化**: SIMD加速(sonic-rs) + LTO + 异步连接池
 
 ## 技术选型决策
 
-### Web框架: Axum 0.8
+### Web 框架：Axum 0.8
 
 **选择理由**:
 - 性能接近Actix-web（差距<10%）
@@ -22,7 +22,7 @@
 - 延迟: ⭐⭐⭐⭐⭐ (最低)
 - 内存: ⭐⭐⭐⭐⭐ (最优)
 
-### ORM: Diesel 2.2 + diesel-async 0.5
+### ORM：Diesel 2.2 + diesel-async 0.5
 
 **选择理由**:
 - 编译时类型检查，零运行时错误
@@ -34,7 +34,7 @@
 - vs SQLx: Diesel类型安全更强，SQLx编译时SQL验证更灵活
 - vs SeaORM: Diesel性能更优，文档更成熟
 
-### JSON序列化: sonic-rs 0.3
+### JSON 序列化：sonic-rs 0.3
 
 **选择理由**:
 - 使用SIMD加速，性能是serde_json的2-3倍
@@ -45,7 +45,7 @@
 - twitter.json 反序列化: 快3倍
 - canada.json 反序列化: 快2.3倍
 
-### 连接池: deadpool
+### 连接池：deadpool
 
 **选择理由**:
 - diesel-async官方推荐
