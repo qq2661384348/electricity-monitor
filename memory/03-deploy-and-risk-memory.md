@@ -55,6 +55,23 @@
 - 仓库当前是 dirty worktree，后续做方案和交付时应注意区分已有用户修改与本次任务新增内容。
 - 部署脚本的真实回滚路径还需要在 Linux Docker 主机上做一次端到端演练。
 
+## 当前安全基线补充
+- 鉴权主链路当前仍存在高优先级设计风险：
+  - `/api/auth/refresh` 未区分 access token 与 refresh token
+  - 前端 `auth-storage` 仍持久化 access token
+  - 后端全局 CORS 仍为 `allow_origin(Any) + allow_methods(Any) + allow_headers(Any)`
+  - `admin.default_qq_number` 在生产环境下尚未强制要求偏离默认值
+- 这些问题都已进入最新的质量/安全报告，应作为后续修复任务的直接输入。
+
+## 当前依赖与供应链风险补充
+- 项目当前已经具备可执行的依赖审计路径：
+  - `pnpm --dir frontend audit --prod`
+  - `cargo audit`
+- 最近一次基线检查结果：
+  - 前端依赖命中 `7` 条 advisory，其中运行时直接依赖包含 `axios` 与 `react-router-dom`，构建链告警包含 `rollup` 与 `picomatch`
+  - Rust 依赖命中 `5` 条漏洞与 `2` 条警告，涉及 `bytes`、`rkyv`、`rsa`、`rustls-webpki`、`time`、`bincode`、`lru`
+- `frontend/package.json` 当前把 `@tailwindcss/vite` 放在 `dependencies`，会把构建链告警扩大到生产依赖审计面。
+
 ## 第二轮可维护性热点
 - 后端存在多个超大文件：
   - `src/infrastructure/repositories/room_repository.rs` 约 1012 行

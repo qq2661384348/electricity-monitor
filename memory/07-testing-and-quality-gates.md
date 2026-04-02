@@ -9,6 +9,14 @@
 - 测试文档真源：`docs/guides/TESTING.md`
 - PR / 手动质量门禁工作流：`.github/workflows/ci.yml`
 
+## 当前本地可执行的附加审计门禁
+- 前端依赖审计：`pnpm --dir frontend audit --prod`
+- Rust 依赖审计：`cargo audit`
+- 最近一次基线结果：
+  - `pnpm audit --prod` 命中 `7` 条 advisory（`5` 高危、`2` 中危），重点涉及 `axios`、`react-router`、`rollup`、`picomatch`
+  - `cargo audit` 命中 `5` 条漏洞与 `2` 条警告，重点涉及 `bytes`、`rkyv`、`rsa`、`rustls-webpki`、`time`、`bincode`、`lru`
+- 当前这些审计路径已在本地验证可执行，但还没有接入 `.github/workflows/ci.yml`
+
 ## 后端测试约束
 - 认证集成测试必须走真实 `/api/auth/verify-and-login` 链路；不要回退到本地签发 JWT 伪造登录成功。
 - `tests/support/app_factory.rs` 负责统一装配 `AppState` 与 Router，避免顶层集成测试重复拼装 DB / Redis / Cache / RateLimiter。
@@ -73,6 +81,27 @@
 - `architecture-guard`：
   - `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`
 - 所有 job 都会上传对应日志 artifact，便于失败定位。
+- 当前 CI 仍未接入：
+  - `cargo audit`
+  - `pnpm --dir frontend audit --prod`
+
+## 最近一次本地质量基线
+- `cargo test --lib`：`116 passed`
+- `cargo test --test auth_integration_test`：`10 passed`
+- `cargo test --test send_verification_code_integration_test`：`1 passed`
+- `cargo test --test release_readiness_test`：`2 passed`
+- `pnpm --dir frontend lint`：通过
+- `pnpm --dir frontend test`：`3` 个文件、`6` 个用例通过
+- `pnpm --dir frontend build:prod`：通过，但仍有大 chunk warning
+- `cargo clippy --all-targets -- -D warnings`：失败，当前稳定阻塞点在 `src/domain/services/notification_gate.rs`
+- `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`：当前会把 `frontend/src/**/AGENTS.md` 文本误报成 `@/services/api` 违规导入
+
+## 本地执行约定补充
+- 若本地 PostgreSQL 密码与仓库默认开发配置不一致，优先在单次命令前使用 `APP__DATABASE__PASSWORD` 环境变量覆盖，而不是把本地密码写回 `config/default.toml` 或 `config/development.toml`
+- 该约定适用于：
+  - `cargo test --test auth_integration_test`
+  - `cargo test --test send_verification_code_integration_test`
+  - `cargo test --test release_readiness_test`
 
 ## 当前仍未完成的测试项
 - 源码内依赖环境变量启用的 infra 测试还未全部迁移到 `tests/infra/` 独立 target。
