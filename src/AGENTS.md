@@ -17,11 +17,12 @@
 - 需要缓存时优先复用 `state.cache_manager` 和 `src/infrastructure/cache/`，不要再引入第二套缓存入口。
 - 需要外部 HTTP 调用时优先复用 `src/infrastructure/external/` 的统一 client 和错误映射，不要在业务代码里散落 `reqwest::Client::new()`。
 - 需要访问数据库或 Redis 时，优先沿用现有 repository / pool / state 注入方式，保持依赖方向稳定。
+- 开发环境若local environment PostgreSQL 密码与模板不一致，直接修改复制出来的 `config/default.toml` 中的 `database.password`。
 
 ## 明确禁止
 
 - 不要把新的编排逻辑、权限判断或跨仓储流程继续堆回 `src/handlers/`。
-- 不要为了图快把生产 secrets、远端开发库地址或明文 token 写回 `config/*.toml`。
+- 不要为了图快把生产 secrets、远端开发库地址或明文 token 写回 `config/default.toml` 或 `*.toml.example`。
 - 不要启用全局 `try_parsing(true)`；当前配置链路依赖保留前导零字符串。
 - 不要在已有模块接缝的地方再造平行实现或临时 optimized 文件。
 

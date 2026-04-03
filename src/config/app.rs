@@ -4,6 +4,7 @@ use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use super::{
@@ -12,6 +13,8 @@ use super::{
 };
 
 const DEFAULT_ENVIRONMENT: &str = "development";
+const DEFAULT_CONFIG_PATH: &str = "config/default.toml";
+const DEVELOPMENT_DATABASE_PASSWORD_PLACEHOLDER: &str = "CHANGE-THIS-LOCAL-POSTGRES-PASSWORD";
 
 /// 服务器配置
 #[derive(Debug, Clone, Deserialize)]
@@ -116,13 +119,23 @@ impl AppConfig {
         environment: &str,
         env_source: Option<HashMap<String, String>>,
     ) -> Result<Self, ConfigError> {
+        Self::load_for_environment_in_dir(environment, env_source, Path::new("."))
+    }
+
+    fn load_for_environment_in_dir(
+        environment: &str,
+        env_source: Option<HashMap<String, String>>,
+        base_dir: &Path,
+    ) -> Result<Self, ConfigError> {
+        Self::ensure_default_config_exists(base_dir, environment)?;
+
         let environment = environment.trim().to_ascii_lowercase();
         let environment = if environment.is_empty() {
             DEFAULT_ENVIRONMENT.to_string()
         } else {
             environment
         };
-        let env_config_path = format!("config/{}", environment);
+        let default_config = base_dir.join("config").join("default");
         let mut environment_source = Environment::with_prefix("APP").separator("__");
 
         if let Some(source) = env_source {
@@ -130,11 +143,7 @@ impl AppConfig {
         }
 
         let config = Config::builder()
-            // 1. 加载 default.toml（全局唯一配置）
-            .add_source(File::with_name("config/default"))
-            // 2. 加载环境配置（如果存在则覆盖 default.toml）
-            .add_source(File::with_name(&env_config_path).required(false))
-            // 3. 从环境变量加载（最高优先级，命名规则为 APP__<SECTION>__<KEY>）
+            .add_source(File::with_name(default_config.to_string_lossy().as_ref()))
             .add_source(environment_source)
             .build()?;
 
@@ -198,6 +207,16 @@ impl AppConfig {
                 return Err(ConfigError::Message(format!(
                     "development 环境只允许连接本地 Redis，当前 redis.host={}。请使用 localhost、127.0.0.1、::1 或 host.docker.internal。",
                     config.redis.host
+                )));
+            }
+
+            if config.database.password.trim().is_empty()
+                || config.database.password == DEVELOPMENT_DATABASE_PASSWORD_PLACEHOLDER
+            {
+                return Err(ConfigError::Message(format!(
+                    "development 环境要求在 {} 中显式设置 database.password。请先从 {} 复制生成运行时配置，再把数据库密码改成当前local environment PostgreSQL 的真实密码。",
+                    Path::new(DEFAULT_CONFIG_PATH).display(),
+                    Self::suggested_template_path(DEFAULT_ENVIRONMENT).display()
                 )));
             }
         }
@@ -297,6 +316,31 @@ impl AppConfig {
             host.trim().to_ascii_lowercase().as_str(),
             "localhost" | "127.0.0.1" | "::1" | "host.docker.internal"
         )
+    }
+
+    fn ensure_default_config_exists(base_dir: &Path, environment: &str) -> Result<(), ConfigError> {
+        let default_path = base_dir.join(DEFAULT_CONFIG_PATH);
+        if default_path.is_file() {
+            return Ok(());
+        }
+
+        let suggested_template = Self::suggested_template_path(environment);
+        Err(ConfigError::Message(format!(
+            "缺少运行时配置文件 {}。请先复制 {} 为 {}，再按当前环境修改配置。",
+            default_path.display(),
+            suggested_template.display(),
+            default_path.display()
+        )))
+    }
+
+    fn suggested_template_path(environment: &str) -> PathBuf {
+        let template_name = if environment.eq_ignore_ascii_case("production") {
+            "production.toml.example"
+        } else {
+            "development.toml.example"
+        };
+
+        Path::new("config").join(template_name)
     }
 }
 
@@ -409,7 +453,9 @@ mod tests {
         let err = AppConfig::validate_environment_rules(&config, "development")
             .expect_err("development 环境应拒绝远程数据库");
 
-        assert!(err.to_string().contains("database.host=db.example.internal"));
+        assert!(err
+            .to_string()
+            .contains("database.host=db.example.internal"));
     }
 
     #[test]
@@ -468,6 +514,10 @@ mod tests {
     fn test_environment_variables_override_nested_keys_with_double_underscore() {
         let mut env = HashMap::new();
         env.insert(
+            "APP__DATABASE__PASSWORD".to_string(),
+            "test-password".to_string(),
+        );
+        env.insert(
             "APP__DATABASE__HOST".to_string(),
             "host.docker.internal".to_string(),
         );
@@ -483,6 +533,10 @@ mod tests {
     #[test]
     fn test_environment_variables_parse_numeric_and_bool_values() {
         let mut env = HashMap::new();
+        env.insert(
+            "APP__DATABASE__PASSWORD".to_string(),
+            "test-password".to_string(),
+        );
         env.insert("APP__DATABASE__PORT".to_string(), "15432".to_string());
         env.insert("APP__REDIS__PORT".to_string(), "16379".to_string());
         env.insert(
@@ -505,6 +559,10 @@ mod tests {
     #[test]
     fn test_environment_variables_preserve_numeric_like_string_values() {
         let mut env = HashMap::new();
+        env.insert(
+            "APP__DATABASE__PASSWORD".to_string(),
+            "test-password".to_string(),
+        );
         env.insert("APP__JWT__SECRET".to_string(), "00123456".to_string());
         env.insert(
             "APP__ADMIN__DEFAULT_QQ_NUMBER".to_string(),
@@ -561,10 +619,52 @@ mod tests {
     }
 
     #[test]
+    fn test_development_requires_explicit_database_password_when_empty() {
+        let mut env = HashMap::new();
+        env.insert("APP__DATABASE__PASSWORD".to_string(), "".to_string());
+        let err = AppConfig::load_for_environment_with_source("development", Some(env))
+            .expect_err("development 环境的空数据库密码应直接失败");
+
+        assert!(err.to_string().contains("database.password"));
+    }
+
+    #[test]
+    fn test_development_rejects_password_placeholder() {
+        let mut env = HashMap::new();
+        env.insert(
+            "APP__DATABASE__PASSWORD".to_string(),
+            DEVELOPMENT_DATABASE_PASSWORD_PLACEHOLDER.to_string(),
+        );
+        let err = AppConfig::load_for_environment_with_source("development", Some(env))
+            .expect_err("development 环境的占位密码应直接失败");
+
+        assert!(err.to_string().contains("当前local environment PostgreSQL 的真实密码"));
+    }
+
+    #[test]
     fn test_production_requires_secret_files() {
         let err = AppConfig::load_for_environment_with_source("production", Some(HashMap::new()))
             .expect_err("production 环境缺少 secret file 时应失败");
 
         assert!(err.to_string().contains("Compose secrets"));
+    }
+
+    #[test]
+    fn test_missing_default_config_has_friendly_message() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "electricity-monitor-missing-config-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp_dir);
+        fs::create_dir_all(temp_dir.join("config")).unwrap();
+
+        let err =
+            AppConfig::load_for_environment_in_dir("development", Some(HashMap::new()), &temp_dir)
+                .expect_err("缺少 default.toml 时应返回友好错误");
+
+        assert!(err.to_string().contains("config/default.toml"));
+        assert!(err.to_string().contains("development.toml.example"));
+
+        let _ = fs::remove_dir_all(temp_dir);
     }
 }

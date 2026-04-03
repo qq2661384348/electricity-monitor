@@ -12,7 +12,7 @@
 - ✅ 模块化代码组织
 
 ### 2. 核心功能
-- ✅ TOML配置系统（development/production环境分离）
+- ✅ TOML配置系统（本地 `default.toml` + 环境模板）
 - ✅ Diesel-async数据库连接池
 - ✅ JWT认证中间件
 - ✅ 统一错误处理
@@ -83,19 +83,14 @@ cargo install diesel_cli --no-default-features --features postgres
 
 开发环境默认只允许连接本地 PostgreSQL 和本地 Redis。
 
-1. 安装并启动 PostgreSQL
-2. 安装并启动 Redis
-3. 按local environment实际账号修改 `config/development.toml`（如需）:
-   ```toml
-   [database]
-   host = "127.0.0.1"
-   username = "your-username"
-   password = "your-password"
-
-   [redis]
-   host = "127.0.0.1"
-   port = 6379
+1. 复制开发模板到本地运行时配置：
+   ```powershell
+   Copy-Item config/development.toml.example config/default.toml
    ```
+2. 安装并启动 PostgreSQL
+3. 安装并启动 Redis
+4. 编辑本地 `config/default.toml`，把 `database.password` 改成当前local environment PostgreSQL 的真实密码
+5. 若用户名、主机或端口需要调整，也直接修改本地 `config/default.toml`，不要回写 `development.toml.example`
 
 ### 3. 初始化数据库 Schema
 
@@ -121,12 +116,15 @@ CREATE TABLE users (
 
 ```powershell
 # 运行迁移
-diesel migration run
+cargo run --bin migrate
 ```
 
 ### 4. 启动开发服务器
 
 ```powershell
+# 准备本地运行时配置
+Copy-Item config/development.toml.example config/default.toml
+
 # 设置环境变量
 $env:APP_ENV="development"
 $env:RUST_LOG="debug"
@@ -239,7 +237,7 @@ export APP__JWT__SECRET_FILE="/run/secrets/app_jwt_secret"
 
 **解决**:
 ```powershell
-diesel migration run
+cargo run --bin migrate
 ```
 
 ### 问题2: 连接数据库失败
@@ -275,8 +273,10 @@ cargo build --release --target x86_64-unknown-linux-gnu
 
 ### 部署检查清单
 
-- [ ] 修改 `config/production.toml` 中的数据库密码
+- [ ] 将 `config/production.toml.example` 复制为 `config/default.toml`
+- [ ] 确认 `config/default.toml` 中不保留开发环境数据库密码
 - [ ] 设置环境变量 `APP__JWT__SECRET_FILE`
+- [ ] 准备 `APP__DATABASE__PASSWORD_FILE`
 - [ ] 设置 `RUST_LOG=info` 减少日志输出
 - [ ] 配置反向代理（Nginx/Caddy）
 - [ ] 配置HTTPS证书

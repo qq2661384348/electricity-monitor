@@ -72,6 +72,9 @@ COPY migrations ./migrations
 COPY config ./config
 COPY diesel.toml ./
 
+RUN test -f /app/config/default.toml || \
+    (echo "缺少 config/default.toml。请先从 config/production.toml.example 或 config/development.toml.example 复制生成运行时配置。" && exit 1)
+
 # 构建应用（利用已缓存的依赖）
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
@@ -105,6 +108,9 @@ COPY --from=builder /app/migrate /app/migrate
 COPY config ./config
 COPY migrations ./migrations
 COPY static ./static
+
+RUN test -f /app/config/default.toml || \
+    (echo "缺少 config/default.toml。镜像构建前请先准备运行时配置。" && exit 1)
 
 # 设置权限
 RUN chown -R app:app /app

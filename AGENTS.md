@@ -13,7 +13,7 @@
 - `frontend/`: React 19 + Vite 7 前端；生产构建由 `build:prod` 复制到根目录 `static/` 后交给后端托管。
 - `tests/`: 后端契约、runtime、support 与 infra 分层。
 - `deploy/`: 生产发布与本地 Docker 调试资产真源。
-- `config/`: `default` / `development` / `production` 分层配置。
+- `config/`: 本地运行时配置 `default.toml` 与模板 `development.toml.example` / `production.toml.example`。
 - `memory/`: 当前项目长期记忆、边界和真源摘要。
 
 ## 局部 AGENTS
@@ -41,8 +41,10 @@
 ## 稳定约束
 
 - 后端是 Rust + Axum 单体服务，前端是 React + Vite；运行时依赖 PostgreSQL 与 Redis。
-- 配置加载顺序固定为：`config/default.toml` -> `config/{APP_ENV}.toml` -> `APP__<SECTION>__<KEY>` 环境变量覆盖；`APP_ENV` 默认是 `development`。
+- 配置加载顺序固定为：`config/default.toml` -> `APP__<SECTION>__<KEY>` 环境变量覆盖；`APP_ENV` 默认是 `development`，主要用于开发/生产约束与报错提示，不再决定运行时叠加文件。
+- `config/default.toml` 是本地运行文件，不纳入版本控制；开发环境从 `config/development.toml.example` 复制，生产/发布环境从 `config/production.toml.example` 复制。
 - `development` 环境只能连接本地 PostgreSQL / Redis；不要把远端开发库地址写回开发配置。
+- 开发环境数据库密码必须直接写入复制出来的 `config/default.toml`；不要再依赖其他隐式环境变量来源。
 - 不要启用全局 `try_parsing(true)`；当前配置链路依赖保留前导零字符串。
 - 生产敏感配置必须走 `APP__...__..._FILE` 链路，例如 `APP__DATABASE__PASSWORD_FILE`、`APP__JWT__SECRET_FILE`、`APP__QQ_BOT__BEARER_TOKEN_FILE`。
 - 生产发布唯一主线是 `.github/workflows/docker-build.yml` + `deploy/`；`deploy/build.sh` 与 `deploy/docker-compose.local.yml` 只用于本地 Docker 调试。

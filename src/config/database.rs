@@ -1,6 +1,7 @@
 //! 数据库配置
 
 use serde::Deserialize;
+use urlencoding::encode;
 
 /// 数据库类型
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -49,17 +50,21 @@ pub struct DatabaseConfig {
 impl DatabaseConfig {
     /// 构建数据库连接URL
     pub fn connection_url(&self) -> String {
+        let username = encode(&self.username);
+        let password = encode(&self.password);
+        let database = encode(&self.database);
+
         match self.db_type {
             DatabaseType::Postgres => {
                 format!(
                     "postgres://{}:{}@{}:{}/{}",
-                    self.username, self.password, self.host, self.port, self.database
+                    username, password, self.host, self.port, database
                 )
             }
             DatabaseType::Mysql => {
                 format!(
                     "mysql://{}:{}@{}:{}/{}",
-                    self.username, self.password, self.host, self.port, self.database
+                    username, password, self.host, self.port, database
                 )
             }
         }

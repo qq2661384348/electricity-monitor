@@ -48,15 +48,7 @@ fn main() {
         }
     };
 
-    // 构建DATABASE_URL
-    let database_url = format!(
-        "postgres://{}:{}@{}:{}/{}",
-        config.database.username,
-        config.database.password,
-        config.database.host,
-        config.database.port,
-        config.database.database
-    );
+    let database_url = config.database.connection_url();
 
     println!(
         "🔗 数据库连接: postgres://{}:***@{}:{}/{}",

@@ -1,0 +1,87 @@
+# 开发环境运行时模板
+# 使用方式：复制为 config/default.toml 后按local environment环境修改
+
+[server]
+host = "127.0.0.1"
+port = 8000
+
+[database]
+# 开发环境只允许连接本地 PostgreSQL。
+# 复制为 config/default.toml 后，必须把 password 改成当前local environment PostgreSQL 的真实密码。
+type = "postgres"
+host = "127.0.0.1"
+port = 5432
+username = "postgres"
+password = "CHANGE-THIS-LOCAL-POSTGRES-PASSWORD"
+database = "electricity_dev"
+max_connections = 5
+min_connections = 1
+connection_timeout = 30
+
+[jwt]
+secret = "local-dev-jwt-secret"
+expiration_hours = 24
+
+[logging]
+level = "info"
+format = "pretty"
+
+[redis]
+host = "127.0.0.1"
+port = 6379
+max_connections = 10
+min_connections = 2
+connection_timeout = 30
+
+[rate_limit]
+insert_per_second = 200
+query_per_second = 200
+
+[room_sync]
+enabled = true
+interval_hours = 24
+default_threshold = 100.0
+
+[room_sync.crawler]
+api_url = "https://zywxhd02.gxust.edu.cn/Home/GetRoomTree"
+timeout_seconds = 30
+connect_timeout_seconds = 10
+max_retries = 3
+concurrency = 50
+
+[electricity_fetcher]
+enabled = true
+api_url = "https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid="
+fetch_interval_minutes = 5
+history_interval_hours = 1
+history_retention_days = 8
+max_retries = 2
+retry_delay_seconds = 30
+retry_backoff_multiplier = 2.0
+
+[qq_bot]
+api_url = "http://127.0.0.1:3000/send_private_msg"
+# 公开仓库不保存真实 token；本地调试请通过 APP__QQ_BOT__BEARER_TOKEN(_FILE) 注入
+bearer_token = ""
+timeout_seconds = 10
+
+[verification]
+code_length = 6
+expire_seconds = 300
+redis_key_prefix = "verify"
+
+[notification]
+concurrent_send_limit = 10
+query_interval_secs = 60
+debounce_period_secs = 3600
+recovery_monitor_interval_secs = 300
+
+[admin]
+default_qq_number = "100000001"
+
+[static_files]
+enabled = true
+directory = "static"
+index_file = "index.html"
+cache_max_age_seconds = 31536000
+html_cache_seconds = 0

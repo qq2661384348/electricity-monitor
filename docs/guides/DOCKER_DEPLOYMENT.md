@@ -63,14 +63,16 @@ deploy/
 
 1. 校验 tag 是否存在，并检出该 tag
 2. 构建前端并复制到 `static/`
-3. 使用 `deploy/Dockerfile` 在 GitHub Actions Linux runner 中构建 `linux/amd64` Docker 镜像
-4. 导出应用镜像与 Redis 镜像
-5. 复制 `deploy/smoke.targets` 作为 release smoke 契约文件
-6. 生成 `release-manifest.json`，写入 tag、git SHA、镜像 digest 与归档校验值
-7. 组装 release 目录并压缩成单个归档
-8. 上传为 GitHub Actions artifact
+3. 将 `config/production.toml.example` 复制为工作区内的 `config/default.toml`
+4. 使用 `deploy/Dockerfile` 在 GitHub Actions Linux runner 中构建 `linux/amd64` Docker 镜像
+5. 导出应用镜像与 Redis 镜像
+6. 复制 `deploy/smoke.targets` 作为 release smoke 契约文件
+7. 生成 `release-manifest.json`，写入 tag、git SHA、镜像 digest 与归档校验值
+8. 组装 release 目录并压缩成单个归档
+9. 上传为 GitHub Actions artifact
 
 `static/` 是前端构建产物目录，不再作为仓库真源提交；CI 在 `pnpm build:prod` 后生成它，再由 `deploy/Dockerfile` 复制进入镜像。
+`deploy/Dockerfile` 会在构建期检查 `config/default.toml` 是否存在，避免镜像带着缺失运行时配置构建成功。
 
 ### 构建性能优化
 
@@ -201,5 +203,7 @@ chmod +x smoke.sh
 ## 本地调试说明
 
 仓库中的 `deploy/build.sh` 和 `deploy/docker-compose.local.yml` 仍可用于本地 Docker 调试，但它们不再是推荐的生产发布主线。
+
+`deploy/build.sh` 在检测到缺少 `config/default.toml` 时，会自动从 `config/development.toml.example` 复制一份本地运行时配置；后续仍需把其中的数据库密码改成当前local environment PostgreSQL 的真实密码。
 
 生产发布主线以 GitHub Actions artifact 为准。

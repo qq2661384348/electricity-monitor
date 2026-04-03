@@ -26,7 +26,7 @@ cargo run --bin migrate -- production --revert
 
 `migrate` 工具会：
 1. 读取 `config/default.toml` 中的数据库配置
-2. 如果存在 `config/{environment}.toml`，覆盖相应配置
+2. 按当前环境校验数据库访问边界（例如 development 只允许本地数据库）
 3. 构建 `DATABASE_URL` 环境变量
 4. 调用 `diesel migration run/revert` 执行迁移
 
@@ -44,7 +44,20 @@ cargo install diesel_cli --no-default-features --features postgres,mysql
 
 ### 2. 配置数据库连接
 
-数据库配置位于 `config/default.toml` 和 `config/{environment}.toml`：
+运行迁移前，先准备本地运行时配置：
+
+```powershell
+Copy-Item config/development.toml.example config/default.toml
+# 继续编辑 config/default.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
+```
+
+生产环境则应先复制：
+
+```bash
+cp config/production.toml.example config/default.toml
+```
+
+开发模板中的数据库段如下：
 
 ```toml
 # config/default.toml
@@ -53,20 +66,26 @@ type = "postgres"
 host = "127.0.0.1"
 port = 5432
 username = "postgres"
-password = "postgres"
+password = "CHANGE-THIS-LOCAL-POSTGRES-PASSWORD"
 database = "electricity_dev"
-max_connections = 10
-min_connections = 2
+max_connections = 5
+min_connections = 1
 connection_timeout = 30
 ```
 
 ```toml
-# config/production.toml
+# config/production.toml.example
 [database]
+type = "postgres"
 host = "db.example.internal"
+port = 5432
+username = "postgres"
+password = ""
+password_file = "/run/secrets/app_database_password"
 database = "electricity_pro"
 max_connections = 20
 min_connections = 5
+connection_timeout = 30
 ```
 
 开发环境迁移命令会复用应用本身的配置加载逻辑，并拒绝连接非本地数据库。
@@ -248,7 +267,10 @@ cargo install diesel_cli --no-default-features --features postgres
 ```
 
 **解决**:
-确保在项目根目录执行命令，且 `config/default.toml` 存在。
+确保在项目根目录执行命令，并先从对应模板复制出 `config/default.toml`：
+
+- 开发环境：`config/development.toml.example -> config/default.toml`
+- 生产环境：`config/production.toml.example -> config/default.toml`
 
 ### 问题3: 数据库连接失败
 
@@ -291,19 +313,13 @@ dir = "migrations"
 ```bash
 cargo run --bin migrate
 ```
-使用 `config/default.toml` + `config/development.toml`
+使用从 `config/development.toml.example` 复制得到的 `config/default.toml`
 
 ### 生产环境
 ```bash
 cargo run --bin migrate -- production
 ```
-使用 `config/default.toml` + `config/production.toml`
-
-### 测试环境
-```bash
-cargo run --bin migrate -- test
-```
-使用 `config/default.toml` + `config/test.toml`
+使用从 `config/production.toml.example` 复制得到的 `config/default.toml`
 
 ## 参考资源
 

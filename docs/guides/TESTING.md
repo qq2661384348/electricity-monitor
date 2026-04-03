@@ -43,8 +43,10 @@
 运行后端契约测试前，需要满足：
 
 1. 本地 PostgreSQL 与 Redis 已启动
-2. `APP_ENV=development`
-3. 已执行迁移：`cargo run --bin migrate`
+2. 已从 `config/development.toml.example` 复制生成 `config/default.toml`
+3. 已将 `config/default.toml` 中的 `database.password` 改成当前local environment PostgreSQL 的真实密码
+4. `APP_ENV=development`
+5. 已执行迁移：`cargo run --bin migrate`
 
 开发环境只允许连接本地 PostgreSQL / Redis；不要把 `development` 指向远端库。
 
@@ -62,10 +64,18 @@ powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 ### 后端关键链路回归
 
 ```powershell
+Copy-Item config/development.toml.example config/default.toml
+# 继续编辑 config/default.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
 $env:APP_ENV="development"
 cargo run --bin migrate
 cargo test --test auth_integration_test
 cargo test --test release_readiness_test
+```
+
+如果希望使用统一入口，也可以运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1
 ```
 
 ### 前端构建回归
@@ -134,6 +144,8 @@ cargo test --lib
 
 - `backend-tests`
   - 启动 PostgreSQL / Redis service containers
+  - 复制 `config/development.toml.example` 为 `config/default.toml`
+  - 将 `config/default.toml` 中的开发密码占位值替换为 CI 内的 `postgres`
   - 执行 `cargo run --bin migrate`
   - 运行 `cargo test --lib`
   - 运行 `cargo test --test auth_integration_test`

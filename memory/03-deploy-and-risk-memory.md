@@ -44,14 +44,16 @@
 - Docker 镜像使用 Buildx + GHA cache。
 - `deploy/Dockerfile` 继续复用 `cargo-chef` 多阶段构建。
 - CI 直接构建 `linux/amd64` 镜像，避免开发机和服务器重复构建。
+- GitHub Actions 在构建镜像前会先把 `config/production.toml.example` 复制为本地 `config/default.toml`，再把该运行时配置打进镜像。
+- `deploy/Dockerfile` 现在会在构建期检查 `config/default.toml` 是否存在，缺失时直接 fail-fast。
+- `deploy/build.sh` 在本地 Docker 调试前会自动补一份 `config/default.toml`（来源于 `config/development.toml.example`），避免因为运行时配置缺失导致镜像构建成功但启动失败。
 
 ## 长期风险记忆
-- 配置文件中仍存在明文敏感信息：
-  - 数据库账号/密码
-  - JWT 默认 secret / admin token
-  - NapCat HTTP 机器人服务 bearer token
-- 文档存在一定漂移：
-  - `docs/INDEX.md` 仍有“待创建”描述，未完全反映当前部署文档状态。
+- 仓库当前已切到“模板受版本控制、`config/default.toml` 本地化”的配置方式，但 git 历史中仍存在需单独处理的疑似敏感信息：
+  - `config/default.toml` 的 `qq_bot.bearer_token` 在 `9` 个历史提交中出现过非占位符形态的值
+  - 仓库与local environment环境已经完成去全局数据库密码环境变量收口，但真实 `QQ/JWT/DB` 凭据轮换仍需外部 secret file 或部署目标访问权
+  - 在拿到外部访问能力前，不应把“已完成轮换”写入仓库记忆
+- 文档主入口已基本收口，但后续仍需继续防止发布链路、模板配置和 memory 之间再次漂移。
 - 仓库当前是 dirty worktree，后续做方案和交付时应注意区分已有用户修改与本次任务新增内容。
 - 部署脚本的真实回滚路径还需要在 Linux Docker 主机上做一次端到端演练。
 

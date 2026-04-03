@@ -64,6 +64,12 @@ jobs:
       - name: Prepare backend log directory
         run: mkdir -p artifacts/backend
 
+      - name: Prepare development runtime config
+        shell: bash
+        run: |
+          cp config/development.toml.example config/default.toml
+          sed -i 's/CHANGE-THIS-LOCAL-POSTGRES-PASSWORD/postgres/' config/default.toml
+
       - name: Wait for PostgreSQL and Redis
         run: |
           until pg_isready -h 127.0.0.1 -p 5432 -U postgres -d electricity_dev; do
@@ -116,6 +122,12 @@ jobs:
 
       - name: Prepare external test log directory
         run: mkdir -p artifacts/backend-external
+
+      - name: Prepare development runtime config
+        shell: bash
+        run: |
+          cp config/development.toml.example config/default.toml
+          sed -i 's/CHANGE-THIS-LOCAL-POSTGRES-PASSWORD/postgres/' config/default.toml
 
       - name: Run real external integration tests
         shell: bash

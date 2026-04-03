@@ -69,6 +69,10 @@ jobs:
         shell: bash
         run: pnpm build:prod
 
+      - name: Prepare production runtime config
+        shell: bash
+        run: cp config/production.toml.example config/default.toml
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -115,7 +119,7 @@ jobs:
           redis_image_digest="$(docker image inspect "${REDIS_IMAGE}" --format '{{.Id}}')"
           app_archive_sha256="$(sha256sum "${RELEASE_ROOT}/images/${app_archive}.gz" | cut -d' ' -f1)"
           redis_archive_sha256="$(sha256sum "${RELEASE_ROOT}/images/${redis_archive}.gz" | cut -d' ' -f1)"
-          config_toml_sha256="$(find config -maxdepth 1 -type f -name '*.toml' -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
+          config_toml_sha256="$(find config -maxdepth 1 -type f \( -name '*.toml' -o -name '*.toml.example' \) -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
           frontend_static_sha256="$(find static -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
 
           cp deploy/deploy.sh "${RELEASE_ROOT}/deploy.sh"

@@ -18,19 +18,30 @@
 # 1. 安装依赖
 cargo install diesel_cli --no-default-features --features postgres
 
-# 2. 配置环境
+# 2. 准备本地运行时配置
+Copy-Item config/development.toml.example config/default.toml
+
+# 3. 将 config/default.toml 中的 database.password 改成当前local environment PostgreSQL 的真实密码
+
+# 4. 配置环境
 $env:APP_ENV="development"
 
-# 3. 确保本地 PostgreSQL 和本地 Redis 已启动
+# 5. 确保本地 PostgreSQL 和本地 Redis 已启动
 
-# 4. 运行迁移（统一命令）
+# 6. 运行迁移（统一命令）
 cargo run --bin migrate
 
-# 5. 启动服务
+# 7. 启动服务
 cargo run
 
-# 6. 测试 API
+# 8. 测试 API
 curl http://localhost:8000/api/health
+```
+
+也可以直接运行统一后端自检脚本：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1
 ```
 
 ## 技术栈概览
@@ -83,6 +94,8 @@ deploy/
 ### 开发环境（Windows）
 
 ```powershell
+Copy-Item config/development.toml.example config/default.toml
+# 继续编辑 config/default.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
 $env:APP_ENV="development"
 $env:RUST_LOG="debug"
 # development 环境只允许连接本地 PostgreSQL / Redis
@@ -91,9 +104,12 @@ $env:RUST_LOG="debug"
 ### 生产环境（Linux）
 
 ```bash
+cp config/production.toml.example config/default.toml
 export APP_ENV=production
 export RUST_LOG=info
 ```
+
+`config/default.toml` 是本地运行文件，不纳入版本控制。开发环境从 `config/development.toml.example` 复制，生产/发布环境从 `config/production.toml.example` 复制。
 
 ## 开发工具
 
@@ -113,6 +129,7 @@ powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 - PR / 手动质量门禁：`.github/workflows/ci.yml`
 - 工作流：`.github/workflows/docker-build.yml`
 - 镜像构建：`deploy/Dockerfile`
+- 运行时配置：工作流会先将 `config/production.toml.example` 复制为 `config/default.toml` 再构建镜像
 - release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
 - smoke 契约：`deploy/smoke.targets`，由 `tests/runtime/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用
 - release manifest：artifact 内的 `release/release-manifest.json`

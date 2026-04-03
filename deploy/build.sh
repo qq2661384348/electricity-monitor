@@ -42,6 +42,20 @@ docker_compose() {
     docker compose -f "${COMPOSE_FILE}" "$@"
 }
 
+ensure_runtime_config() {
+    local template="${REPO_ROOT}/config/development.toml.example"
+    local runtime_config="${REPO_ROOT}/config/default.toml"
+
+    if [ -f "${runtime_config}" ]; then
+        return
+    fi
+
+    [ -f "${template}" ] || error "缺少开发模板配置: ${template}"
+    cp "${template}" "${runtime_config}"
+    warn "检测到缺少 config/default.toml，已从 config/development.toml.example 复制本地运行时配置。"
+    warn "继续本地 Docker 调试前，请先把 ${runtime_config} 中的数据库密码改成当前local environment PostgreSQL 的真实密码。"
+}
+
 # 检查 Docker
 check_docker() {
     command -v docker &> /dev/null || error "Docker 未安装"
@@ -55,6 +69,8 @@ cmd_build() {
     separator
     echo -e "${GREEN}🔨 构建镜像: ${IMAGE_NAME}:${tag}${NC}"
     separator
+
+    ensure_runtime_config
     
     local start_time=$(date +%s)
     
@@ -76,6 +92,8 @@ cmd_up() {
     separator
     echo -e "${GREEN}🚀 启动服务${NC}"
     separator
+
+    ensure_runtime_config
     
     # 先构建
     docker_compose build
@@ -147,6 +165,7 @@ cmd_export() {
     separator
 
     warn "该命令仅用于本地调试或应急导出；推荐的生产发布主线为 GitHub Actions release artifact"
+    ensure_runtime_config
     
     # 导出应用镜像
     info "导出应用镜像..."

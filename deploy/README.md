@@ -18,12 +18,14 @@
 
 - `build.sh`: 本地 Docker 调试入口
 - `docker-compose.local.yml`: 本地 Docker 调试使用的 compose 文件
+- `build.sh` 会在缺少 `config/default.toml` 时自动从 `config/development.toml.example` 复制一份本地运行时配置
 
 ## 当前真源
 
 - 生产发布主线：`.github/workflows/docker-build.yml`
 - PR / 手动质量门禁：`.github/workflows/ci.yml`
 - 服务器部署方式：下载 GitHub Actions artifact，解压后执行包内 `deploy.sh`
+- 本地 Docker 调试前会优先使用 `config/development.toml.example -> config/default.toml` 的本地运行时配置
 - 生产敏感配置通过 Compose secrets 提供，并由 `.env` 中的 `*_SECRET_FILE` 指向宿主机文件
 - 服务器部署时会读取 `release-manifest.json`，并在 release 目录写出 `deploy-result.json`
 - `smoke.targets` 是本地 readiness test 与 release smoke 的共享契约真源

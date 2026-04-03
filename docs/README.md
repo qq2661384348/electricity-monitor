@@ -66,9 +66,9 @@ electricity-monitor-backend/
 │   ├── lib.rs              # 库入口
 │   └── main.rs             # 程序入口
 ├── config/                 # 配置文件
-│   ├── default.toml        # 默认配置
-│   ├── development.toml    # 开发环境
-│   └── production.toml     # 生产环境
+│   ├── default.toml        # 本地运行时配置（不纳入版本控制）
+│   ├── development.toml.example  # 开发环境模板
+│   └── production.toml.example   # 生产环境模板
 ├── migrations/             # 数据库迁移
 ├── docs/                   # 文档目录
 ├── .cargo/
@@ -83,6 +83,11 @@ electricity-monitor-backend/
 ### 开发环境（Windows）
 
 ```powershell
+# 准备运行时配置
+Copy-Item config/development.toml.example config/default.toml
+
+# 继续编辑 config/default.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
+
 # 设置环境变量
 $env:APP_ENV="development"
 $env:RUST_LOG="debug"
@@ -91,7 +96,7 @@ $env:RUST_LOG="debug"
 cargo install diesel_cli --no-default-features --features postgres
 
 # 运行数据库迁移
-diesel migration run
+cargo run --bin migrate
 
 # 启动开发服务器
 cargo run
@@ -100,6 +105,9 @@ cargo run
 ### 生产环境（Linux）
 
 ```bash
+# 准备运行时配置
+cp config/production.toml.example config/default.toml
+
 # 设置环境变量
 export APP_ENV=production
 export RUST_LOG=info
@@ -115,9 +123,13 @@ cargo build --release
 
 ### 配置文件优先级
 
-1. `config/default.toml` - 基础配置
-2. `config/{APP_ENV}.toml` - 环境特定配置（覆盖默认）
-3. 环境变量 `APP__*` - 最高优先级
+1. `config/default.toml` - 本地运行时配置
+2. 环境变量 `APP__*` - 最高优先级
+
+`config/default.toml` 需要先从环境模板复制得到：
+
+- 开发环境：`config/development.toml.example -> config/default.toml`
+- 生产/发布环境：`config/production.toml.example -> config/default.toml`
 
 ### 环境变量覆盖示例
 
@@ -135,14 +147,14 @@ export APP__JWT__SECRET_FILE="/run/secrets/app_jwt_secret"
 
 ### 当前配置
 
-- **开发环境**: `postgres://postgres:<your-local-password>@127.0.0.1:5432/electricity_dev`
+- **开发环境**: 从 `config/development.toml.example` 复制到 `config/default.toml`，再直接修改 `database.password`
 - **生产环境**: 通过 Compose secrets 注入数据库密码与 JWT/QQ token
 
 开发环境运行时会校验数据库和 Redis 主机，拒绝非本地地址，防止误连远端环境。
 
 ### 切换到 MySQL
 
-修改 `config/default.toml`:
+先复制对应模板到 `config/default.toml`，再修改数据库段：
 
 ```toml
 [database]

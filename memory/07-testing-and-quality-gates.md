@@ -58,6 +58,8 @@
 ## CI 门禁现状
 - `backend-tests`：
   - PostgreSQL / Redis service containers
+  - 先复制 `config/development.toml.example` 为 `config/default.toml`
+  - 再把 `config/default.toml` 中的开发密码占位值替换为 CI 内的 `postgres`
   - `RUN_INTEGRATION_TESTS=1`
   - `REDIS_HOST=127.0.0.1`
   - `REDIS_PORT=6379`
@@ -68,6 +70,7 @@
   - `cargo test --test release_readiness_test`
 - `backend-external-tests`：
   - 仅在手动 workflow 且显式开启时执行
+  - 先复制 `config/development.toml.example` 为 `config/default.toml`
   - `RUN_EXTERNAL_INTEGRATION_TESTS=1`
   - 真实房间树测试
   - 真实电费抓取测试
@@ -97,7 +100,9 @@
 - `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`：当前会把 `frontend/src/**/AGENTS.md` 文本误报成 `@/services/api` 违规导入
 
 ## 本地执行约定补充
-- 若本地 PostgreSQL 密码与仓库默认开发配置不一致，优先在单次命令前使用 `APP__DATABASE__PASSWORD` 环境变量覆盖，而不是把本地密码写回 `config/default.toml` 或 `config/development.toml`
+- 本地运行前先从 `config/development.toml.example` 复制生成 `config/default.toml`；不要再直接编辑仓库模板以保存local environment参数。
+- 若local environment PostgreSQL 密码与开发模板不一致，直接修改本地 `config/default.toml` 中的 `database.password`。
+- `scripts/backend-checks.ps1` 会检查 `config/default.toml` 是否仍保留模板占位值，并统一执行迁移与后端关键回归。
 - 该约定适用于：
   - `cargo test --test auth_integration_test`
   - `cargo test --test send_verification_code_integration_test`

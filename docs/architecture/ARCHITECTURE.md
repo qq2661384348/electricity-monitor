@@ -96,17 +96,21 @@
 
 ### 1. 配置系统 (config/)
 
-**设计原则**: 分层配置 + 环境变量覆盖
+**设计原则**: 本地运行时配置 + 环境模板 + 环境变量覆盖
 
 **配置优先级**:
-1. `config/default.toml` - 基础配置
-2. `config/{APP_ENV}.toml` - 环境配置（覆盖）
-3. 环境变量 `APP__*` - 最高优先级
+1. `config/default.toml` - 本地运行时配置
+2. 环境变量 `APP__*` - 最高优先级
+
+运行前需要先复制模板：
+- 开发环境：`config/development.toml.example -> config/default.toml`
+- 生产/发布环境：`config/production.toml.example -> config/default.toml`
 
 **实现亮点**:
 - 使用 `config` crate 实现配置合并
 - `OnceLock` 实现全局单例
 - 类型安全的配置结构
+- 开发环境数据库密码需要直接写入复制出来的 `config/default.toml`
 
 ### 2. 数据库层 (infrastructure/database/)
 

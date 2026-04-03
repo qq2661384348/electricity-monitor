@@ -16,7 +16,7 @@
 - `frontend/src/AGENTS.md`: 前端本地协作说明，补充根级 AGENTS，对 `frontend/src/` 的启动骨架、HTTP 真源与验证负责。
 - `frontend/src/features/AGENTS.md`: 前端 feature 层协作说明，约束 `api / model / ui / index.ts` 形态。
 - `frontend/src/entities/AGENTS.md`: 前端 entity 层协作说明，约束单域网关与公共出口。
-- `config/`: TOML 配置，按 default/development/production 分层。
+- `config/`: 运行时 `default.toml` 与环境模板 `development.toml.example` / `production.toml.example`。
 - `migrations/`: Diesel 数据库迁移。
 - `.github/workflows/`: CI/CD 工作流，当前有手动发布工作流。
 - `.github/workflows/ci.yml`: 当前 Pull Request / 手动质量门禁工作流，负责后端测试、前端质量检查与架构守护。
