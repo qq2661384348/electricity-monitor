@@ -50,7 +50,8 @@
 
 ## 长期风险记忆
 - 仓库当前已切到“模板受版本控制、`config/default.toml` 本地化”的配置方式，但 git 历史中仍存在需单独处理的疑似敏感信息：
-  - `config/default.toml` 的 `qq_bot.bearer_token` 在 `9` 个历史提交中出现过非占位符形态的值
+  - 已确认 `config/default.toml` 的 `qq_bot.bearer_token` 曾在 `9` 个历史提交中出现非占位符形态值
+  - `origin/master` 已在 2026-04-03 完成历史重写并 force-push，`config/default.toml` 的历史已从仓库主线移除
   - 仓库与local environment环境已经完成去全局数据库密码环境变量收口，但真实 `QQ/JWT/DB` 凭据轮换仍需外部 secret file 或部署目标访问权
   - 在拿到外部访问能力前，不应把“已完成轮换”写入仓库记忆
 - 文档主入口已基本收口，但后续仍需继续防止发布链路、模板配置和 memory 之间再次漂移。
@@ -104,3 +105,4 @@
 - release 包的 `.env.example` 现在只暴露 `*_SECRET_FILE` 路径，不再要求把秘密原文写进 `.env`。
 - `electricity_service_optimized.rs` 已移除，电费写入主线明确为 `electricity_service.rs`。
 - `room_sync/sync_service_optimized.rs` 已移除，房间同步主线明确为 `room_sync/sync_service.rs`。
+- 若协作者仍持有历史重写前的 clone，应重新 clone 或按重写后主线彻底清理旧历史，避免把旧提交重新推回远端。

@@ -21,3 +21,4 @@
 - 不在 `.env` 中存秘密原文，只保留 secret file 路径。
 - 缺失 secret file 时，production 启动必须 fail-fast。
 - 发布日志与部署记录不得打印 secret 原文。
+- 若仓库历史发生敏感信息泄漏，应先轮换对应 secret，再执行历史重写与远端强推，并要求协作者重新 clone 或彻底清理旧历史。
