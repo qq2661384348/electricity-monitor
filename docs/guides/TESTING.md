@@ -7,8 +7,8 @@
 - Rust 单元/源码内测试：`cargo test --lib`
 - 认证契约测试：`cargo test --test auth_integration_test`
 - runtime / readiness 契约测试：`cargo test --test release_readiness_test`
-- 前端行为测试：`pnpm --dir frontend test`
-- 前端质量检查：`pnpm --dir frontend lint`、`pnpm --dir frontend build:prod`
+- 前端行为测试：在 `frontend/` 目录执行 `bun run test`
+- 前端质量检查：在 `frontend/` 目录执行 `bun run lint`、`bun run build:prod`
 - 架构守护：`powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`
 - Pull Request / 手动门禁：`.github/workflows/ci.yml`
 
@@ -56,8 +56,10 @@
 
 ```powershell
 cargo test --lib
-pnpm --dir frontend test
-pnpm --dir frontend lint
+cd frontend
+bun run test
+bun run lint
+cd ..
 powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 ```
 
@@ -81,8 +83,9 @@ powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1
 ### 前端构建回归
 
 ```powershell
-pnpm --dir frontend test
-pnpm --dir frontend build:prod
+cd frontend
+bun run test
+bun run build:prod
 ```
 
 `build:prod` 会先生成 `frontend/dist/`，再复制到仓库根目录 `static/`，供后端静态文件服务与 Docker 构建使用。
@@ -157,12 +160,12 @@ cargo test --lib
   - 运行真实房间树测试
   - 运行真实电费抓取测试
 - `frontend-quality`
-  - 执行 `pnpm install --frozen-lockfile`
-  - 运行 `pnpm lint`
-  - 运行 `pnpm build:prod`
+  - 执行 `bun install --frozen-lockfile`
+  - 运行 `bun run lint`
+  - 运行 `bun run build:prod`
 - `frontend-tests`
-  - 执行 `pnpm install --frozen-lockfile`
-  - 运行 `pnpm test`
+  - 执行 `bun install --frozen-lockfile`
+  - 运行 `bun run test`
 - `architecture-guard`
   - 运行 `scripts/check-architecture.ps1`
 

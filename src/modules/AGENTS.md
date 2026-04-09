@@ -1,4 +1,4 @@
-# 后端模块协作 AGENTS
+# 后端模块 AGENTS
 
 本文件补充根目录 `AGENTS.md` 与 `src/AGENTS.md`，只约束 `src/modules/` 里的模块化迁移代码。
 
@@ -8,14 +8,14 @@
 - 模块默认采用 `api / application / domain / infrastructure` 四层拆分：
 - `api/` 负责中间件、HTTP 适配或模块对外入口。
 - `application/` 负责 use case、跨依赖编排和事务性流程。
-- `domain/` 负责模块内部的身份模型、规则对象和纯业务语义。
+- `domain/` 负责模块内部身份模型、规则对象和纯业务语义。
 - `infrastructure/` 负责模块私有的 repository adapter、credential resolver 或外部依赖封装。
 
 ## 当前真源
 
-- `auth` 是当前身份与鉴权边界真源：`modules/auth/domain` 定义 `Actor/Claims`，`modules/auth/api/middleware.rs` 是认证中间件真源。
-- `src/middleware/auth.rs` 现在是兼容 facade；改鉴权主逻辑时优先改 `modules/auth/`，不要先改 facade。
-- `room` 与 `room_sync` 是当前活跃迁移接缝；新增房间访问、同步编排优先落在这两个模块的 `application/`。
+- `auth` 是当前身份与鉴权边界真源；`modules/auth/domain` 定义 `Actor/Claims`，`modules/auth/api/middleware.rs` 是认证中间件真源。
+- `src/middleware/auth.rs` 只是兼容 facade；改鉴权主逻辑时优先改 `modules/auth/`。
+- `room` 与 `room_sync` 是当前活跃迁移接缝；新增房间访问和同步编排优先落在这两个模块的 `application/`。
 
 ## 首选实现方式
 

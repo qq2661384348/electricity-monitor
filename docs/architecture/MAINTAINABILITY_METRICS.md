@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Rust test pass count | 111 passed | `cargo test` |
 | Auth integration smoke | 5 passed | `cargo test --test auth_integration_test` |
-| Frontend architecture lint | passing | `pnpm lint`, `scripts/check-architecture.ps1` |
+| Frontend architecture lint | passing | `bun run lint`, `scripts/check-architecture.ps1` |
 | Remaining optimized mainlines | 0 | `docs/architecture/DUAL_IMPLEMENTATION_LEDGER.md` |
 | Frontend generated assets tracked by git | 0 | `.gitignore` + `static/.gitkeep` |
 
@@ -22,8 +22,8 @@
 ## 当前门禁集合
 
 - `cargo test`
-- `pnpm lint`
-- `pnpm build:prod`
+- `bun run lint`
+- `bun run build:prod`
 - `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`
 
 ## 说明

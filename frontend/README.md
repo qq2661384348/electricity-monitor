@@ -11,16 +11,19 @@
 - `src/features/`：页面流程与交互编排层。
 - `src/entities/`：单领域 API 与稳定公共出口。
 
-## 常用命令
+## 包管理与常用命令
 
-在仓库根目录执行：
+- `bun` 是 `frontend/` 的唯一包管理真源。
+- `bun.lock` 是唯一前端 lockfile；不要重新引入 `pnpm-lock.yaml` 或 `package-lock.json`。
+
+在 `frontend/` 目录执行：
 
 ```bash
-pnpm --dir frontend install
-pnpm --dir frontend dev
-pnpm --dir frontend test
-pnpm --dir frontend lint
-pnpm --dir frontend build:prod
+bun install --frozen-lockfile
+bun run dev
+bun run test
+bun run lint
+bun run build:prod
 ```
 
 其中 `build:prod` 会先执行前端构建，再把 `dist/` 复制到仓库根目录 `static/`，供后端静态文件服务托管。
@@ -37,9 +40,9 @@ pnpm --dir frontend build:prod
 前端结构、公共 API 或发布链路有变动时，至少运行以下命令：
 
 ```bash
-pnpm --dir frontend test
-pnpm --dir frontend lint
-pnpm --dir frontend build:prod
+bun run test
+bun run lint
+bun run build:prod
 ```
 
 如涉及导入边界或兼容 facade，还应在仓库根目录补跑：

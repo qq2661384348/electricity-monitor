@@ -1,6 +1,6 @@
 # 前端实体层 AGENTS
 
-本文件补充根目录 `AGENTS.md` 与 `frontend/src/AGENTS.md`，只约束 `frontend/src/entities/`。
+本文件补充根目录 `AGENTS.md`、`frontend/AGENTS.md` 与 `frontend/src/AGENTS.md`，只约束 `frontend/src/entities/`。
 
 ## 实体层定位
 
@@ -23,4 +23,4 @@
 ## 最小验证
 
 - 变更实体公共出口或 API 封装后，至少确认对应 `index.ts`、`api/*` 与 `shared/api/http-client.ts` 的引用仍一致。
-- 涉及实体层边界调整时，运行 `pnpm --dir frontend test`、`pnpm --dir frontend lint`、`pnpm --dir frontend build:prod`，并用 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1` 检查禁用导入是否回归。
+- 涉及实体层边界调整时，在 `frontend/` 目录运行 `bun run test`、`bun run lint`、`bun run build:prod`，并用 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1` 检查禁用导入是否回归。

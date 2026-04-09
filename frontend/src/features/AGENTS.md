@@ -1,6 +1,6 @@
 # 前端功能层 AGENTS
 
-本文件补充根目录 `AGENTS.md` 与 `frontend/src/AGENTS.md`，只约束 `frontend/src/features/`。
+本文件补充根目录 `AGENTS.md`、`frontend/AGENTS.md` 与 `frontend/src/AGENTS.md`，只约束 `frontend/src/features/`。
 
 ## 推荐形态
 
@@ -24,5 +24,5 @@
 
 ## 最小验证
 
-- 变更 feature 公共出口、交互流程或 query invalidation 后，至少运行 `pnpm --dir frontend test`、`pnpm --dir frontend lint`、`pnpm --dir frontend build:prod`。
+- 变更 feature 公共出口、交互流程或 query invalidation 后，在 `frontend/` 目录至少运行 `bun run test`、`bun run lint`、`bun run build:prod`。
 - 如果改动触及导入边界或兼容 facade，额外运行 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。

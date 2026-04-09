@@ -71,15 +71,15 @@ deploy/
 8. 组装 release 目录并压缩成单个归档
 9. 上传为 GitHub Actions artifact
 
-`static/` 是前端构建产物目录，不再作为仓库真源提交；CI 在 `pnpm build:prod` 后生成它，再由 `deploy/Dockerfile` 复制进入镜像。
+`static/` 是前端构建产物目录，不再作为仓库真源提交；CI 在 `bun run build:prod` 后生成它，再由 `deploy/Dockerfile` 复制进入镜像。
 `deploy/Dockerfile` 会在构建期检查 `config/default.toml` 是否存在，避免镜像带着缺失运行时配置构建成功。
 
 ### 构建性能优化
 
 当前工作流已针对构建链路做了以下优化：
 
-- 前端依赖通过 `actions/setup-node` 的 `pnpm` 缓存复用
-- 前端安装使用 `pnpm install --frozen-lockfile`
+- 前端工具链通过 `oven-sh/setup-bun@v2` 安装，并从 `frontend/package.json` 的 `packageManager` 读取 Bun 版本
+- 前端安装使用 `bun install --frozen-lockfile`
 - Docker 镜像构建使用 `docker/build-push-action` + `gha` 缓存
 - `deploy/Dockerfile` 继续复用多阶段构建与 `cargo-chef`
 - `deploy/Dockerfile.dockerignore` 用于约束镜像构建上下文

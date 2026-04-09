@@ -5,7 +5,7 @@ Set-Location $repoRoot
 
 $errors = @()
 
-$forbiddenFrontendImports = rg -n '@/services/api' frontend/src --glob '!frontend/src/services/api.ts'
+$forbiddenFrontendImports = rg -n '@/services/api' frontend/src -g '*.ts' -g '*.tsx' -g '!frontend/src/services/api.ts'
 if ($LASTEXITCODE -eq 0 -and $forbiddenFrontendImports) {
   $errors += "Forbidden frontend imports from '@/services/api':`n$forbiddenFrontendImports"
 }
