@@ -19,7 +19,7 @@
 - `src/infrastructure/repositories/room_repository.rs` 仍然是超大仓储，职责未按变化原因拆开。
 - `src/handlers/room.rs`、`src/handlers/binding.rs` 仍存在 handler 直接实例化 repository 的旧路径。
 - `CacheManager` 已接入主链路，但其覆盖面仍有限，尚未完全吸收后台更新失效与更多读路径。
-- git 历史里仍有待单独处理的疑似敏感信息：`config/default.toml` 的 `qq_bot.bearer_token` 曾在 `9` 个历史提交中出现非占位符形态值。
+- git 历史里仍有待单独处理的疑似敏感信息：旧的未按环境命名的运行时配置路径下，`qq_bot.bearer_token` 曾在 `9` 个历史提交中出现非占位符形态值。
 - 发布链已补 manifest / deploy-result，但真实 Linux Docker 主机上的回滚演练仍未完成。
 
 ### 已完成但不再作为债务的事项
@@ -27,7 +27,7 @@
 - `main.rs` 已薄化为 `bootstrap::app::run()` 入口。
 - 前端 `bind-room`、HTTP client、query key 与 `DashboardPage` 装配层已经建立新边界，不再按旧集中式结构继续扩张。
 - release artifact 已携带 manifest，服务器部署结果有 `deploy-result.json` 模板。
-- 运行时配置已经切换为 `config/default.toml` 本地文件 + `development.toml.example` / `production.toml.example` 模板，不再依赖仓库内环境分层配置文件直接运行。
+- 运行时配置已经切换为 `config/development.toml` / `config/production.toml` + 对应模板，不再依赖仓库内环境分层配置文件直接运行。
 
 ---
 
@@ -306,7 +306,7 @@ impl RoomSyncService {
 
 **当前配置**:
 ```toml
-# config/default.toml（已配置）
+# config/development.toml（已配置）
 [electricity_fetcher]
 enabled = true
 api_url = "https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid="
@@ -316,7 +316,7 @@ history_retention_days = 8
 ```
 
 **使用说明**:
-1. ✅ API已在`config/default.toml`中配置
+1. ✅ API 已在 `config/development.toml` 中配置
 2. ✅ 启动服务后自动开始定时获取（每5分钟）
 3. ✅ 可通过API手动触发: `POST /api/electricity/fetch`
 4. ✅ 历史记录每小时保存，保留8天数据

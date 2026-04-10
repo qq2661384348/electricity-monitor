@@ -12,7 +12,7 @@
 - `src/modules/`：后端模块化迁移主线，复杂编排优先在模块的 `application/` 落地。
 - `frontend/`：前端工作区；`bun` 是唯一包管理真源，`bun.lock` 是唯一前端 lockfile。
 - `frontend/src/`：前端源码；真实 HTTP client 真源在 `frontend/src/shared/api/http-client.ts`。
-- `config/`：运行时配置模板与本地 `default.toml` 入口。
+- `config/`：运行时配置模板与按环境命名的运行时配置入口；`config/` 下只能保留一个 `.toml` 运行时文件。
 - `deploy/`：部署真源目录，包含 Dockerfile、release 模板和本地 Docker 调试脚本。
 - `tests/`：后端契约、runtime、support 与 infra 分层。
 - `docs/`：架构、测试、部署和运维文档。

@@ -19,9 +19,9 @@
 cargo install diesel_cli --no-default-features --features postgres
 
 # 2. 准备本地运行时配置
-Copy-Item config/development.toml.example config/default.toml
+Copy-Item config/development.toml.example config/development.toml
 
-# 3. 将 config/default.toml 中的 database.password 改成当前local environment PostgreSQL 的真实密码
+# 3. 将 config/development.toml 中的 database.password 改成当前local environment PostgreSQL 的真实密码
 
 # 4. 配置环境
 $env:APP_ENV="development"
@@ -94,8 +94,8 @@ deploy/
 ### 开发环境（Windows）
 
 ```powershell
-Copy-Item config/development.toml.example config/default.toml
-# 继续编辑 config/default.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
+Copy-Item config/development.toml.example config/development.toml
+# 继续编辑 config/development.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
 $env:APP_ENV="development"
 $env:RUST_LOG="debug"
 # development 环境只允许连接本地 PostgreSQL / Redis
@@ -104,12 +104,12 @@ $env:RUST_LOG="debug"
 ### 生产环境（Linux）
 
 ```bash
-cp config/production.toml.example config/default.toml
+cp config/production.toml.example config/production.toml
 export APP_ENV=production
 export RUST_LOG=info
 ```
 
-`config/default.toml` 是本地运行文件，不纳入版本控制。开发环境从 `config/development.toml.example` 复制，生产/发布环境从 `config/production.toml.example` 复制。
+`config/` 目录下只能保留一个运行时 `.toml` 文件，文件名必须与环境一致：开发环境使用 `config/development.toml`，生产/发布环境使用 `config/production.toml`。两个运行时文件都不纳入版本控制。
 
 ## 开发工具
 
@@ -129,7 +129,7 @@ powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 - PR / 手动质量门禁：`.github/workflows/ci.yml`
 - 工作流：`.github/workflows/docker-build.yml`
 - 镜像构建：`deploy/Dockerfile`
-- 运行时配置：工作流会先将 `config/production.toml.example` 复制为 `config/default.toml` 再构建镜像
+- 运行时配置：工作流会先将 `config/production.toml.example` 复制为 `config/production.toml` 再构建镜像
 - release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
 - smoke 契约：`deploy/smoke.targets`，由 `tests/runtime/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用
 - release manifest：artifact 内的 `release/release-manifest.json`

@@ -16,8 +16,8 @@
 
 ## 规则
 
-- 不在 `config/default.toml` 或 `config/production.toml.example` 中保留真实秘密。
-- 生产环境应先从 `config/production.toml.example` 复制生成本地 `config/default.toml`，再配合 `*_FILE` 环境变量 / Compose secrets 使用。
+- 不在 `config/development.toml`、`config/production.toml` 或 `*.toml.example` 中保留真实秘密。
+- 生产环境应先从 `config/production.toml.example` 复制生成本地 `config/production.toml`，再配合 `*_FILE` 环境变量 / Compose secrets 使用。
 - 不在 `.env` 中存秘密原文，只保留 secret file 路径。
 - 缺失 secret file 时，production 启动必须 fail-fast。
 - 发布日志与部署记录不得打印 secret 原文。

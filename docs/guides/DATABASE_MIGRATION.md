@@ -25,7 +25,7 @@ cargo run --bin migrate -- production --revert
 ### 工作原理
 
 `migrate` 工具会：
-1. 读取 `config/default.toml` 中的数据库配置
+1. 读取当前环境对应的运行时配置文件（`config/development.toml` 或 `config/production.toml`）中的数据库配置
 2. 按当前环境校验数据库访问边界（例如 development 只允许本地数据库）
 3. 构建 `DATABASE_URL` 环境变量
 4. 调用 `diesel migration run/revert` 执行迁移
@@ -47,20 +47,20 @@ cargo install diesel_cli --no-default-features --features postgres,mysql
 运行迁移前，先准备本地运行时配置：
 
 ```powershell
-Copy-Item config/development.toml.example config/default.toml
-# 继续编辑 config/default.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
+Copy-Item config/development.toml.example config/development.toml
+# 继续编辑 config/development.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
 ```
 
 生产环境则应先复制：
 
 ```bash
-cp config/production.toml.example config/default.toml
+cp config/production.toml.example config/production.toml
 ```
 
 开发模板中的数据库段如下：
 
 ```toml
-# config/default.toml
+# config/development.toml
 [database]
 type = "postgres"
 host = "127.0.0.1"
@@ -263,14 +263,14 @@ cargo install diesel_cli --no-default-features --features postgres
 
 **错误**:
 ```
-❌ 加载配置失败: 无法读取 config/default.toml
+❌ 加载配置失败: 缺少运行时配置文件 config/development.toml
 ```
 
 **解决**:
-确保在项目根目录执行命令，并先从对应模板复制出 `config/default.toml`：
+确保在项目根目录执行命令，并先从对应模板复制出当前环境对应的运行时配置文件：
 
-- 开发环境：`config/development.toml.example -> config/default.toml`
-- 生产环境：`config/production.toml.example -> config/default.toml`
+- 开发环境：`config/development.toml.example -> config/development.toml`
+- 生产环境：`config/production.toml.example -> config/production.toml`
 
 ### 问题3: 数据库连接失败
 
@@ -281,7 +281,7 @@ Error: Connection to database failed
 
 **解决**:
 1. 检查数据库服务是否运行
-2. 验证 `config/default.toml` 中的连接信息
+2. 验证当前环境对应的运行时配置文件中的连接信息
 3. 确认网络连接和防火墙设置
 
 ### 问题4: Schema未更新
@@ -313,13 +313,13 @@ dir = "migrations"
 ```bash
 cargo run --bin migrate
 ```
-使用从 `config/development.toml.example` 复制得到的 `config/default.toml`
+使用从 `config/development.toml.example` 复制得到的 `config/development.toml`
 
 ### 生产环境
 ```bash
 cargo run --bin migrate -- production
 ```
-使用从 `config/production.toml.example` 复制得到的 `config/default.toml`
+使用从 `config/production.toml.example` 复制得到的 `config/production.toml`
 
 ## 参考资源
 

@@ -67,8 +67,8 @@ jobs:
       - name: Prepare development runtime config
         shell: bash
         run: |
-          cp config/development.toml.example config/default.toml
-          sed -i 's/CHANGE-THIS-LOCAL-POSTGRES-PASSWORD/postgres/' config/default.toml
+          cp config/development.toml.example config/development.toml
+          sed -i 's/CHANGE-THIS-LOCAL-POSTGRES-PASSWORD/postgres/' config/development.toml
 
       - name: Wait for PostgreSQL and Redis
         run: |
@@ -126,8 +126,8 @@ jobs:
       - name: Prepare development runtime config
         shell: bash
         run: |
-          cp config/development.toml.example config/default.toml
-          sed -i 's/CHANGE-THIS-LOCAL-POSTGRES-PASSWORD/postgres/' config/default.toml
+          cp config/development.toml.example config/development.toml
+          sed -i 's/CHANGE-THIS-LOCAL-POSTGRES-PASSWORD/postgres/' config/development.toml
 
       - name: Run real external integration tests
         shell: bash

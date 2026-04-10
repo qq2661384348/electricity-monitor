@@ -63,7 +63,7 @@ jobs:
 
       - name: Prepare production runtime config
         shell: bash
-        run: cp config/production.toml.example config/default.toml
+        run: cp config/production.toml.example config/production.toml
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

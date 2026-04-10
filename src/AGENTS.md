@@ -21,7 +21,7 @@
 ## 明确禁止
 
 - 不要把新的编排逻辑、权限判断或跨仓储流程继续堆回 `src/handlers/`。
-- 不要为了图快把生产 secrets、远端开发库地址或明文 token 写回 `config/default.toml` 或 `*.toml.example`。
+- 不要为了图快把生产 secrets、远端开发库地址或明文 token 写回 `config/development.toml`、`config/production.toml` 或 `*.toml.example`。
 - 不要启用全局 `try_parsing(true)`；当前配置链路依赖保留前导零字符串。
 - 不要在已有模块接缝的地方再造平行实现或临时 optimized 文件。
 

@@ -1,5 +1,5 @@
 param(
-    [string]$ConfigPath = "config/default.toml"
+    [string]$ConfigPath = "config/development.toml"
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,7 +16,7 @@ if (-not (Test-Path $runtimeConfigPath)) {
 
 $content = Get-Content $runtimeConfigPath -Raw
 if ($content -match [regex]::Escape($placeholder)) {
-    throw "config/default.toml still contains the template database password placeholder. Update database.password before running backend checks."
+    throw "config/development.toml 仍然保留开发模板中的数据库密码占位值。运行后端检查前请先更新 database.password。"
 }
 
 $env:APP_ENV = "development"

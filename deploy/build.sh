@@ -44,7 +44,7 @@ docker_compose() {
 
 ensure_runtime_config() {
     local template="${REPO_ROOT}/config/development.toml.example"
-    local runtime_config="${REPO_ROOT}/config/default.toml"
+    local runtime_config="${REPO_ROOT}/config/development.toml"
 
     if [ -f "${runtime_config}" ]; then
         return
@@ -52,7 +52,7 @@ ensure_runtime_config() {
 
     [ -f "${template}" ] || error "缺少开发模板配置: ${template}"
     cp "${template}" "${runtime_config}"
-    warn "检测到缺少 config/default.toml，已从 config/development.toml.example 复制本地运行时配置。"
+    warn "检测到缺少 config/development.toml，已从 config/development.toml.example 复制本地运行时配置。"
     warn "继续本地 Docker 调试前，请先把 ${runtime_config} 中的数据库密码改成当前local environment PostgreSQL 的真实密码。"
 }
 

@@ -72,8 +72,12 @@ COPY migrations ./migrations
 COPY config ./config
 COPY diesel.toml ./
 
-RUN test -f /app/config/default.toml || \
-    (echo "缺少 config/default.toml。请先从 config/production.toml.example 或 config/development.toml.example 复制生成运行时配置。" && exit 1)
+RUN runtime_tomls="$(find /app/config -maxdepth 1 -type f -name '*.toml' -printf '%f\n' | sort)" && \
+    runtime_count="$(printf '%s\n' "${runtime_tomls}" | sed '/^$/d' | wc -l)" && \
+    [ "${runtime_count}" -eq 1 ] || \
+    (echo "config/ 目录下必须且只能存在一个运行时 TOML 文件，文件名只能是 development.toml 或 production.toml。当前发现: ${runtime_tomls:-<none>}" && exit 1) && \
+    printf '%s\n' "${runtime_tomls}" | grep -Eq '^(development|production)\.toml$' || \
+    (echo "检测到不受支持的运行时 TOML 文件: ${runtime_tomls:-<none>}" && exit 1)
 
 # 构建应用（利用已缓存的依赖）
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
@@ -109,8 +113,12 @@ COPY config ./config
 COPY migrations ./migrations
 COPY static ./static
 
-RUN test -f /app/config/default.toml || \
-    (echo "缺少 config/default.toml。镜像构建前请先准备运行时配置。" && exit 1)
+RUN runtime_tomls="$(find /app/config -maxdepth 1 -type f -name '*.toml' -printf '%f\n' | sort)" && \
+    runtime_count="$(printf '%s\n' "${runtime_tomls}" | sed '/^$/d' | wc -l)" && \
+    [ "${runtime_count}" -eq 1 ] || \
+    (echo "config/ 目录下必须且只能存在一个运行时 TOML 文件，文件名只能是 development.toml 或 production.toml。当前发现: ${runtime_tomls:-<none>}" && exit 1) && \
+    printf '%s\n' "${runtime_tomls}" | grep -Eq '^(development|production)\.toml$' || \
+    (echo "检测到不受支持的运行时 TOML 文件: ${runtime_tomls:-<none>}" && exit 1)
 
 # 设置权限
 RUN chown -R app:app /app

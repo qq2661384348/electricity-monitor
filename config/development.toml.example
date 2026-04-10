@@ -1,5 +1,5 @@
 # 开发环境运行时模板
-# 使用方式：复制为 config/default.toml 后按local environment环境修改
+# 使用方式：复制为 config/development.toml 后按local environment环境修改
 
 [server]
 host = "127.0.0.1"
@@ -7,7 +7,7 @@ port = 8000
 
 [database]
 # 开发环境只允许连接本地 PostgreSQL。
-# 复制为 config/default.toml 后，必须把 password 改成当前local environment PostgreSQL 的真实密码。
+# 复制为 config/development.toml 后，必须把 password 改成当前local environment PostgreSQL 的真实密码。
 type = "postgres"
 host = "127.0.0.1"
 port = 5432

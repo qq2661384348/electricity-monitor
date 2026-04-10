@@ -16,7 +16,7 @@
 ## 构建与服务器职责
 
 - CI 会先在 `frontend/` 中执行 `bun install --frozen-lockfile` 与 `bun run build:prod`，再把 `static/` 产物打入镜像。
-- CI 在构建镜像前会把 `config/production.toml.example` 复制为工作区内的 `config/default.toml`。
+- CI 在构建镜像前会把 `config/production.toml.example` 复制为工作区内的 `config/production.toml`，并保持 `config/` 下只存在这一个运行时 TOML。
 - Docker 镜像构建继续使用 Buildx + GHA cache，`deploy/Dockerfile` 继续复用 `cargo-chef` 多阶段构建。
 - 服务器不再从源码构建；服务器职责是加载镜像、校验 `release-manifest.json`、挂载 secret files、执行 `docker compose up`、做健康检查、写出 `deploy-result.json`，并在失败时回滚。
 

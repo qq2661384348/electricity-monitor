@@ -1,5 +1,5 @@
 # 生产环境运行时模板
-# 使用方式：复制为 config/default.toml 后按目标环境修改
+# 使用方式：复制为 config/production.toml 后按目标环境修改
 
 [server]
 host = "0.0.0.0"

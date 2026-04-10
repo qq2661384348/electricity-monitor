@@ -99,18 +99,18 @@
 **设计原则**: 本地运行时配置 + 环境模板 + 环境变量覆盖
 
 **配置优先级**:
-1. `config/default.toml` - 本地运行时配置
+1. `config/development.toml` 或 `config/production.toml` - 运行时配置，`config/` 下只能保留其一
 2. 环境变量 `APP__*` - 最高优先级
 
 运行前需要先复制模板：
-- 开发环境：`config/development.toml.example -> config/default.toml`
-- 生产/发布环境：`config/production.toml.example -> config/default.toml`
+- 开发环境：`config/development.toml.example -> config/development.toml`
+- 生产/发布环境：`config/production.toml.example -> config/production.toml`
 
 **实现亮点**:
 - 使用 `config` crate 实现配置合并
 - `OnceLock` 实现全局单例
 - 类型安全的配置结构
-- 开发环境数据库密码需要直接写入复制出来的 `config/default.toml`
+- 开发环境数据库密码需要直接写入复制出来的 `config/development.toml`
 
 ### 2. 数据库层 (infrastructure/database/)
 

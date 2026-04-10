@@ -12,8 +12,10 @@ use super::{
     RateLimitConfig, RedisConfig, RoomSyncConfig, StaticFilesConfig, VerificationConfig,
 };
 
+const CONFIG_DIR: &str = "config";
 const DEFAULT_ENVIRONMENT: &str = "development";
-const DEFAULT_CONFIG_PATH: &str = "config/default.toml";
+const SUPPORTED_ENVIRONMENTS: [&str; 2] = ["development", "production"];
+const RUNTIME_CONFIG_FILENAMES: [&str; 2] = ["development.toml", "production.toml"];
 const DEVELOPMENT_DATABASE_PASSWORD_PLACEHOLDER: &str = "CHANGE-THIS-LOCAL-POSTGRES-PASSWORD";
 
 /// 服务器配置
@@ -127,15 +129,9 @@ impl AppConfig {
         env_source: Option<HashMap<String, String>>,
         base_dir: &Path,
     ) -> Result<Self, ConfigError> {
-        Self::ensure_default_config_exists(base_dir, environment)?;
-
-        let environment = environment.trim().to_ascii_lowercase();
-        let environment = if environment.is_empty() {
-            DEFAULT_ENVIRONMENT.to_string()
-        } else {
-            environment
-        };
-        let default_config = base_dir.join("config").join("default");
+        let environment = Self::normalize_environment(environment)?;
+        Self::resolve_runtime_config_path(base_dir, &environment)?;
+        let runtime_config = base_dir.join(CONFIG_DIR).join(&environment);
         let mut environment_source = Environment::with_prefix("APP").separator("__");
 
         if let Some(source) = env_source {
@@ -143,7 +139,7 @@ impl AppConfig {
         }
 
         let config = Config::builder()
-            .add_source(File::with_name(default_config.to_string_lossy().as_ref()))
+            .add_source(File::with_name(runtime_config.to_string_lossy().as_ref()))
             .add_source(environment_source)
             .build()?;
 
@@ -215,7 +211,7 @@ impl AppConfig {
             {
                 return Err(ConfigError::Message(format!(
                     "development 环境要求在 {} 中显式设置 database.password。请先从 {} 复制生成运行时配置，再把数据库密码改成当前local environment PostgreSQL 的真实密码。",
-                    Path::new(DEFAULT_CONFIG_PATH).display(),
+                    Self::runtime_config_path(DEFAULT_ENVIRONMENT).display(),
                     Self::suggested_template_path(DEFAULT_ENVIRONMENT).display()
                 )));
             }
@@ -318,19 +314,115 @@ impl AppConfig {
         )
     }
 
-    fn ensure_default_config_exists(base_dir: &Path, environment: &str) -> Result<(), ConfigError> {
-        let default_path = base_dir.join(DEFAULT_CONFIG_PATH);
-        if default_path.is_file() {
-            return Ok(());
+    fn normalize_environment(environment: &str) -> Result<String, ConfigError> {
+        let normalized = environment.trim().to_ascii_lowercase();
+        let normalized = if normalized.is_empty() {
+            DEFAULT_ENVIRONMENT.to_string()
+        } else {
+            normalized
+        };
+
+        if SUPPORTED_ENVIRONMENTS.contains(&normalized.as_str()) {
+            Ok(normalized)
+        } else {
+            Err(ConfigError::Message(format!(
+                "不支持的 APP_ENV={}。当前仅支持 development 或 production。",
+                normalized
+            )))
+        }
+    }
+
+    fn resolve_runtime_config_path(base_dir: &Path, environment: &str) -> Result<PathBuf, ConfigError> {
+        let config_dir = base_dir.join(CONFIG_DIR);
+        let runtime_configs = Self::collect_runtime_configs(&config_dir)?;
+        let expected_path = base_dir.join(Self::runtime_config_path(environment));
+        let expected_name = Self::runtime_config_filename(environment);
+
+        match runtime_configs.as_slice() {
+            [] => Err(ConfigError::Message(format!(
+                "缺少运行时配置文件 {}。请先复制 {} 为 {}。config/ 目录下只能保留一个运行时 TOML，且文件名只能是 development.toml 或 production.toml。",
+                expected_path.display(),
+                Self::suggested_template_path(environment).display(),
+                expected_path.display()
+            ))),
+            [only] if only.file_name().and_then(|name| name.to_str()) == Some(expected_name.as_str()) => {
+                Ok(only.clone())
+            }
+            [only] => Err(ConfigError::Message(format!(
+                "当前 APP_ENV={}，因此运行时配置必须是 {}。但 config/ 下唯一存在的 TOML 是 {}。请改为只保留 {}，或调整 APP_ENV。",
+                environment,
+                expected_name,
+                only.display(),
+                expected_name
+            ))),
+            _ => Err(ConfigError::Message(format!(
+                "config/ 目录下只能存在一个运行时 TOML 文件，且文件名只能是 development.toml 或 production.toml。当前发现: {}",
+                runtime_configs
+                    .iter()
+                    .map(|path| path.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))),
+        }
+    }
+
+    fn collect_runtime_configs(config_dir: &Path) -> Result<Vec<PathBuf>, ConfigError> {
+        let entries = fs::read_dir(config_dir).map_err(|error| {
+            ConfigError::Message(format!(
+                "读取配置目录失败: dir={}, error={}",
+                config_dir.display(),
+                error
+            ))
+        })?;
+
+        let mut runtime_configs = Vec::new();
+        let mut invalid_tomls = Vec::new();
+
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                ConfigError::Message(format!(
+                    "读取配置目录条目失败: dir={}, error={}",
+                    config_dir.display(),
+                    error
+                ))
+            })?;
+            let path = entry.path();
+
+            if !path.is_file() || path.extension().and_then(|ext| ext.to_str()) != Some("toml") {
+                continue;
+            }
+
+            let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+            if RUNTIME_CONFIG_FILENAMES.contains(&file_name) {
+                runtime_configs.push(path);
+            } else {
+                invalid_tomls.push(path);
+            }
         }
 
-        let suggested_template = Self::suggested_template_path(environment);
+        runtime_configs.sort();
+        invalid_tomls.sort();
+
+        if invalid_tomls.is_empty() {
+            return Ok(runtime_configs);
+        }
+
         Err(ConfigError::Message(format!(
-            "缺少运行时配置文件 {}。请先复制 {} 为 {}，再按当前环境修改配置。",
-            default_path.display(),
-            suggested_template.display(),
-            default_path.display()
+            "config/ 目录下只允许保留一个运行时 TOML 文件，且名称只能是 development.toml 或 production.toml。检测到不受支持的 TOML: {}",
+            invalid_tomls
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
         )))
+    }
+
+    fn runtime_config_filename(environment: &str) -> String {
+        format!("{}.toml", environment)
+    }
+
+    fn runtime_config_path(environment: &str) -> PathBuf {
+        Path::new(CONFIG_DIR).join(Self::runtime_config_filename(environment))
     }
 
     fn suggested_template_path(environment: &str) -> PathBuf {
@@ -340,7 +432,7 @@ impl AppConfig {
             "development.toml.example"
         };
 
-        Path::new("config").join(template_name)
+        Path::new(CONFIG_DIR).join(template_name)
     }
 }
 
@@ -643,14 +735,60 @@ mod tests {
 
     #[test]
     fn test_production_requires_secret_files() {
-        let err = AppConfig::load_for_environment_with_source("production", Some(HashMap::new()))
+        let config = AppConfig {
+            server: ServerConfig {
+                host: "0.0.0.0".to_string(),
+                port: 8000,
+            },
+            database: DatabaseConfig {
+                db_type: DatabaseType::Postgres,
+                host: "db.example.internal".to_string(),
+                port: 5432,
+                username: "postgres".to_string(),
+                password: "".to_string(),
+                password_file: None,
+                database: "electricity_pro".to_string(),
+                max_connections: 20,
+                min_connections: 5,
+                connection_timeout: 30,
+            },
+            jwt: JwtConfig {
+                secret: "".to_string(),
+                secret_file: None,
+                expiration_hours: 24,
+            },
+            logging: LoggingConfig {
+                level: "info".to_string(),
+                format: "json".to_string(),
+            },
+            redis: RedisConfig {
+                host: "redis.example.internal".to_string(),
+                port: 6379,
+                max_connections: 10,
+                min_connections: 2,
+                connection_timeout: 30,
+            },
+            rate_limit: RateLimitConfig {
+                insert_per_second: 200,
+                query_per_second: 200,
+            },
+            room_sync: RoomSyncConfig::default(),
+            electricity_fetcher: ElectricityFetcherConfig::default(),
+            qq_bot: QQBotConfig::default(),
+            verification: VerificationConfig::default(),
+            notification: NotificationConfig::default(),
+            admin: AdminConfig::default(),
+            static_files: StaticFilesConfig::default(),
+        };
+
+        let err = AppConfig::validate_sensitive_config(&config, "production")
             .expect_err("production 环境缺少 secret file 时应失败");
 
         assert!(err.to_string().contains("Compose secrets"));
     }
 
     #[test]
-    fn test_missing_default_config_has_friendly_message() {
+    fn test_missing_runtime_config_has_friendly_message() {
         let temp_dir = std::env::temp_dir().join(format!(
             "electricity-monitor-missing-config-{}",
             std::process::id()
@@ -660,10 +798,74 @@ mod tests {
 
         let err =
             AppConfig::load_for_environment_in_dir("development", Some(HashMap::new()), &temp_dir)
-                .expect_err("缺少 default.toml 时应返回友好错误");
+                .expect_err("缺少 development.toml 时应返回友好错误");
 
-        assert!(err.to_string().contains("config/default.toml"));
+        assert!(err.to_string().contains("development.toml"));
         assert!(err.to_string().contains("development.toml.example"));
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_runtime_config_must_match_environment() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "electricity-monitor-config-env-mismatch-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp_dir);
+        let config_dir = temp_dir.join("config");
+        fs::create_dir_all(&config_dir).unwrap();
+        fs::write(config_dir.join("production.toml"), "").unwrap();
+
+        let err =
+            AppConfig::load_for_environment_in_dir("development", Some(HashMap::new()), &temp_dir)
+                .expect_err("development 环境不应读取 production.toml");
+
+        assert!(err.to_string().contains("APP_ENV=development"));
+        assert!(err.to_string().contains("production.toml"));
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_runtime_config_rejects_multiple_runtime_tomls() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "electricity-monitor-config-multiple-runtime-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp_dir);
+        let config_dir = temp_dir.join("config");
+        fs::create_dir_all(&config_dir).unwrap();
+        fs::write(config_dir.join("development.toml"), "").unwrap();
+        fs::write(config_dir.join("production.toml"), "").unwrap();
+
+        let err =
+            AppConfig::load_for_environment_in_dir("development", Some(HashMap::new()), &temp_dir)
+                .expect_err("config/ 下同时存在 development.toml 与 production.toml 时应失败");
+
+        assert!(err.to_string().contains("只能存在一个运行时 TOML"));
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn test_runtime_config_rejects_unsupported_runtime_toml_name() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "electricity-monitor-config-unsupported-runtime-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&temp_dir);
+        let config_dir = temp_dir.join("config");
+        fs::create_dir_all(&config_dir).unwrap();
+        fs::write(config_dir.join("legacy-runtime.toml"), "").unwrap();
+
+        let err =
+            AppConfig::load_for_environment_in_dir("development", Some(HashMap::new()), &temp_dir)
+                .expect_err("不受支持的运行时 TOML 文件名应被拒绝");
+
+        assert!(err.to_string().contains("不受支持的 TOML"));
+        assert!(err.to_string().contains("development.toml"));
+        assert!(err.to_string().contains("production.toml"));
 
         let _ = fs::remove_dir_all(temp_dir);
     }

@@ -66,7 +66,7 @@ electricity-monitor-backend/
 │   ├── lib.rs              # 库入口
 │   └── main.rs             # 程序入口
 ├── config/                 # 配置文件
-│   ├── default.toml        # 本地运行时配置（不纳入版本控制）
+│   ├── development.toml / production.toml  # 运行时配置，只保留其一（不纳入版本控制）
 │   ├── development.toml.example  # 开发环境模板
 │   └── production.toml.example   # 生产环境模板
 ├── migrations/             # 数据库迁移
@@ -84,9 +84,9 @@ electricity-monitor-backend/
 
 ```powershell
 # 准备运行时配置
-Copy-Item config/development.toml.example config/default.toml
+Copy-Item config/development.toml.example config/development.toml
 
-# 继续编辑 config/default.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
+# 继续编辑 config/development.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
 
 # 设置环境变量
 $env:APP_ENV="development"
@@ -106,7 +106,7 @@ cargo run
 
 ```bash
 # 准备运行时配置
-cp config/production.toml.example config/default.toml
+cp config/production.toml.example config/production.toml
 
 # 设置环境变量
 export APP_ENV=production
@@ -123,13 +123,13 @@ cargo build --release
 
 ### 配置文件优先级
 
-1. `config/default.toml` - 本地运行时配置
+1. `config/development.toml` 或 `config/production.toml` - 运行时配置，`config/` 下只能保留其一
 2. 环境变量 `APP__*` - 最高优先级
 
-`config/default.toml` 需要先从环境模板复制得到：
+运行时配置需要先从环境模板复制得到，且文件名必须与 `APP_ENV` 一致：
 
-- 开发环境：`config/development.toml.example -> config/default.toml`
-- 生产/发布环境：`config/production.toml.example -> config/default.toml`
+- 开发环境：`config/development.toml.example -> config/development.toml`
+- 生产/发布环境：`config/production.toml.example -> config/production.toml`
 
 ### 环境变量覆盖示例
 
@@ -147,14 +147,14 @@ export APP__JWT__SECRET_FILE="/run/secrets/app_jwt_secret"
 
 ### 当前配置
 
-- **开发环境**: 从 `config/development.toml.example` 复制到 `config/default.toml`，再直接修改 `database.password`
+- **开发环境**: 从 `config/development.toml.example` 复制到 `config/development.toml`，再直接修改 `database.password`
 - **生产环境**: 通过 Compose secrets 注入数据库密码与 JWT/QQ token
 
 开发环境运行时会校验数据库和 Redis 主机，拒绝非本地地址，防止误连远端环境。
 
 ### 切换到 MySQL
 
-先复制对应模板到 `config/default.toml`，再修改数据库段：
+先复制对应模板到当前环境对应的运行时文件，再修改数据库段：
 
 ```toml
 [database]

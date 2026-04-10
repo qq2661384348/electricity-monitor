@@ -12,7 +12,7 @@
 - ✅ 模块化代码组织
 
 ### 2. 核心功能
-- ✅ TOML配置系统（本地 `default.toml` + 环境模板）
+- ✅ TOML 配置系统（按环境命名的运行时配置 + 环境模板）
 - ✅ Diesel-async数据库连接池
 - ✅ JWT认证中间件
 - ✅ 统一错误处理
@@ -85,12 +85,12 @@ cargo install diesel_cli --no-default-features --features postgres
 
 1. 复制开发模板到本地运行时配置：
    ```powershell
-   Copy-Item config/development.toml.example config/default.toml
+   Copy-Item config/development.toml.example config/development.toml
    ```
 2. 安装并启动 PostgreSQL
 3. 安装并启动 Redis
-4. 编辑本地 `config/default.toml`，把 `database.password` 改成当前local environment PostgreSQL 的真实密码
-5. 若用户名、主机或端口需要调整，也直接修改本地 `config/default.toml`，不要回写 `development.toml.example`
+4. 编辑本地 `config/development.toml`，把 `database.password` 改成当前local environment PostgreSQL 的真实密码
+5. 若用户名、主机或端口需要调整，也直接修改本地 `config/development.toml`，不要回写 `development.toml.example`
 
 ### 3. 初始化数据库 Schema
 
@@ -123,7 +123,7 @@ cargo run --bin migrate
 
 ```powershell
 # 准备本地运行时配置
-Copy-Item config/development.toml.example config/default.toml
+Copy-Item config/development.toml.example config/development.toml
 
 # 设置环境变量
 $env:APP_ENV="development"
@@ -273,8 +273,8 @@ cargo build --release --target x86_64-unknown-linux-gnu
 
 ### 部署检查清单
 
-- [ ] 将 `config/production.toml.example` 复制为 `config/default.toml`
-- [ ] 确认 `config/default.toml` 中不保留开发环境数据库密码
+- [ ] 将 `config/production.toml.example` 复制为 `config/production.toml`
+- [ ] 确认 `config/production.toml` 中不保留开发环境数据库密码
 - [ ] 设置环境变量 `APP__JWT__SECRET_FILE`
 - [ ] 准备 `APP__DATABASE__PASSWORD_FILE`
 - [ ] 设置 `RUST_LOG=info` 减少日志输出

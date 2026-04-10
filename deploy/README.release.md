@@ -2,7 +2,7 @@
 
 此发布包由 GitHub Actions 生成，目标运行环境为 Alibaba Cloud Linux 3 amd64。
 
-镜像在工作流中基于 `config/production.toml.example -> config/default.toml` 的运行时配置构建；生产数据库密码、JWT secret 和 QQ bot token 仍以运行时 secret file 覆盖为准。
+镜像在工作流中基于 `config/production.toml.example -> config/production.toml` 的运行时配置构建；生产数据库密码、JWT secret 和 QQ bot token 仍以运行时 secret file 覆盖为准。
 
 ## 包内内容
 

@@ -63,7 +63,7 @@ deploy/
 
 1. 校验 tag 是否存在，并检出该 tag
 2. 构建前端并复制到 `static/`
-3. 将 `config/production.toml.example` 复制为工作区内的 `config/default.toml`
+3. 将 `config/production.toml.example` 复制为工作区内的 `config/production.toml`
 4. 使用 `deploy/Dockerfile` 在 GitHub Actions Linux runner 中构建 `linux/amd64` Docker 镜像
 5. 导出应用镜像与 Redis 镜像
 6. 复制 `deploy/smoke.targets` 作为 release smoke 契约文件
@@ -72,7 +72,7 @@ deploy/
 9. 上传为 GitHub Actions artifact
 
 `static/` 是前端构建产物目录，不再作为仓库真源提交；CI 在 `bun run build:prod` 后生成它，再由 `deploy/Dockerfile` 复制进入镜像。
-`deploy/Dockerfile` 会在构建期检查 `config/default.toml` 是否存在，避免镜像带着缺失运行时配置构建成功。
+`deploy/Dockerfile` 会在构建期检查 `config/` 下是否只保留一个运行时 TOML，且文件名只能是 `development.toml` 或 `production.toml`，避免镜像带着歧义配置构建成功。
 
 ### 构建性能优化
 
@@ -204,6 +204,6 @@ chmod +x smoke.sh
 
 仓库中的 `deploy/build.sh` 和 `deploy/docker-compose.local.yml` 仍可用于本地 Docker 调试，但它们不再是推荐的生产发布主线。
 
-`deploy/build.sh` 在检测到缺少 `config/default.toml` 时，会自动从 `config/development.toml.example` 复制一份本地运行时配置；后续仍需把其中的数据库密码改成当前local environment PostgreSQL 的真实密码。
+`deploy/build.sh` 在检测到缺少 `config/development.toml` 时，会自动从 `config/development.toml.example` 复制一份本地运行时配置；后续仍需把其中的数据库密码改成当前local environment PostgreSQL 的真实密码。
 
 生产发布主线以 GitHub Actions artifact 为准。

@@ -48,9 +48,9 @@
 
 ## 本地执行约定
 
-- 本地运行前先从 `config/development.toml.example` 复制生成 `config/default.toml`，不要直接编辑仓库模板保存local environment参数。
-- 若local environment PostgreSQL 密码与开发模板不一致，直接修改本地 `config/default.toml` 中的 `database.password`。
-- `scripts/backend-checks.ps1` 会检查 `config/default.toml` 是否仍保留模板占位值，并统一执行迁移与后端关键回归。
+- 本地运行前先从 `config/development.toml.example` 复制生成 `config/development.toml`，不要直接编辑仓库模板保存local environment参数。
+- 若local environment PostgreSQL 密码与开发模板不一致，直接修改本地 `config/development.toml` 中的 `database.password`。
+- `scripts/backend-checks.ps1` 会检查 `config/development.toml` 是否仍保留模板占位值，并统一执行迁移与后端关键回归。
 
 ## 仍未接入默认门禁的验证
 

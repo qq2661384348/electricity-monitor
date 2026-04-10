@@ -13,7 +13,7 @@
 - `frontend/`：React 19 + Vite 7 前端工作区；`bun` 是唯一包管理真源，`bun.lock` 是唯一前端 lockfile。
 - `tests/`：后端契约、runtime、support 与 infra 分层。
 - `deploy/`：生产发布与本地 Docker 调试资产真源。
-- `config/`：本地运行时配置 `default.toml` 与环境模板。
+- `config/`：按环境命名的运行时配置与环境模板；`config/` 下只能保留一个运行时 `.toml` 文件。
 - `memory/`：项目长期记忆与边界摘要。
 
 ## 局部 AGENTS
@@ -44,9 +44,10 @@
 ## 稳定约束
 
 - 后端运行时依赖 PostgreSQL 与 Redis。
-- 配置加载顺序固定为 `config/default.toml` -> `APP__<SECTION>__<KEY>`；`APP_ENV` 默认是 `development`。
-- `config/default.toml` 是本地运行文件，不纳入版本控制；开发环境从 `config/development.toml.example` 复制，生产/发布环境从 `config/production.toml.example` 复制。
-- `development` 环境只能连接本地 PostgreSQL / Redis；开发环境数据库密码必须直接写入复制出来的 `config/default.toml`。
+- 配置加载顺序固定为“当前环境对应的运行时 TOML 文件” -> `APP__<SECTION>__<KEY>`；`APP_ENV` 默认是 `development`。
+- `config/` 下只能存在一个运行时 `.toml` 文件，文件名必须是 `development.toml` 或 `production.toml`，且要与 `APP_ENV` 保持一致；两个运行时文件都不纳入版本控制。
+- 开发环境从 `config/development.toml.example` 复制为 `config/development.toml`，生产/发布环境从 `config/production.toml.example` 复制为 `config/production.toml`。
+- `development` 环境只能连接本地 PostgreSQL / Redis；开发环境数据库密码必须直接写入复制出来的 `config/development.toml`。
 - 不要启用全局 `try_parsing(true)`；当前配置链路依赖保留前导零字符串。
 - 生产敏感配置必须走 `APP__...__..._FILE` 链路，例如 `APP__DATABASE__PASSWORD_FILE`、`APP__JWT__SECRET_FILE`、`APP__QQ_BOT__BEARER_TOKEN_FILE`。
 - 生产发布主线是 `.github/workflows/docker-build.yml` + `deploy/`；`deploy/build.sh` 与 `deploy/docker-compose.local.yml` 只用于本地 Docker 调试。
