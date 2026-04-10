@@ -11,22 +11,24 @@ import type { Room } from '@/types';
  */
 export const useBindingsQuery = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isSessionReady = useAuthStore((state) => state.isSessionReady);
   
   return useQuery({
     queryKey: bindingKeys.all,
     queryFn: () => bindingApi.getMyBindings(),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && isSessionReady,
     staleTime: 5 * 60 * 1000, // 5分钟缓存
   });
 };
 
 export const useFlaggedRoomsQuery = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isSessionReady = useAuthStore((state) => state.isSessionReady);
 
   return useQuery({
     queryKey: roomKeys.flagged(),
     queryFn: () => roomApi.getFlaggedRooms(),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && isSessionReady,
     refetchInterval: 1000 * 60, // 每分钟轮询一次预警
   });
 };

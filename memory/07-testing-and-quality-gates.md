@@ -16,6 +16,7 @@
 - 在 `frontend/` 目录执行 `bun run test`、`bun run lint`、`bun run build:prod`。
 - 在 `frontend/` 目录执行 `bun audit` 做前端依赖审计。
 - 在仓库根目录执行 `cargo audit` 做 Rust 依赖审计。
+- 在仓库根目录执行 `cargo clippy --all-targets -- -D warnings` 做后端代码质量阻断检查。
 
 ## 后端测试约束
 
@@ -39,10 +40,11 @@
 
 ## CI 门禁结构
 
-- `backend-tests`：准备本地 PostgreSQL / Redis、复制开发模板、执行迁移与后端关键回归。
+- `backend-tests`：准备本地 PostgreSQL / Redis、复制开发模板、执行迁移、后端关键回归与 `cargo clippy --all-targets -- -D warnings`。
 - `backend-external-tests`：仅在手动 workflow 且显式开启时执行真实外部测试。
 - `frontend-quality`：在 `frontend/` 中执行 `bun install --frozen-lockfile`、`bun run lint`、`bun run build:prod`。
 - `frontend-tests`：在 `frontend/` 中执行 `bun install --frozen-lockfile`、`bun run test`。
+- `dependency-audit`：执行 `cargo audit -q` 与 `bun audit --json`，上传审计 artifact 并写入 workflow summary；当前作为报告项，不阻断 workflow。
 - `architecture-guard`：执行 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。
 - 所有 job 都会上传对应日志 artifact，便于失败定位。
 
@@ -52,7 +54,7 @@
 - 若local environment PostgreSQL 密码与开发模板不一致，直接修改本地 `config/development.toml` 中的 `database.password`。
 - `scripts/backend-checks.ps1` 会检查 `config/development.toml` 是否仍保留模板占位值，并统一执行迁移与后端关键回归。
 
-## 仍未接入默认门禁的验证
+## 仍未接入默认阻断门禁的验证
 
 - `cargo audit`
 - `bun audit`

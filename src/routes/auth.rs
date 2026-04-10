@@ -21,7 +21,8 @@ pub fn routes() -> Router<AppState> {
             post(auth::send_verification_code),
         )
         .route("/auth/verify-and-login", post(auth::verify_and_login))
-        .route("/auth/refresh", post(auth::refresh_token));
+        .route("/auth/refresh", post(auth::refresh_token))
+        .route("/auth/logout", post(auth::logout));
 
     // 受保护路由（需要JWT认证）
     let protected_routes = Router::new()

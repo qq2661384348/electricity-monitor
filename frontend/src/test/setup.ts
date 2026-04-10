@@ -19,6 +19,7 @@ afterEach(() => {
     user: null,
     token: null,
     isAuthenticated: false,
+    isSessionReady: false,
   });
   vi.restoreAllMocks();
 });

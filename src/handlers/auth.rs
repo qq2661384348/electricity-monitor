@@ -2,9 +2,17 @@
 //!
 //! 处理用户认证相关的HTTP请求
 
-use axum::{extract::State, http::StatusCode, Extension, Json};
+use axum::{
+    extract::State,
+    http::{
+        header::{self, HeaderMap, HeaderValue},
+        StatusCode,
+    },
+    response::IntoResponse,
+    Extension, Json,
+};
 use chrono::Utc;
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -12,8 +20,13 @@ use crate::config::AppConfig;
 use crate::domain::services::VerificationCodeService;
 use crate::errors::{AppError, Result};
 use crate::infrastructure::repositories::UserRepository;
-use crate::middleware::auth::Claims;
+use crate::modules::auth::{
+    infrastructure::{resolve_credential, ResolvedCredential},
+    Claims, TokenKind,
+};
 use crate::state::AppState;
+
+const REFRESH_COOKIE_NAME: &str = "refresh_token";
 
 /// 发送验证码请求
 #[derive(Debug, Deserialize, Validate)]
@@ -38,21 +51,11 @@ pub struct VerifyAndLoginRequest {
     pub code: String,
 }
 
-/// 刷新Token请求
-#[derive(Debug, Deserialize)]
-pub struct RefreshTokenRequest {
-    /// 旧的刷新Token
-    pub refresh_token: String,
-}
-
 /// 登录响应
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     /// 访问Token（短期有效）
     pub access_token: String,
-
-    /// 刷新Token（长期有效）
-    pub refresh_token: String,
 
     /// Token类型
     pub token_type: String,
@@ -71,6 +74,129 @@ pub struct UserInfo {
     pub qq_number: String,
     pub role: String,
     pub is_active: bool,
+}
+
+fn has_admin_override(config: &AppConfig, qq_number: &str) -> bool {
+    let admin_qq = config.admin.default_qq_number.trim();
+    !admin_qq.is_empty()
+        && !admin_qq.starts_with("CHANGE-THIS")
+        && qq_number == admin_qq
+}
+
+fn cookie_same_site_label(config: &AppConfig) -> Result<&'static str> {
+    match config
+        .auth
+        .refresh_cookie_same_site
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "lax" => Ok("Lax"),
+        "strict" => Ok("Strict"),
+        "none" => Ok("None"),
+        _ => Err(AppError::Internal(
+            "refresh cookie SameSite 配置非法".to_string(),
+        )),
+    }
+}
+
+fn build_refresh_cookie_header(config: &AppConfig, refresh_token: &str) -> Result<HeaderValue> {
+    let mut cookie = format!(
+        "{REFRESH_COOKIE_NAME}={refresh_token}; HttpOnly; Path=/api/auth; SameSite={}; Max-Age={}",
+        cookie_same_site_label(config)?,
+        config.auth.refresh_expiration_hours * 3600
+    );
+    if config.auth.refresh_cookie_secure {
+        cookie.push_str("; Secure");
+    }
+
+    HeaderValue::from_str(&cookie)
+        .map_err(|error| AppError::Internal(format!("构造 refresh cookie 失败: {error}")))
+}
+
+fn build_clear_refresh_cookie_header(config: &AppConfig) -> Result<HeaderValue> {
+    let mut cookie = format!(
+        "{REFRESH_COOKIE_NAME}=; HttpOnly; Path=/api/auth; SameSite={}; Max-Age=0",
+        cookie_same_site_label(config)?
+    );
+    if config.auth.refresh_cookie_secure {
+        cookie.push_str("; Secure");
+    }
+
+    HeaderValue::from_str(&cookie)
+        .map_err(|error| AppError::Internal(format!("构造清理 cookie 失败: {error}")))
+}
+
+fn refresh_token_from_headers(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get(header::COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|cookie_header| {
+            cookie_header
+                .split(';')
+                .map(str::trim)
+                .find_map(|segment| {
+                    segment
+                        .strip_prefix(&format!("{REFRESH_COOKIE_NAME}="))
+                        .map(ToOwned::to_owned)
+                })
+        })
+}
+
+fn issue_tokens(user: &crate::domain::models::User, config: &AppConfig) -> Result<(String, String, u64)> {
+    crate::modules::auth::infrastructure::ensure_jwt_crypto_provider();
+
+    let now = Utc::now().timestamp() as usize;
+    let access_expiration = (config.jwt.expiration_hours * 3600) as usize;
+    let refresh_expiration = (config.auth.refresh_expiration_hours * 3600) as usize;
+
+    let access_claims = Claims {
+        sub: user.qq_number.clone(),
+        user_id: user.id.to_string(),
+        role: user.role.clone(),
+        token_kind: TokenKind::Access,
+        exp: now + access_expiration,
+        iat: now,
+    };
+
+    let refresh_claims = Claims {
+        sub: user.qq_number.clone(),
+        user_id: user.id.to_string(),
+        role: user.role.clone(),
+        token_kind: TokenKind::Refresh,
+        exp: now + refresh_expiration,
+        iat: now,
+    };
+
+    let secret = config.jwt.secret.as_bytes();
+    let access_token = encode(
+        &Header::default(),
+        &access_claims,
+        &EncodingKey::from_secret(secret),
+    )
+    .map_err(|error| AppError::Internal(format!("Token生成失败: {error}")))?;
+    let refresh_token = encode(
+        &Header::default(),
+        &refresh_claims,
+        &EncodingKey::from_secret(secret),
+    )
+    .map_err(|error| AppError::Internal(format!("Token生成失败: {error}")))?;
+
+    Ok((access_token, refresh_token, access_expiration as u64))
+}
+
+fn build_login_response(user: crate::domain::models::User, access_token: String, expires_in: u64) -> LoginResponse {
+    LoginResponse {
+        access_token,
+        token_type: "Bearer".to_string(),
+        expires_in,
+        user: UserInfo {
+            id: user.id.to_string(),
+            qq_number: user.qq_number,
+            role: user.role,
+            is_active: user.is_active,
+        },
+    }
 }
 
 /// 发送验证码
@@ -149,7 +275,7 @@ pub async fn send_verification_code(
 pub async fn verify_and_login(
     State(state): State<AppState>,
     Json(req): Json<VerifyAndLoginRequest>,
-) -> Result<(StatusCode, Json<LoginResponse>)> {
+) -> Result<impl IntoResponse> {
     // 验证请求
     req.validate()
         .map_err(|e| AppError::Internal(format!("验证失败: {}", e)))?;
@@ -187,7 +313,7 @@ pub async fn verify_and_login(
     let user_repo = UserRepository::new(state.db_pool.clone());
 
     let config = AppConfig::global();
-    let desired_role = if req.qq_number == config.admin.default_qq_number {
+    let desired_role = if has_admin_override(config, &req.qq_number) {
         "admin"
     } else {
         "user"
@@ -212,41 +338,9 @@ pub async fn verify_and_login(
         return Err(AppError::Unauthorized("用户已被停用".to_string()));
     }
 
-    // 生成JWT Token
-    let now = Utc::now().timestamp() as usize;
-    let expiration = (config.jwt.expiration_hours * 3600) as usize;
-
-    let access_claims = Claims {
-        sub: user.qq_number.clone(),
-        user_id: user.id.to_string(),
-        role: user.role.clone(),
-        exp: now + expiration,
-        iat: now,
-    };
-
-    let refresh_claims = Claims {
-        sub: user.qq_number.clone(),
-        user_id: user.id.to_string(),
-        role: user.role.clone(),
-        exp: now + (7 * 24 * 3600),
-        iat: now,
-    };
-
-    let secret = config.jwt.secret.as_bytes();
-
-    let access_token = encode(
-        &Header::default(),
-        &access_claims,
-        &EncodingKey::from_secret(secret),
-    )
-    .map_err(|e| AppError::Internal(format!("Token生成失败: {}", e)))?;
-
-    let refresh_token = encode(
-        &Header::default(),
-        &refresh_claims,
-        &EncodingKey::from_secret(secret),
-    )
-    .map_err(|e| AppError::Internal(format!("Token生成失败: {}", e)))?;
+    let (access_token, refresh_token, expires_in) = issue_tokens(&user, config)?;
+    let mut headers = HeaderMap::new();
+    headers.insert(header::SET_COOKIE, build_refresh_cookie_header(config, &refresh_token)?);
 
     tracing::info!(
         qq_number = %req.qq_number,
@@ -255,21 +349,7 @@ pub async fn verify_and_login(
         "用户登录成功"
     );
 
-    Ok((
-        StatusCode::OK,
-        Json(LoginResponse {
-            access_token,
-            refresh_token,
-            token_type: "Bearer".to_string(),
-            expires_in: expiration as u64,
-            user: UserInfo {
-                id: user.id.to_string(),
-                qq_number: user.qq_number,
-                role: user.role,
-                is_active: user.is_active,
-            },
-        }),
-    ))
+    Ok((StatusCode::OK, headers, Json(build_login_response(user, access_token, expires_in))))
 }
 
 /// 刷新Token
@@ -277,24 +357,14 @@ pub async fn verify_and_login(
 /// POST /auth/refresh
 pub async fn refresh_token(
     State(state): State<AppState>,
-    Json(req): Json<RefreshTokenRequest>,
-) -> Result<(StatusCode, Json<LoginResponse>)> {
+    headers: HeaderMap,
+) -> Result<impl IntoResponse> {
     let config = AppConfig::global();
-    let secret = config.jwt.secret.as_bytes();
-
-    // 验证旧Token（使用增强的验证规则）
-    let mut validation = Validation::new(jsonwebtoken::Algorithm::HS256);
-    validation.leeway = 60; // 60秒时钟容差
-    validation.set_required_spec_claims(&["exp", "iat"]); // 必需字段
-
-    let token_data = decode::<Claims>(
-        &req.refresh_token,
-        &DecodingKey::from_secret(secret),
-        &validation,
-    )
-    .map_err(|_| AppError::Unauthorized("刷新Token无效或已过期".to_string()))?;
-
-    let old_claims = token_data.claims;
+    let refresh_token = refresh_token_from_headers(&headers)
+        .ok_or(AppError::Unauthorized("缺少 refresh cookie".to_string()))?;
+    let ResolvedCredential::User(old_claims) =
+        resolve_credential(&refresh_token, config, TokenKind::Refresh)
+            .map_err(|_| AppError::Unauthorized("刷新Token无效或已过期".to_string()))?;
 
     // 从数据库查询用户信息（获取最新的role和状态）
     let user_repo = UserRepository::new(state.db_pool.clone());
@@ -306,39 +376,16 @@ pub async fn refresh_token(
         .await?
         .ok_or(AppError::Unauthorized("用户不存在".to_string()))?;
 
-    // 生成新Token
-    let now = Utc::now().timestamp() as usize;
-    let expiration = (config.jwt.expiration_hours * 3600) as usize;
+    if !user.is_active {
+        return Err(AppError::Unauthorized("用户已被停用".to_string()));
+    }
 
-    let new_access_claims = Claims {
-        sub: old_claims.sub.clone(),
-        user_id: old_claims.user_id.clone(),
-        role: user.role.clone(),
-        exp: now + expiration,
-        iat: now,
-    };
-
-    let new_refresh_claims = Claims {
-        sub: old_claims.sub.clone(),
-        user_id: old_claims.user_id.clone(),
-        role: user.role.clone(),
-        exp: now + (7 * 24 * 3600),
-        iat: now,
-    };
-
-    let access_token = encode(
-        &Header::default(),
-        &new_access_claims,
-        &EncodingKey::from_secret(secret),
-    )
-    .map_err(|e| AppError::Internal(format!("Token生成失败: {}", e)))?;
-
-    let refresh_token = encode(
-        &Header::default(),
-        &new_refresh_claims,
-        &EncodingKey::from_secret(secret),
-    )
-    .map_err(|e| AppError::Internal(format!("Token生成失败: {}", e)))?;
+    let (access_token, new_refresh_token, expires_in) = issue_tokens(&user, config)?;
+    let mut response_headers = HeaderMap::new();
+    response_headers.insert(
+        header::SET_COOKIE,
+        build_refresh_cookie_header(config, &new_refresh_token)?,
+    );
 
     tracing::info!(
         user_id = %old_claims.user_id,
@@ -347,19 +394,22 @@ pub async fn refresh_token(
 
     Ok((
         StatusCode::OK,
-        Json(LoginResponse {
-            access_token,
-            refresh_token,
-            token_type: "Bearer".to_string(),
-            expires_in: expiration as u64,
-            user: UserInfo {
-                id: user.id.to_string(),
-                qq_number: user.qq_number,
-                role: user.role,
-                is_active: user.is_active,
-            },
-        }),
+        response_headers,
+        Json(build_login_response(user, access_token, expires_in)),
     ))
+}
+
+/// 退出登录
+///
+/// POST /auth/logout
+pub async fn logout() -> Result<impl IntoResponse> {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::SET_COOKIE,
+        build_clear_refresh_cookie_header(AppConfig::global())?,
+    );
+
+    Ok((StatusCode::NO_CONTENT, headers))
 }
 
 /// 获取当前用户信息

@@ -5,9 +5,10 @@
 ## 目录定位
 
 - `src/main.tsx`：前端启动入口，负责挂载应用并注入全局 Provider。
-- `src/App.tsx`：应用壳层，主要负责转交路由。
+- `src/App.tsx`：应用壳层，负责在首次渲染前通过 `/api/auth/refresh` 恢复会话，再转交路由。
 - `src/routes.tsx`：页面级路由装配与 lazy load 真源。
-- `src/shared/api/http-client.ts`：真实 HTTP client 真源，统一处理 `/api` 前缀、token 注入和 401 处理。
+- `src/shared/api/http-client.ts`：真实 HTTP client 真源，统一处理 `/api` 前缀、`withCredentials`、Bearer token 注入和单次 401 刷新重试。
+- `src/stores/authStore.ts`：认证状态真源，只在内存里保存 access token，不做本地持久化。
 - `src/features/`：页面流程与交互编排层。
 - `src/entities/`：单领域 API 与稳定公共出口。
 
@@ -24,6 +25,7 @@ bun run dev
 bun run test
 bun run lint
 bun run build:prod
+bun audit
 ```
 
 其中 `build:prod` 会先执行前端构建，再把 `dist/` 复制到仓库根目录 `static/`，供后端静态文件服务托管。
@@ -31,6 +33,7 @@ bun run build:prod
 ## 当前约束
 
 - 真实接口访问统一走 `src/shared/api/http-client.ts`，不要把 `src/services/api.ts` 再演化成新的接口真源。
+- refresh token 只存在于 HTTPOnly Cookie；浏览器端只在内存保存 access token，页面刷新后的会话恢复统一走 `/api/auth/refresh`。
 - 页面应尽量保持薄层，复杂交互优先下沉到 `src/features/`。
 - 单领域访问和稳定公共出口优先收敛到 `src/entities/`。
 - 根目录 `static/` 只保留构建产物占位，不重新纳入版本控制。

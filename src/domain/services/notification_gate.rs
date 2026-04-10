@@ -512,139 +512,6 @@ impl NotificationGate {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domain::models::Room;
-
-    /// 创建测试用房间
-    fn create_test_room(roomid: i32, electricity_fee: f32, threshold: f32) -> Room {
-        Room {
-            id: Uuid::new_v4(),
-            roomid,
-            electricity_fee,
-            send_flag: electricity_fee < threshold,
-            threshold,
-            room_name: format!("测试房间{}", roomid),
-            source_type: "manual".to_string(),
-            primary_roompath: format!("测试/楼栋/{}", roomid),
-            primary_roompath_hash: 0, // 测试用，实际值不重要
-            has_additional_paths: false,
-            is_active: true,
-            external_id: None,
-            last_synced_at: None,
-            last_recovered_at: None,
-            created_at: chrono::Utc::now().naive_utc(),
-            updated_at: chrono::Utc::now().naive_utc(),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_first_notification_allowed() {
-        // 首次通知应该允许
-        let gate = NotificationGate::new(None);
-        let user_id = Uuid::new_v4();
-        let room = create_test_room(101, 50.0, 100.0);
-
-        assert!(gate.should_notify(user_id, &room).await);
-    }
-
-    #[tokio::test]
-    async fn test_duplicate_notification_blocked() {
-        // 重复通知应该被阻止
-        let gate = NotificationGate::new(None);
-        let user_id = Uuid::new_v4();
-        let room = create_test_room(101, 50.0, 100.0);
-
-        // 首次允许
-        assert!(gate.should_notify(user_id, &room).await);
-
-        // 标记已发送
-        gate.mark_notified(user_id, room.roomid).await;
-
-        // 再次检查应该被阻止
-        assert!(!gate.should_notify(user_id, &room).await);
-    }
-
-    #[tokio::test]
-    async fn test_notification_reset_after_recovery() {
-        // 恢复后应该重置状态（但需要过观察期）
-        let gate = NotificationGate::new(Some(Duration::from_millis(100))); // 100ms观察期用于测试
-        let user_id = Uuid::new_v4();
-        let room = create_test_room(101, 50.0, 100.0);
-
-        // 首次发送
-        assert!(gate.should_notify(user_id, &room).await);
-        gate.mark_notified(user_id, room.roomid).await;
-
-        // 重复发送被阻止
-        assert!(!gate.should_notify(user_id, &room).await);
-
-        // 模拟电费恢复
-        let recovered_room = create_test_room(101, 120.0, 100.0);
-        gate.update_recovery_state(&[recovered_room.clone()]).await;
-
-        // 立即检查，仍在观察期内，应该被阻止
-        assert!(!gate.should_notify(user_id, &recovered_room).await);
-
-        // 等待观察期结束
-        tokio::time::sleep(Duration::from_millis(150)).await;
-
-        // 观察期结束后，应该允许发送
-        assert!(gate.should_notify(user_id, &recovered_room).await);
-    }
-
-    #[tokio::test]
-    async fn test_cleanup_expired_rooms() {
-        // 清理任务应该正确清除过期状态
-        let gate = NotificationGate::new(Some(Duration::from_millis(100)));
-        let user_id = Uuid::new_v4();
-        let room = create_test_room(101, 50.0, 100.0);
-
-        // 发送通知
-        gate.mark_notified(user_id, room.roomid).await;
-
-        // 记录恢复时间
-        let recovered_room = create_test_room(101, 120.0, 100.0);
-        gate.update_recovery_state(&[recovered_room]).await;
-
-        // 立即清理，应该没有过期的
-        let cleaned = gate.cleanup_recovered().await;
-        assert_eq!(cleaned, 0);
-
-        // 等待观察期结束
-        tokio::time::sleep(Duration::from_millis(150)).await;
-
-        // 再次清理，应该清除1条记录
-        let cleaned = gate.cleanup_recovered().await;
-        assert_eq!(cleaned, 1);
-
-        // 验证状态已清除
-        let (history_count, recovery_count) = gate.stats().await;
-        assert_eq!(history_count, 0);
-        assert_eq!(recovery_count, 0);
-    }
-
-    #[tokio::test]
-    async fn test_multiple_users_same_room() {
-        // 同一房间的多个用户应该独立管理
-        let gate = NotificationGate::new(None);
-        let user1 = Uuid::new_v4();
-        let user2 = Uuid::new_v4();
-        let room = create_test_room(101, 50.0, 100.0);
-
-        // 用户1首次允许
-        assert!(gate.should_notify(user1, &room).await);
-        gate.mark_notified(user1, room.roomid).await;
-
-        // 用户1再次被阻止
-        assert!(!gate.should_notify(user1, &room).await);
-
-        // 用户2仍然允许（独立状态）
-        assert!(gate.should_notify(user2, &room).await);
-    }
-}
-
 /// 启动房间恢复状态监控任务（带持久化）
 ///
 /// # 职责
@@ -800,4 +667,112 @@ pub fn spawn_recovery_monitor(
             );
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::models::Room;
+
+    /// 创建测试用房间
+    fn create_test_room(roomid: i32, electricity_fee: f32, threshold: f32) -> Room {
+        Room {
+            id: Uuid::new_v4(),
+            roomid,
+            electricity_fee,
+            send_flag: electricity_fee < threshold,
+            threshold,
+            room_name: format!("测试房间{}", roomid),
+            source_type: "manual".to_string(),
+            primary_roompath: format!("测试/楼栋/{}", roomid),
+            primary_roompath_hash: 0, // 测试用，实际值不重要
+            has_additional_paths: false,
+            is_active: true,
+            external_id: None,
+            last_synced_at: None,
+            last_recovered_at: None,
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_first_notification_allowed() {
+        let gate = NotificationGate::new(None);
+        let user_id = Uuid::new_v4();
+        let room = create_test_room(101, 50.0, 100.0);
+
+        assert!(gate.should_notify(user_id, &room).await);
+    }
+
+    #[tokio::test]
+    async fn test_duplicate_notification_blocked() {
+        let gate = NotificationGate::new(None);
+        let user_id = Uuid::new_v4();
+        let room = create_test_room(101, 50.0, 100.0);
+
+        assert!(gate.should_notify(user_id, &room).await);
+        gate.mark_notified(user_id, room.roomid).await;
+
+        assert!(!gate.should_notify(user_id, &room).await);
+    }
+
+    #[tokio::test]
+    async fn test_notification_reset_after_recovery() {
+        let gate = NotificationGate::new(Some(Duration::from_millis(100)));
+        let user_id = Uuid::new_v4();
+        let room = create_test_room(101, 50.0, 100.0);
+
+        assert!(gate.should_notify(user_id, &room).await);
+        gate.mark_notified(user_id, room.roomid).await;
+        assert!(!gate.should_notify(user_id, &room).await);
+
+        let recovered_room = create_test_room(101, 120.0, 100.0);
+        gate.update_recovery_state(std::slice::from_ref(&recovered_room))
+            .await;
+
+        assert!(!gate.should_notify(user_id, &recovered_room).await);
+
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        assert!(gate.should_notify(user_id, &recovered_room).await);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_expired_rooms() {
+        let gate = NotificationGate::new(Some(Duration::from_millis(100)));
+        let user_id = Uuid::new_v4();
+        let room = create_test_room(101, 50.0, 100.0);
+
+        gate.mark_notified(user_id, room.roomid).await;
+
+        let recovered_room = create_test_room(101, 120.0, 100.0);
+        gate.update_recovery_state(&[recovered_room]).await;
+
+        let cleaned = gate.cleanup_recovered().await;
+        assert_eq!(cleaned, 0);
+
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        let cleaned = gate.cleanup_recovered().await;
+        assert_eq!(cleaned, 1);
+
+        let (history_count, recovery_count) = gate.stats().await;
+        assert_eq!(history_count, 0);
+        assert_eq!(recovery_count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_users_same_room() {
+        let gate = NotificationGate::new(None);
+        let user1 = Uuid::new_v4();
+        let user2 = Uuid::new_v4();
+        let room = create_test_room(101, 50.0, 100.0);
+
+        assert!(gate.should_notify(user1, &room).await);
+        gate.mark_notified(user1, room.roomid).await;
+
+        assert!(!gate.should_notify(user1, &room).await);
+        assert!(gate.should_notify(user2, &room).await);
+    }
 }

@@ -17,15 +17,17 @@ export const authApi = {
     return data;
   },
 
-  async refreshToken(refreshToken: string): Promise<LoginResponse> {
-    const { data } = await httpClient.post<LoginResponse>('/auth/refresh', {
-      refresh_token: refreshToken,
-    });
+  async refreshSession(): Promise<LoginResponse> {
+    const { data } = await httpClient.post<LoginResponse>('/auth/refresh');
     return data;
   },
 
   async getCurrentUser(): Promise<User> {
     const { data } = await httpClient.get<User>('/auth/me');
     return data;
+  },
+
+  async logout(): Promise<void> {
+    await httpClient.post('/auth/logout');
   },
 };

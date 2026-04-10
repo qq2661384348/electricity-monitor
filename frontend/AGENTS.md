@@ -22,6 +22,8 @@
 
 - `build:prod` 会先构建 `frontend/dist/`，再复制到根目录 `static/`，供后端静态文件服务和 Docker 构建使用。
 - `static/` 只保留目录占位，不重新纳入版本控制。
+- 浏览器会话模型固定为“内存 access token + HTTPOnly refresh cookie”；不要把 access token 重新持久化到 localStorage、sessionStorage 或 IndexedDB。
+- 真实跨请求鉴权依赖 `withCredentials` 和 `/api/auth/refresh`，不要重新引入 body 传递 refresh token 的旧协议。
 - 修改前端工具链、lockfile、CI 或构建脚本时，同时更新 `frontend/README.md`、`docs/guides/TESTING.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`memory/05-frontend-architecture.md`、`memory/07-testing-and-quality-gates.md`。
 - 源码层边界由 `frontend/src/AGENTS.md` 及其子级文件负责；不要把源码层实现规则重新堆回本文件。
 

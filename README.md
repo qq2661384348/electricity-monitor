@@ -111,14 +111,23 @@ export RUST_LOG=info
 
 `config/` 目录下只能保留一个运行时 `.toml` 文件，文件名必须与环境一致：开发环境使用 `config/development.toml`，生产/发布环境使用 `config/production.toml`。两个运行时文件都不纳入版本控制。
 
+认证与浏览器访问的关键运行时约束：
+
+- `cors.allowed_origins` 使用逗号分隔字符串维护前端 Origin 白名单；开发模板默认是 `http://localhost:5173`。
+- `auth.refresh_cookie_secure` 与 `auth.refresh_cookie_same_site` 控制 refresh cookie；生产环境要求 `refresh_cookie_secure = true`。
+- `admin.default_qq_number` 在生产环境不能留空，也不能保留模板占位值；只有显式配置的真实管理员 QQ 才会授予 `admin`。
+- 登录成功后，refresh token 只通过 HTTPOnly Cookie 下发；前端只接收和持有 access token。
+
 ## 开发工具
 
 ```bash
 cargo fmt      # 代码格式化
-cargo clippy   # 代码检查
+cargo clippy --all-targets -- -D warnings
 cargo test --lib
 cargo test --test auth_integration_test
 cargo test --test release_readiness_test
+bun audit --cwd frontend
+cargo audit -q
 powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 ```
 
@@ -130,6 +139,7 @@ powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 - 工作流：`.github/workflows/docker-build.yml`
 - 镜像构建：`deploy/Dockerfile`
 - 运行时配置：工作流会先将 `config/production.toml.example` 复制为 `config/production.toml` 再构建镜像
+- 生产模板中的 `cors.allowed_origins`、`auth.refresh_cookie_secure` 和 `admin.default_qq_number` 必须在发布前补成真实生产值
 - release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
 - smoke 契约：`deploy/smoke.targets`，由 `tests/runtime/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用
 - release manifest：artifact 内的 `release/release-manifest.json`

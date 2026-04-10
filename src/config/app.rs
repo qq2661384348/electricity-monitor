@@ -8,8 +8,9 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use super::{
-    AdminConfig, DatabaseConfig, ElectricityFetcherConfig, NotificationConfig, QQBotConfig,
-    RateLimitConfig, RedisConfig, RoomSyncConfig, StaticFilesConfig, VerificationConfig,
+    auth::AuthConfig, admin::ADMIN_QQ_PLACEHOLDER, cors::CorsConfig, AdminConfig, DatabaseConfig,
+    ElectricityFetcherConfig, NotificationConfig, QQBotConfig, RateLimitConfig, RedisConfig,
+    RoomSyncConfig, StaticFilesConfig, VerificationConfig,
 };
 
 const CONFIG_DIR: &str = "config";
@@ -17,6 +18,7 @@ const DEFAULT_ENVIRONMENT: &str = "development";
 const SUPPORTED_ENVIRONMENTS: [&str; 2] = ["development", "production"];
 const RUNTIME_CONFIG_FILENAMES: [&str; 2] = ["development.toml", "production.toml"];
 const DEVELOPMENT_DATABASE_PASSWORD_PLACEHOLDER: &str = "CHANGE-THIS-LOCAL-POSTGRES-PASSWORD";
+const CORS_ALLOW_ORIGINS_PLACEHOLDER: &str = "CHANGE-THIS-PRODUCTION-FRONTEND-ORIGIN";
 
 /// 服务器配置
 #[derive(Debug, Clone, Deserialize)]
@@ -64,11 +66,19 @@ pub struct AppConfig {
     /// JWT配置
     pub jwt: JwtConfig,
 
+    /// 浏览器认证配置
+    #[serde(default)]
+    pub auth: AuthConfig,
+
     /// 日志配置
     pub logging: LoggingConfig,
 
     /// Redis配置
     pub redis: RedisConfig,
+
+    /// CORS 配置
+    #[serde(default)]
+    pub cors: CorsConfig,
 
     /// 限流配置
     pub rate_limit: RateLimitConfig,
@@ -146,6 +156,7 @@ impl AppConfig {
         let app_config = Self::resolve_secrets(config.try_deserialize::<Self>()?, &environment)?;
         Self::validate_environment_rules(&app_config, &environment)?;
         Self::validate_sensitive_config(&app_config, &environment)?;
+        Self::validate_security_contracts(&app_config, &environment)?;
         Ok(app_config)
     }
 
@@ -286,6 +297,69 @@ impl AppConfig {
             "production 环境要求通过 Compose secrets 注入敏感配置，以下字段缺失或未通过 secret file 提供: {}",
             missing.join(", ")
         )))
+    }
+
+    fn validate_security_contracts(config: &Self, environment: &str) -> Result<(), ConfigError> {
+        let cors_origins = config.cors.origin_list();
+        if cors_origins.is_empty() {
+            return Err(ConfigError::Message(
+                "cors.allowed_origins 不能为空，至少要显式配置一个前端 Origin。".to_string(),
+            ));
+        }
+
+        let same_site = config.auth.refresh_cookie_same_site.trim().to_ascii_lowercase();
+        if !matches!(same_site.as_str(), "lax" | "strict" | "none") {
+            return Err(ConfigError::Message(format!(
+                "auth.refresh_cookie_same_site={} 非法，仅支持 lax、strict 或 none。",
+                config.auth.refresh_cookie_same_site
+            )));
+        }
+
+        if config.auth.refresh_expiration_hours == 0 {
+            return Err(ConfigError::Message(
+                "auth.refresh_expiration_hours 必须大于 0。".to_string(),
+            ));
+        }
+
+        if same_site == "none" && !config.auth.refresh_cookie_secure {
+            return Err(ConfigError::Message(
+                "auth.refresh_cookie_same_site=none 时必须同时启用 auth.refresh_cookie_secure=true。"
+                    .to_string(),
+            ));
+        }
+
+        if environment != "production" {
+            return Ok(());
+        }
+
+        if cors_origins.iter().any(|origin| {
+            let normalized = origin.trim().to_ascii_lowercase();
+            normalized.is_empty()
+                || normalized.contains("localhost")
+                || normalized.contains("127.0.0.1")
+                || normalized.contains(CORS_ALLOW_ORIGINS_PLACEHOLDER.to_ascii_lowercase().as_str())
+        }) {
+            return Err(ConfigError::Message(
+                "production 环境要求 cors.allowed_origins 只包含真实前端 Origin，不能保留 localhost 或占位值。"
+                    .to_string(),
+            ));
+        }
+
+        let admin_qq = config.admin.default_qq_number.trim();
+        if admin_qq.is_empty() || admin_qq == ADMIN_QQ_PLACEHOLDER {
+            return Err(ConfigError::Message(
+                "production 环境要求 admin.default_qq_number 配置为真实管理员 QQ，不能留空或使用占位值。"
+                    .to_string(),
+            ));
+        }
+
+        if !config.auth.refresh_cookie_secure {
+            return Err(ConfigError::Message(
+                "production 环境要求 auth.refresh_cookie_secure=true。".to_string(),
+            ));
+        }
+
+        Ok(())
     }
 
     fn read_secret_file(path: &str, field_name: &str) -> Result<String, ConfigError> {
@@ -467,6 +541,7 @@ mod tests {
                 secret_file: None,
                 expiration_hours: 24,
             },
+            auth: AuthConfig::default(),
             logging: LoggingConfig {
                 level: "info".to_string(),
                 format: "json".to_string(),
@@ -478,6 +553,7 @@ mod tests {
                 min_connections: 2,
                 connection_timeout: 30,
             },
+            cors: CorsConfig::default(),
             rate_limit: RateLimitConfig {
                 insert_per_second: 10,
                 query_per_second: 1,
@@ -518,6 +594,7 @@ mod tests {
                 secret_file: None,
                 expiration_hours: 24,
             },
+            auth: AuthConfig::default(),
             logging: LoggingConfig {
                 level: "info".to_string(),
                 format: "json".to_string(),
@@ -529,6 +606,7 @@ mod tests {
                 min_connections: 2,
                 connection_timeout: 30,
             },
+            cors: CorsConfig::default(),
             rate_limit: RateLimitConfig {
                 insert_per_second: 10,
                 query_per_second: 1,
@@ -574,6 +652,7 @@ mod tests {
                 secret_file: None,
                 expiration_hours: 24,
             },
+            auth: AuthConfig::default(),
             logging: LoggingConfig {
                 level: "info".to_string(),
                 format: "json".to_string(),
@@ -585,6 +664,7 @@ mod tests {
                 min_connections: 2,
                 connection_timeout: 30,
             },
+            cors: CorsConfig::default(),
             rate_limit: RateLimitConfig {
                 insert_per_second: 10,
                 query_per_second: 1,
@@ -757,6 +837,11 @@ mod tests {
                 secret_file: None,
                 expiration_hours: 24,
             },
+            auth: AuthConfig {
+                refresh_expiration_hours: 24 * 7,
+                refresh_cookie_secure: true,
+                refresh_cookie_same_site: "lax".to_string(),
+            },
             logging: LoggingConfig {
                 level: "info".to_string(),
                 format: "json".to_string(),
@@ -768,6 +853,9 @@ mod tests {
                 min_connections: 2,
                 connection_timeout: 30,
             },
+            cors: CorsConfig {
+                allowed_origins: "https://frontend.example.com".to_string(),
+            },
             rate_limit: RateLimitConfig {
                 insert_per_second: 200,
                 query_per_second: 200,
@@ -777,7 +865,9 @@ mod tests {
             qq_bot: QQBotConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
-            admin: AdminConfig::default(),
+            admin: AdminConfig {
+                default_qq_number: "100000001".to_string(),
+            },
             static_files: StaticFilesConfig::default(),
         };
 
@@ -785,6 +875,142 @@ mod tests {
             .expect_err("production 环境缺少 secret file 时应失败");
 
         assert!(err.to_string().contains("Compose secrets"));
+    }
+
+    #[test]
+    fn test_production_rejects_placeholder_admin_qq() {
+        let config = AppConfig {
+            server: ServerConfig {
+                host: "0.0.0.0".to_string(),
+                port: 8000,
+            },
+            database: DatabaseConfig {
+                db_type: DatabaseType::Postgres,
+                host: "db.example.internal".to_string(),
+                port: 5432,
+                username: "postgres".to_string(),
+                password: "secret".to_string(),
+                password_file: Some("/run/secrets/db_password".to_string()),
+                database: "electricity_pro".to_string(),
+                max_connections: 20,
+                min_connections: 5,
+                connection_timeout: 30,
+            },
+            jwt: JwtConfig {
+                secret: "jwt-secret".to_string(),
+                secret_file: Some("/run/secrets/jwt_secret".to_string()),
+                expiration_hours: 24,
+            },
+            auth: AuthConfig {
+                refresh_expiration_hours: 24 * 7,
+                refresh_cookie_secure: true,
+                refresh_cookie_same_site: "lax".to_string(),
+            },
+            logging: LoggingConfig {
+                level: "info".to_string(),
+                format: "json".to_string(),
+            },
+            redis: RedisConfig {
+                host: "redis.example.internal".to_string(),
+                port: 6379,
+                max_connections: 10,
+                min_connections: 2,
+                connection_timeout: 30,
+            },
+            cors: CorsConfig {
+                allowed_origins: "https://frontend.example.com".to_string(),
+            },
+            rate_limit: RateLimitConfig {
+                insert_per_second: 200,
+                query_per_second: 200,
+            },
+            room_sync: RoomSyncConfig::default(),
+            electricity_fetcher: ElectricityFetcherConfig::default(),
+            qq_bot: QQBotConfig {
+                bearer_token: "qq-token".to_string(),
+                bearer_token_file: Some("/run/secrets/qq_token".to_string()),
+                ..QQBotConfig::default()
+            },
+            verification: VerificationConfig::default(),
+            notification: NotificationConfig::default(),
+            admin: AdminConfig {
+                default_qq_number: ADMIN_QQ_PLACEHOLDER.to_string(),
+            },
+            static_files: StaticFilesConfig::default(),
+        };
+
+        let err = AppConfig::validate_security_contracts(&config, "production")
+            .expect_err("production 环境应拒绝占位管理员 QQ");
+
+        assert!(err.to_string().contains("admin.default_qq_number"));
+    }
+
+    #[test]
+    fn test_production_rejects_placeholder_cors_origin() {
+        let config = AppConfig {
+            server: ServerConfig {
+                host: "0.0.0.0".to_string(),
+                port: 8000,
+            },
+            database: DatabaseConfig {
+                db_type: DatabaseType::Postgres,
+                host: "db.example.internal".to_string(),
+                port: 5432,
+                username: "postgres".to_string(),
+                password: "secret".to_string(),
+                password_file: Some("/run/secrets/db_password".to_string()),
+                database: "electricity_pro".to_string(),
+                max_connections: 20,
+                min_connections: 5,
+                connection_timeout: 30,
+            },
+            jwt: JwtConfig {
+                secret: "jwt-secret".to_string(),
+                secret_file: Some("/run/secrets/jwt_secret".to_string()),
+                expiration_hours: 24,
+            },
+            auth: AuthConfig {
+                refresh_expiration_hours: 24 * 7,
+                refresh_cookie_secure: true,
+                refresh_cookie_same_site: "lax".to_string(),
+            },
+            logging: LoggingConfig {
+                level: "info".to_string(),
+                format: "json".to_string(),
+            },
+            redis: RedisConfig {
+                host: "redis.example.internal".to_string(),
+                port: 6379,
+                max_connections: 10,
+                min_connections: 2,
+                connection_timeout: 30,
+            },
+            cors: CorsConfig {
+                allowed_origins: CORS_ALLOW_ORIGINS_PLACEHOLDER.to_string(),
+            },
+            rate_limit: RateLimitConfig {
+                insert_per_second: 200,
+                query_per_second: 200,
+            },
+            room_sync: RoomSyncConfig::default(),
+            electricity_fetcher: ElectricityFetcherConfig::default(),
+            qq_bot: QQBotConfig {
+                bearer_token: "qq-token".to_string(),
+                bearer_token_file: Some("/run/secrets/qq_token".to_string()),
+                ..QQBotConfig::default()
+            },
+            verification: VerificationConfig::default(),
+            notification: NotificationConfig::default(),
+            admin: AdminConfig {
+                default_qq_number: "100000001".to_string(),
+            },
+            static_files: StaticFilesConfig::default(),
+        };
+
+        let err = AppConfig::validate_security_contracts(&config, "production")
+            .expect_err("production 环境应拒绝占位 CORS Origin");
+
+        assert!(err.to_string().contains("cors.allowed_origins"));
     }
 
     #[test]

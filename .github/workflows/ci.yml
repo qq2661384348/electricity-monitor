@@ -99,6 +99,10 @@ jobs:
         shell: bash
         run: cargo test --test release_readiness_test 2>&1 | tee artifacts/backend/release-readiness.log
 
+      - name: Run clippy gate
+        shell: bash
+        run: cargo clippy --all-targets -- -D warnings 2>&1 | tee artifacts/backend/clippy.log
+
       - name: Upload backend logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -210,6 +214,92 @@ jobs:
         with:
           name: frontend-test-logs
           path: artifacts/frontend-tests
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: frontend/package.json
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Install frontend dependencies
+        run: bun install --cwd frontend --frozen-lockfile
+
+      - name: Prepare audit artifact directory
+        run: mkdir -p artifacts/dependency-audit
+
+      - name: Run dependency audits
+        id: audit
+        shell: bash
+        run: |
+          set +e
+
+          cargo audit -q > artifacts/dependency-audit/cargo-audit.log 2>&1
+          cargo_status=$?
+
+          bun audit --cwd frontend --json > artifacts/dependency-audit/bun-audit.raw 2>&1
+          bun_status=$?
+
+          head -n 1 artifacts/dependency-audit/bun-audit.raw > artifacts/dependency-audit/bun-audit.json
+
+          echo "cargo_status=${cargo_status}" >> "${GITHUB_OUTPUT}"
+          echo "bun_status=${bun_status}" >> "${GITHUB_OUTPUT}"
+
+          exit 0
+
+      - name: Upload dependency audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-logs
+          path: artifacts/dependency-audit
+
+      - name: Write dependency audit summary
+        if: always()
+        shell: bash
+        env:
+          CARGO_STATUS: ${{ steps.audit.outputs.cargo_status }}
+          BUN_STATUS: ${{ steps.audit.outputs.bun_status }}
+        run: |
+          set -euo pipefail
+
+          cargo_summary="通过"
+          if [[ "${CARGO_STATUS}" != "0" ]]; then
+            cargo_summary="存在告警，详见 dependency-audit-logs/cargo-audit.log"
+          fi
+
+          bun_total=0
+          bun_high=0
+          bun_moderate=0
+          bun_critical=0
+          if [[ -s artifacts/dependency-audit/bun-audit.json ]]; then
+            bun_total="$(jq '[.[][]?.severity] | length' artifacts/dependency-audit/bun-audit.json)"
+            bun_high="$(jq '[.[][]?.severity | select(. == "high")] | length' artifacts/dependency-audit/bun-audit.json)"
+            bun_moderate="$(jq '[.[][]?.severity | select(. == "moderate")] | length' artifacts/dependency-audit/bun-audit.json)"
+            bun_critical="$(jq '[.[][]?.severity | select(. == "critical")] | length' artifacts/dependency-audit/bun-audit.json)"
+          fi
+
+          {
+            echo "## Dependency audit"
+            echo
+            echo "- cargo audit: ${cargo_summary}"
+            echo "- bun audit: exit code ${BUN_STATUS}，critical=${bun_critical}，high=${bun_high}，moderate=${bun_moderate}，total=${bun_total}"
+            echo "- 审计结果为报告项，不阻断当前 workflow；详情见 artifact \`dependency-audit-logs\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
   architecture-guard:
     runs-on: ubuntu-latest

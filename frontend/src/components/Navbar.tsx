@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Zap, User, Bell, LogOut } from 'lucide-react';
 import { AnnouncementModal } from '@/components/AnnouncementModal';
 import { UserInfoModal } from '@/components/UserInfoModal';
+import { authApi } from '@/features/auth-login';
 import { useAuthStore } from '@/stores/authStore';
 
 interface NavbarProps {
@@ -13,6 +14,14 @@ export function Navbar({ onLoginClick }: NavbarProps) {
   const { user, isAuthenticated, logout } = useAuthStore();
   const [isAnnouncementOpen, setIsAnnouncementOpen] = useState(false);
   const [isUserInfoOpen, setIsUserInfoOpen] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } finally {
+      logout();
+    }
+  };
 
   return (
     <motion.nav
@@ -70,7 +79,7 @@ export function Navbar({ onLoginClick }: NavbarProps) {
                   <User className="w-6 h-6 text-black" />
                 </button>
                 <button
-                  onClick={logout}
+                  onClick={() => void handleLogout()}
                   className="p-2 bg-status-danger border-2 border-black text-white hover:translate-y-[-2px] hover:shadow-[3px_3px_0_0_#000] shadow-[2px_2px_0_0_#000] transition-all"
                   title="退出登录"
                 >

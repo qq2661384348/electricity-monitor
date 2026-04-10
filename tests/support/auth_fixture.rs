@@ -24,10 +24,11 @@ static ADMIN_LOGIN_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 #[derive(Debug, Deserialize)]
 pub struct LoginResponse {
     pub access_token: String,
-    pub refresh_token: String,
     pub token_type: String,
     pub expires_in: u64,
     pub user: UserInfo,
+    #[serde(skip)]
+    pub refresh_cookie: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -90,11 +91,32 @@ async fn login_with_seeded_code_inner(
         "真实登录链路应该返回 200"
     );
 
-    read_json(response).await
+    let refresh_cookie = response
+        .headers()
+        .get(header::SET_COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(cookie_header_value)
+        .expect("登录响应必须返回 refresh cookie")
+        .to_string();
+
+    let mut login: LoginResponse = read_json(response).await;
+    login.refresh_cookie = refresh_cookie;
+    login
 }
 
 pub async fn post_json(app: &Router, uri: &str, payload: serde_json::Value) -> Response {
     json_request(app, "POST", uri, None, payload).await
+}
+
+pub async fn post_with_cookie(app: &Router, uri: &str, cookie: &str) -> Response {
+    let request = Request::builder()
+        .method("POST")
+        .uri(uri)
+        .header(header::COOKIE, cookie)
+        .body(Body::empty())
+        .expect("构造 Cookie 请求失败");
+
+    app.clone().oneshot(request).await.expect("请求执行失败")
 }
 
 pub async fn post_json_with_bearer(
@@ -147,6 +169,21 @@ async fn json_request(
         .expect("构造 JSON 请求失败");
 
     app.clone().oneshot(request).await.expect("请求执行失败")
+}
+
+pub fn raw_refresh_token(cookie: &str) -> String {
+    cookie
+        .strip_prefix("refresh_token=")
+        .and_then(|value| value.split(';').next())
+        .expect("refresh cookie 应包含 refresh_token")
+        .to_string()
+}
+
+fn cookie_header_value(set_cookie: &str) -> Option<&str> {
+    set_cookie
+        .split(';')
+        .next()
+        .filter(|segment| segment.starts_with("refresh_token="))
 }
 
 pub async fn get_with_bearer(app: &Router, uri: &str, token: &str) -> Response {

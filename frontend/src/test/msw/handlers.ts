@@ -36,7 +36,6 @@ const defaultBinding: Binding = {
 
 const defaultLoginResponse: LoginResponse = {
   access_token: 'access-token',
-  refresh_token: 'refresh-token',
   token_type: 'Bearer',
   expires_in: 3600,
   user: defaultUser,
@@ -81,6 +80,18 @@ export const handlers = [
       },
     });
   }),
+
+  http.post('*/api/auth/refresh', () =>
+    HttpResponse.json(
+      {
+        error: '未登录',
+        message: '缺少 refresh cookie',
+      },
+      { status: 401 },
+    ),
+  ),
+
+  http.post('*/api/auth/logout', () => new HttpResponse(null, { status: 204 })),
 
   http.get('*/api/bindings', () => HttpResponse.json([defaultBinding])),
 

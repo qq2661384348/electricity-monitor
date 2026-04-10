@@ -73,6 +73,12 @@ deploy/
 
 `static/` 是前端构建产物目录，不再作为仓库真源提交；CI 在 `bun run build:prod` 后生成它，再由 `deploy/Dockerfile` 复制进入镜像。
 `deploy/Dockerfile` 会在构建期检查 `config/` 下是否只保留一个运行时 TOML，且文件名只能是 `development.toml` 或 `production.toml`，避免镜像带着歧义配置构建成功。
+`config/production.toml.example` 中与浏览器访问和管理员权限直接相关的字段也必须在发布前改成真实值，尤其是：
+
+- `cors.allowed_origins`
+- `auth.refresh_cookie_secure`
+- `auth.refresh_cookie_same_site`
+- `admin.default_qq_number`
 
 ### 构建性能优化
 
@@ -120,6 +126,8 @@ vim .env
 - `APP__DATABASE__DATABASE`
 - `APP_HOST_PORT`
 - `APP_BIND_ADDRESS`
+
+如果浏览器需要跨域访问应用，还要确保生产配置中的 `cors.allowed_origins` 与实际前端域名一致。应用侧只负责 CORS 白名单和 refresh cookie 行为；反向代理、TLS 与响应安全头仍由部署环境负责。
 
 ### 4. 执行一键部署
 

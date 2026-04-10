@@ -36,7 +36,6 @@ export interface Binding {
 
 export interface LoginResponse {
   access_token: string;
-  refresh_token: string;
   token_type: string;
   expires_in: number;
   user: User;
@@ -73,8 +72,10 @@ export interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  isSessionReady: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
+  markSessionReady: () => void;
 }
 
 export interface DashboardStats {

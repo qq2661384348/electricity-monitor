@@ -2,10 +2,10 @@
 
 ## 概述
 
-本文档说明 Electricity Monitor 后端当前对外提供的 REST API v1.0。
+本文档说明 Electricity Monitor 后端当前对外提供的 REST API v1.1。
 
 **基础 URL**: `http://localhost:8000/api`（开发环境）  
-**认证方式**: JWT Bearer Token  
+**认证方式**: access token Bearer + refresh token HTTPOnly Cookie  
 **响应格式**: JSON
 
 ## 健康检查
@@ -73,20 +73,25 @@ curl http://localhost:8000/api/health/db
 
 ---
 
-## 认证 (待实现)
+## 认证
 
-### 用户登录
+当前认证链路采用“双 token”模型：
 
-**端点**: `POST /api/auth/login`  
+- access token：通过 JSON 响应返回，由前端只保存在内存中，并以 `Authorization: Bearer <token>` 调用受保护接口
+- refresh token：只通过 HTTPOnly Cookie `refresh_token` 下发，不出现在 JSON 响应里
+
+### 发送验证码
+
+**端点**: `POST /api/auth/send-verification-code`  
 **认证**: 无需认证  
-**描述**: 用户登录并获取JWT token
+**描述**: 向指定 QQ 发送一次性验证码
 
 #### 请求体
 
 ```json
 {
-  "email": "user@example.com",
-  "password": "password123"
+  "qq_number": "123456789",
+  "captcha_token": "optional-captcha-token"
 }
 ```
 
@@ -94,26 +99,130 @@ curl http://localhost:8000/api/health/db
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expires_in": 86400
+  "message": "验证码已发送",
+  "qq_number": "123456789"
 }
 ```
 
 ---
 
-### 用户注册
+### 验证验证码并登录
 
-**端点**: `POST /api/auth/register`  
+**端点**: `POST /api/auth/verify-and-login`  
 **认证**: 无需认证  
-**描述**: 注册新用户
+**描述**: 校验 QQ 验证码，创建或查找用户，并签发 access token 与 refresh cookie
 
 #### 请求体
 
 ```json
 {
-  "username": "newuser",
-  "email": "user@example.com",
-  "password": "password123"
+  "qq_number": "123456789",
+  "code": "123456"
+}
+```
+
+#### 响应头
+
+```http
+Set-Cookie: refresh_token=<jwt>; HttpOnly; Path=/api/auth; SameSite=Lax
+```
+
+#### 响应示例
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 86400,
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "qq_number": "123456789",
+    "role": "user",
+    "is_active": true
+  }
+}
+```
+
+> 注意：`refresh_token` 不会出现在 JSON 响应里。
+
+---
+
+### 刷新会话
+
+**端点**: `POST /api/auth/refresh`  
+**认证**: 仅依赖 `refresh_token` HTTPOnly Cookie  
+**描述**: 使用 refresh cookie 换取新的 access token，并轮换 refresh cookie
+
+#### 请求体
+
+无请求体。
+
+#### 请求示例
+
+```bash
+curl -X POST \
+  --cookie "refresh_token=<refresh-jwt>" \
+  http://localhost:8000/api/auth/refresh
+```
+
+#### 响应头
+
+```http
+Set-Cookie: refresh_token=<new-jwt>; HttpOnly; Path=/api/auth; SameSite=Lax
+```
+
+#### 响应示例
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 86400,
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "qq_number": "123456789",
+    "role": "user",
+    "is_active": true
+  }
+}
+```
+
+---
+
+### 退出登录
+
+**端点**: `POST /api/auth/logout`  
+**认证**: 无需 Bearer token；如果存在 refresh cookie，则会被清理  
+**描述**: 清除 refresh cookie，结束浏览器会话
+
+#### 响应
+
+- 状态码：`204 No Content`
+- 响应头会返回一个已过期的 `refresh_token` cookie
+
+---
+
+### 获取当前用户信息
+
+**端点**: `GET /api/auth/me`  
+**认证**: 需要 access token Bearer 认证  
+**描述**: 返回当前登录用户的基础信息
+
+#### 请求示例
+
+```bash
+curl -H "Authorization: Bearer <access-token>" \
+  http://localhost:8000/api/auth/me
+```
+
+#### 响应示例
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "qq_number": "123456789",
+  "role": "user",
+  "is_active": true
 }
 ```
 
@@ -340,7 +449,7 @@ curl http://localhost:8000/api/health/db
 
 ## 认证头格式
 
-需要认证的端点需在请求头中包含：
+需要 access token 认证的端点需在请求头中包含：
 
 ```
 Authorization: Bearer <your-jwt-token>
@@ -351,6 +460,8 @@ Authorization: Bearer <your-jwt-token>
 curl -H "Authorization: Bearer eyJhbGc..." \
   http://localhost:8000/api/protected-endpoint
 ```
+
+`POST /api/auth/refresh` 不读取 Bearer token，只读取浏览器或客户端自动附带的 `refresh_token` Cookie。
 
 ---
 
@@ -379,9 +490,10 @@ curl -H "Authorization: Bearer eyJhbGc..." \
 
 ---
 
-**文档更新日期**: 2025-11-12  
+**文档更新日期**: 2026-04-11  
 **API版本**: 1.1  
 **重要变更**: 
+- v1.1: 登录链路改为 `verify-and-login` + refresh cookie，会话刷新与 logout 走 `/api/auth/refresh`、`/api/auth/logout`
 - v1.1: 新增房间同步API（4个端点）
 - v1.1: CreateRoomRequest新增必填字段`primary_roompath`
 - v1.1: GET /api/rooms/by-roomid返回单对象（非数组）

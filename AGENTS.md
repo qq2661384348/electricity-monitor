@@ -33,6 +33,7 @@
 - 认证契约测试：`cargo test --test auth_integration_test`
 - 验证码发送契约测试：`cargo test --test send_verification_code_integration_test`
 - release readiness 测试：`cargo test --test release_readiness_test`
+- 后端 clippy 门禁：`cargo clippy --all-targets -- -D warnings`
 - 前端安装依赖：`bun install --cwd frontend --frozen-lockfile`
 - 前端行为测试：`bun run --cwd frontend test`
 - 前端 lint：`bun run --cwd frontend lint`
@@ -50,6 +51,9 @@
 - `development` 环境只能连接本地 PostgreSQL / Redis；开发环境数据库密码必须直接写入复制出来的 `config/development.toml`。
 - 不要启用全局 `try_parsing(true)`；当前配置链路依赖保留前导零字符串。
 - 生产敏感配置必须走 `APP__...__..._FILE` 链路，例如 `APP__DATABASE__PASSWORD_FILE`、`APP__JWT__SECRET_FILE`、`APP__QQ_BOT__BEARER_TOKEN_FILE`。
+- `cors.allowed_origins` 是浏览器访问白名单真源；生产环境不能保留 `localhost` 或模板占位值。
+- refresh token 只允许通过 `Set-Cookie` / `Cookie` 往返；JSON 响应只返回 access token。
+- `admin.default_qq_number` 只有在显式真实值时才会授予管理员权限；生产环境不能保留占位值。
 - 生产发布主线是 `.github/workflows/docker-build.yml` + `deploy/`；`deploy/build.sh` 与 `deploy/docker-compose.local.yml` 只用于本地 Docker 调试。
 - `deploy/smoke.targets` 是本地 readiness test 与 release smoke 共用的检查目标真源。
 - 前端真实 HTTP client 真源是 `frontend/src/shared/api/http-client.ts`；`frontend/src/services/api.ts` 只保留兼容 facade。
@@ -62,7 +66,7 @@
 - 修改运行时、secrets 或环境变量链路时，同步更新 `memory/02-runtime-and-config.md`。
 - 修改部署链路或 release 包契约时，同步更新 `README.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`docs/INDEX.md`、`deploy/README.md`、`memory/03-deploy-and-risk-memory.md`。
 - 修改前端工具链、前端工作区规则或前端边界时，同步更新 `frontend/README.md`、`frontend/AGENTS.md`、`memory/05-frontend-architecture.md`。
-- 修改鉴权、缓存、handler/usecase 边界时，同步更新 `memory/06-maintainability-seams.md`。
+- 修改鉴权、cookie 会话、缓存、handler/usecase 边界时，同步更新 `docs/api/API_REFERENCE.md`、`memory/06-maintainability-seams.md`。
 - 修改测试入口、测试 support、CI 门禁或 smoke/readiness 契约时，同步更新 `docs/guides/TESTING.md`、`.github/workflows/ci.yml`、`deploy/smoke.targets`、`memory/07-testing-and-quality-gates.md`。
 - 修改质量风险、安全风险或依赖审计基线时，同步更新 `memory/08-quality-and-security-risks.md`。
 

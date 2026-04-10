@@ -22,6 +22,11 @@ connection_timeout = 30
 secret = "local-dev-jwt-secret"
 expiration_hours = 24
 
+[auth]
+refresh_expiration_hours = 168
+refresh_cookie_secure = false
+refresh_cookie_same_site = "lax"
+
 [logging]
 level = "info"
 format = "pretty"
@@ -32,6 +37,9 @@ port = 6379
 max_connections = 10
 min_connections = 2
 connection_timeout = 30
+
+[cors]
+allowed_origins = "http://localhost:5173"
 
 [rate_limit]
 insert_per_second = 200

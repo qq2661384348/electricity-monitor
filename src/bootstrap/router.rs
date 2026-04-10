@@ -1,8 +1,9 @@
 use axum::Router;
+use axum::http::{header, HeaderValue, Method};
 use tower::ServiceBuilder;
 use tower_http::{
     compression::CompressionLayer,
-    cors::{Any, CorsLayer},
+    cors::CorsLayer,
 };
 
 use crate::{
@@ -13,11 +14,28 @@ use crate::{
 
 pub fn create_app(state: AppState) -> Router {
     let config = AppConfig::global();
+    let allowed_origins = config
+        .cors
+        .origin_list()
+        .into_iter()
+        .map(|origin| {
+            HeaderValue::from_str(&origin)
+                .expect("cors.allowed_origins 应在配置校验阶段保证为合法 HeaderValue")
+        })
+        .collect::<Vec<_>>();
 
     let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_origin(allowed_origins)
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+        .allow_credentials(true);
 
     let mut app = Router::new().merge(create_routes()).with_state(state);
 

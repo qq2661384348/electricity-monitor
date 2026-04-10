@@ -12,6 +12,7 @@ import LoginPage from './LoginPage';
 describe('LoginPage', () => {
   it('writes token and user state after successful login', async () => {
     const user = userEvent.setup();
+    useAuthStore.setState({ isSessionReady: true });
     renderWithProviders(<LoginPage />, { route: '/login' });
 
     await user.type(screen.getByLabelText('QQ号码'), '123456789');
@@ -24,6 +25,7 @@ describe('LoginPage', () => {
 
     expect(useAuthStore.getState().token).toBe('access-token');
     expect(useAuthStore.getState().user?.qq_number).toBe('123456789');
+    expect(localStorage.length).toBe(0);
   });
 
   it('shows backend error detail when login fails', async () => {
@@ -34,6 +36,7 @@ describe('LoginPage', () => {
     );
 
     const user = userEvent.setup();
+    useAuthStore.setState({ isSessionReady: true });
     renderWithProviders(<LoginPage />, { route: '/login' });
 
     await user.type(screen.getByLabelText('QQ号码'), '123456789');

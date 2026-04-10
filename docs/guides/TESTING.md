@@ -19,7 +19,7 @@
 ### 后端
 
 - `src/**`：单元测试与少量带环境门槛的基础设施测试
-- `tests/contracts/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me`、`/api/auth/refresh`、`/api/bindings` CRUD、越权访问与 admin 限制契约
+- `tests/contracts/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me`、`/api/auth/refresh`、`/api/bindings` CRUD、越权访问与 admin 限制契约，同时覆盖 refresh cookie 轮换、refresh token 误用为 Bearer、access token 误用为 refresh、logout 清理 cookie
 - `tests/runtime/release_readiness_test.rs`：读取 `deploy/smoke.targets`，校验 health / db health / 静态入口契约
 - `tests/contracts/send_verification_code_integration_test.rs`：通过本地 mock NapCat HTTP API 覆盖 `/api/auth/send-verification-code` 的成功发送与 `USER_NOT_FRIEND` 分支
 - `tests/support/`：共享 app factory、登录 fixture、seed helper、smoke 契约读取
@@ -29,6 +29,8 @@
 
 - 已接入 `Vitest + React Testing Library + MSW`
 - 首批自动回归覆盖：
+  - `src/App.test.tsx`
+  - `src/entities/binding/api/bindingApi.test.ts`
   - `src/pages/LoginPage.test.tsx`
   - `src/features/bind-room/model/useBindRoomModal.test.tsx`
   - `src/features/dashboard/model/useDashboardPage.test.tsx`
@@ -59,6 +61,7 @@ cargo test --lib
 cd frontend
 bun run test
 bun run lint
+bun audit
 cd ..
 powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 ```
@@ -70,6 +73,7 @@ Copy-Item config/development.toml.example config/development.toml
 # 继续编辑 config/development.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
 $env:APP_ENV="development"
 cargo run --bin migrate
+cargo clippy --all-targets -- -D warnings
 cargo test --test auth_integration_test
 cargo test --test release_readiness_test
 ```
@@ -154,6 +158,7 @@ cargo test --lib
   - 运行 `cargo test --test auth_integration_test`
   - 运行 `cargo test --test send_verification_code_integration_test`
   - 运行 `cargo test --test release_readiness_test`
+  - 运行 `cargo clippy --all-targets -- -D warnings`
   - 默认设置 `RUN_INTEGRATION_TESTS=1` 与 Redis 连接变量，确保本地 DB/Redis 相关测试不再被短路
 - `backend-external-tests`
   - 仅在 `workflow_dispatch` 且 `run_external_integration_tests=true` 时执行
@@ -166,6 +171,11 @@ cargo test --lib
 - `frontend-tests`
   - 执行 `bun install --frozen-lockfile`
   - 运行 `bun run test`
+- `dependency-audit`
+  - 安装并运行 `cargo audit -q`
+  - 运行 `bun audit --json`
+  - 上传审计 artifact 并将摘要写入 workflow summary
+  - 当前作为报告项，不阻断 workflow
 - `architecture-guard`
   - 运行 `scripts/check-architecture.ps1`
 
@@ -186,8 +196,9 @@ cargo test --lib
 
 ## 当前缺口
 
-以下事项仍然未在本批次内完成：
+以下事项仍然未在默认阻断门禁中完成：
 
+- `cargo audit` 与 `bun audit` 目前仍是报告项，不直接阻断 workflow
 - 把源码内的环境型测试逐步迁移成 `tests/infra/` 下的独立 test target
 - `cargo-nextest` 试点
 - Playwright 浏览器 smoke

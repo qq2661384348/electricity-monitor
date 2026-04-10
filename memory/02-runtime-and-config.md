@@ -33,6 +33,10 @@
 - 开发环境要求在复制出来的 `config/development.toml` 中显式填写 `database.password`，不能依赖隐式环境变量。
 - `development` 环境下如果 `database.password` 为空或仍是模板占位值，应用会在配置阶段直接失败。
 - `production` 环境缺少 `jwt.secret_file`、`database.password_file` 或 `qq_bot.bearer_token_file` 时会 fail-fast。
+- `cors.allowed_origins` 使用逗号分隔字符串维护前端 Origin 白名单，便于通过 `APP__CORS__ALLOWED_ORIGINS` 覆盖。
+- refresh cookie 契约由 `auth.refresh_cookie_secure`、`auth.refresh_cookie_same_site` 和 `auth.refresh_expiration_hours` 控制；当 `SameSite=None` 时必须同时启用 `Secure`。
+- `production` 环境会拒绝空白、`localhost` 或模板占位值形式的 `cors.allowed_origins`。
+- `admin.default_qq_number` 只在值非空且不是模板占位值时才会授予 `admin`；`production` 环境会拒绝空白或占位值管理员 QQ。
 
 ## 与测试相关的环境变量
 

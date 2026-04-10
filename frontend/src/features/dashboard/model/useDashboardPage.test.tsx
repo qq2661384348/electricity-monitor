@@ -48,6 +48,7 @@ describe('useDashboardPage', () => {
       user: authenticatedUser,
       token: 'access-token',
       isAuthenticated: true,
+      isSessionReady: true,
     });
 
     const { queryClient, result } = renderHookWithProviders(() => useDashboardPage());

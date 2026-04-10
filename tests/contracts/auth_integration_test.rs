@@ -16,7 +16,8 @@ use support::{
     app_factory::create_test_app,
     auth_fixture::{
         admin_qq_number, delete_with_bearer, get_with_bearer, login_with_seeded_code, post_json,
-        post_json_with_bearer, put_json_with_bearer, read_json, unique_qq_number, UserInfo,
+        post_json_with_bearer, post_with_cookie, put_json_with_bearer, raw_refresh_token,
+        read_json, unique_qq_number, UserInfo,
     },
     seed::{delete_room, seed_room},
 };
@@ -29,7 +30,7 @@ async fn admin_login_flow_returns_admin_profile() {
 
     assert_eq!(login.token_type, "Bearer");
     assert!(!login.access_token.is_empty());
-    assert!(!login.refresh_token.is_empty());
+    assert!(!login.refresh_cookie.is_empty());
     assert!(login.expires_in > 0);
     assert_eq!(login.user.role, "admin");
     assert!(login.user.is_active);
@@ -157,26 +158,69 @@ async fn refresh_token_returns_new_access_token_for_same_user() {
     let qq_number = unique_qq_number();
     let login = login_with_seeded_code(&test_app.app, &test_app.state, &qq_number, "654321").await;
 
-    let response = post_json(
-        &test_app.app,
-        "/api/auth/refresh",
-        serde_json::json!({
-            "refresh_token": login.refresh_token,
-        }),
-    )
-    .await;
+    let response = post_with_cookie(&test_app.app, "/api/auth/refresh", &login.refresh_cookie).await;
 
     assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers().contains_key(header::SET_COOKIE),
+        "refresh 成功后应轮换 refresh cookie"
+    );
 
     let refreshed: Value = read_json(response).await;
     assert_eq!(refreshed["user"]["qq_number"], qq_number);
     assert_eq!(refreshed["user"]["role"], "user");
     assert_eq!(refreshed["token_type"], "Bearer");
+    assert!(refreshed.get("refresh_token").is_none());
     assert_ne!(
         refreshed["access_token"],
         Value::String(String::new()),
         "刷新后应返回新的 access token"
     );
+}
+
+#[tokio::test]
+async fn refresh_token_cookie_cannot_access_protected_routes_as_bearer() {
+    let test_app = create_test_app().await;
+    let login =
+        login_with_seeded_code(&test_app.app, &test_app.state, &unique_qq_number(), "654321").await;
+    let refresh_token = raw_refresh_token(&login.refresh_cookie);
+
+    let response = get_with_bearer(&test_app.app, "/api/auth/me", &refresh_token).await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn access_token_cannot_refresh_session() {
+    let test_app = create_test_app().await;
+    let login =
+        login_with_seeded_code(&test_app.app, &test_app.state, &unique_qq_number(), "654321").await;
+
+    let response = post_with_cookie(
+        &test_app.app,
+        "/api/auth/refresh",
+        &format!("refresh_token={}", login.access_token),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn logout_clears_refresh_cookie() {
+    let test_app = create_test_app().await;
+    let login =
+        login_with_seeded_code(&test_app.app, &test_app.state, &unique_qq_number(), "654321").await;
+
+    let response = post_with_cookie(&test_app.app, "/api/auth/logout", &login.refresh_cookie).await;
+
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    let cleared_cookie = response
+        .headers()
+        .get(header::SET_COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .expect("logout 响应应返回清理 cookie 头");
+    assert!(cleared_cookie.contains("refresh_token="));
+    assert!(cleared_cookie.contains("Max-Age=0"));
 }
 
 #[tokio::test]

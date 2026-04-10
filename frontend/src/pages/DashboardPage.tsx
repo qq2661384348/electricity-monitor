@@ -1,13 +1,23 @@
+import { lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Navbar } from '@/components/Navbar';
-import { AuthModal } from '@/components/AuthModal';
-import { InputModal } from '@/components/ui/InputModal';
 import { HeroDashboard } from '@/components/HeroDashboard';
 import { RoomCard } from '@/components/RoomCard';
-import { RoomDetailModal } from '@/components/RoomDetailModal';
-import { BindRoomModal } from '@/features/bind-room';
 import { useDashboardPage } from '@/features/dashboard/model/useDashboardPage';
 import { Button } from '@/components/ui/Button';
+
+const AuthModal = lazy(() =>
+  import('@/components/AuthModal').then((module) => ({ default: module.AuthModal })),
+);
+const InputModal = lazy(() =>
+  import('@/components/ui/InputModal').then((module) => ({ default: module.InputModal })),
+);
+const RoomDetailModal = lazy(() =>
+  import('@/components/RoomDetailModal').then((module) => ({ default: module.RoomDetailModal })),
+);
+const BindRoomModal = lazy(() =>
+  import('@/features/bind-room').then((module) => ({ default: module.BindRoomModal })),
+);
 
 export default function DashboardPage() {
   const {
@@ -153,60 +163,68 @@ export default function DashboardPage() {
       </main>
 
       {/* 房间详情模态框 */}
-      <RoomDetailModal
-        isOpen={isDetailModalOpen}
-        onClose={() => {
-          setIsDetailModalOpen(false);
-          setSelectedRoom(null);
-        }}
-        room={selectedRoom}
-        binding={
-          selectedRoom?.bindingId
-            ? bindings.find((b) => b.id === selectedRoom.bindingId)
-            : undefined
-        }
-      />
+      <Suspense fallback={null}>
+        <RoomDetailModal
+          isOpen={isDetailModalOpen}
+          onClose={() => {
+            setIsDetailModalOpen(false);
+            setSelectedRoom(null);
+          }}
+          room={selectedRoom}
+          binding={
+            selectedRoom?.bindingId
+              ? bindings.find((b) => b.id === selectedRoom.bindingId)
+              : undefined
+          }
+        />
+      </Suspense>
 
       {/* 认证模态框 */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onSuccess={() => {
-           setIsAuthModalOpen(false);
-        }}
-      />
+      <Suspense fallback={null}>
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          onSuccess={() => {
+             setIsAuthModalOpen(false);
+          }}
+        />
+      </Suspense>
 
       {/* 绑定模态框 */}
-      <BindRoomModal
-        isOpen={isBindModalOpen}
-        onClose={() => setIsBindModalOpen(false)}
-        onSuccess={() => {
-           setIsBindModalOpen(false);
-        }}
-      />
+      <Suspense fallback={null}>
+        <BindRoomModal
+          isOpen={isBindModalOpen}
+          onClose={() => setIsBindModalOpen(false)}
+          onSuccess={() => {
+             setIsBindModalOpen(false);
+          }}
+        />
+      </Suspense>
 
       {/* 修改阈值模态框 */}
-      <InputModal
-        isOpen={isThresholdModalOpen}
-        onClose={() => setIsThresholdModalOpen(false)}
-        onConfirm={handleConfirmThreshold}
-        title="修改电量阈值"
-        label="新阈值（kWh）"
-        placeholder="请输入新的预警阈值（kWh）"
-        defaultValue={selectedRoom?.threshold.toString()}
-        inputType="number"
-        helpText="当剩余电量低于此值时将触发预警"
-        validator={(value) => {
-          const num = Number(value);
-          if (Number.isNaN(num) || num <= 0) {
-            return '请输入有效的正数';
-          }
-          if (num > 10000) {
-            return '阈值不能超过10000 kWh';
-          }
-          return null;
-        }}
-      />
+      <Suspense fallback={null}>
+        <InputModal
+          isOpen={isThresholdModalOpen}
+          onClose={() => setIsThresholdModalOpen(false)}
+          onConfirm={handleConfirmThreshold}
+          title="修改电量阈值"
+          label="新阈值（kWh）"
+          placeholder="请输入新的预警阈值（kWh）"
+          defaultValue={selectedRoom?.threshold.toString()}
+          inputType="number"
+          helpText="当剩余电量低于此值时将触发预警"
+          validator={(value) => {
+            const num = Number(value);
+            if (Number.isNaN(num) || num <= 0) {
+              return '请输入有效的正数';
+            }
+            if (num > 10000) {
+              return '阈值不能超过10000 kWh';
+            }
+            return null;
+          }}
+        />
+      </Suspense>
     </div>
   );
 }
