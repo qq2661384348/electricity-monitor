@@ -1,10 +1,7 @@
-use axum::Router;
 use axum::http::{header, HeaderValue, Method};
+use axum::{middleware, Router};
 use tower::ServiceBuilder;
-use tower_http::{
-    compression::CompressionLayer,
-    cors::CorsLayer,
-};
+use tower_http::{compression::CompressionLayer, cors::CorsLayer};
 
 use crate::{
     config::AppConfig,
@@ -59,6 +56,9 @@ pub fn create_app(state: AppState) -> Router {
     app.layer(
         ServiceBuilder::new()
             .layer(CompressionLayer::new())
+            .layer(middleware::from_fn(
+                crate::middleware::security_headers::apply,
+            ))
             .layer(crate::middleware::logger::create_trace_layer(
                 &config.logging.level,
             ))

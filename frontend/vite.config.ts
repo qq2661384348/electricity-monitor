@@ -4,14 +4,10 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
 
 /**
- * 按 npm 包名分割 chunk
- * 
- * 分割策略：
- * 1. 核心框架库单独分割（react、react-dom）
- * 2. 大型 UI 库单独分割（framer-motion、lucide）
- * 3. 数据层库单独分割（tanstack-query、axios、zustand）
- * 4. 路由库单独分割（react-router）
- * 5. 其他小依赖合并到 vendor
+ * 按前端依赖包名分割 chunk。
+ *
+ * 当前策略只继续拆分可拆的公共依赖，
+ * 启动期核心库的真实体积由 check:bundle 做细粒度预算约束。
  */
 function manualChunks(id: string): string | undefined {
   if (!id.includes('node_modules')) {
@@ -80,8 +76,9 @@ export default defineConfig({
     },
   },
   build: {
-    // 64KB 警告阈值（核心库如 react-dom 可超出）
-    chunkSizeWarningLimit: 64,
+    // 192KB 仅作为 Vite 的粗粒度 warning 阈值。
+    // 真正的 chunk 预算由 scripts/check-bundle-budgets.ts 统一校验。
+    chunkSizeWarningLimit: 192,
     rollupOptions: {
       output: {
         manualChunks,

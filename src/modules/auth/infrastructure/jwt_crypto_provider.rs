@@ -2,10 +2,10 @@ use std::sync::Once;
 
 use hmac::{Hmac, Mac};
 use jsonwebtoken::{
-    Algorithm, DecodingKey, EncodingKey,
     crypto::{CryptoProvider, JwkUtils, JwtSigner, JwtVerifier},
     errors::{Error, ErrorKind, Result},
     signature::{self, Signer, Verifier},
+    Algorithm, DecodingKey, EncodingKey,
 };
 use sha2::{Sha256, Sha384, Sha512};
 

@@ -19,12 +19,13 @@
 - CI 在构建镜像前会把 `config/production.toml.example` 复制为工作区内的 `config/production.toml`，并保持 `config/` 下只存在这一个运行时 TOML。
 - Docker 镜像构建继续使用 Buildx + GHA cache，`deploy/Dockerfile` 继续复用 `cargo-chef` 多阶段构建。
 - 服务器不再从源码构建；服务器职责是加载镜像、校验 `release-manifest.json`、挂载 secret files、执行 `docker compose up`、做健康检查、写出 `deploy-result.json`，并在失败时回滚。
+- release 部署脚本会对 `APP_DATABASE_PASSWORD_SECRET_FILE`、`APP_JWT_SECRET_SECRET_FILE`、`APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE` 做 owner-only 权限校验；group / other 有权限位时直接失败。
 
 ## 共享部署契约
 
 - `deploy/smoke.targets` 是本地 readiness test 与 release smoke 的共享检查目标真源。
 - release artifact 会携带 `release-manifest.json`；服务器部署结果写入 `deploy-result.json`。
-- `deploy.sh` 会读取 manifest 做一致性校验，`smoke.sh` 会检查 `/api/health`、`/api/health/db`、静态入口和 manifest / result 文件。
+- `deploy.sh` 会读取 manifest 做一致性校验，`smoke.sh` 会检查 `/api/health`、`/api/health/db`、静态入口、必需响应头和 manifest / result 文件。
 
 ## 长期风险
 

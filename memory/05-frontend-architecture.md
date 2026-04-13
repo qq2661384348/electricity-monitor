@@ -2,8 +2,9 @@
 
 ## 技术基线
 
-- 框架：React 19 + TypeScript + Vite 7。
+- 框架：React 19 + TypeScript + Vite 8。
 - 包管理：`bun` 是 `frontend/` 的唯一包管理真源，`bun.lock` 是唯一前端 lockfile。
+- 工具链兼容组合：`vite@8` 搭配 `@vitejs/plugin-react@5.2`；当前不使用 `@vitejs/plugin-react@6`，避免把 React Compiler 接线迁移和 Rolldown 适配耦合进日常升级。
 - 路由：`createBrowserRouter`，核心页面是 `/` 和 `/login`。
 - 状态管理：Zustand，认证状态只保存在内存中，不再做本地持久化。
 - 服务端状态：React Query，默认策略在 `frontend/src/lib/queryClient.ts`。
@@ -12,8 +13,9 @@
 
 ## 工作区真源
 
-- `frontend/package.json` 负责前端脚本与 Bun 版本声明。
+- `frontend/package.json` 负责前端脚本、Bun 版本声明与前端传递依赖 `overrides`。
 - `frontend/scripts/copy-static.ts` 负责把 `frontend/dist/` 复制到根目录 `static/`。
+- `frontend/scripts/check-bundle-budgets.ts` 负责校验 `dist/assets/*.js` 的 chunk 预算。
 - `frontend/AGENTS.md` 约束前端工作区级包管理、构建与验证；`frontend/src/**/AGENTS.md` 负责源码层边界。
 
 ## 前端目录职责
@@ -32,7 +34,7 @@
 ## 验证入口
 
 - 在 `frontend/` 目录执行 `bun install --frozen-lockfile` 安装依赖。
-- 在 `frontend/` 目录执行 `bun run test`、`bun run lint`、`bun run build:prod` 做前端最小回归。
+- 在 `frontend/` 目录执行 `bun run test`、`bun run lint`、`bun run build:prod`、`bun run check:bundle` 做前端最小回归。
 - 在 `frontend/` 目录执行 `bun audit` 做前端依赖审计。
 
 ## 会话模型
@@ -48,3 +50,4 @@
 - `BindRoomModal.tsx` 仍是多步骤流程型组件。
 - `frontend/src/services/api.ts` 仍是需要继续缩小职责的兼容 facade。
 - `frontend/src/features/dashboard/hooks/useDashboardData.ts` 仍保留迁移痕迹，说明 dashboard 数据层尚未完全收敛。
+- `vite.config.ts` 中的 warning 阈值只做粗粒度提示；真正的 JS chunk 体积约束由 bundle budget 脚本维护。

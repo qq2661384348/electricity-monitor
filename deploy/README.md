@@ -27,6 +27,7 @@
 - 服务器部署方式：下载 GitHub Actions artifact，解压后执行包内 `deploy.sh`
 - 本地 Docker 调试前会优先使用 `config/development.toml.example -> config/development.toml` 的本地运行时配置
 - 生产敏感配置通过 Compose secrets 提供，并由 `.env` 中的 `*_SECRET_FILE` 指向宿主机文件
+- release 部署前必须把 secret file 权限收紧到仅 owner 可读写；`deploy.sh` 会对权限过宽的文件直接 fail-fast
 - 服务器部署时会读取 `release-manifest.json`，并在 release 目录写出 `deploy-result.json`
-- `smoke.targets` 是本地 readiness test 与 release smoke 的共享契约真源
+- `smoke.targets` 是本地 readiness test 与 release smoke 的共享契约真源，包含端点、必需文件与统一响应安全头
 - 本目录中的本地调试脚本不改变生产发布主线，只作为开发/排障辅助

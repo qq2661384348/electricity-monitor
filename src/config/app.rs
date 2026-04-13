@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use super::{
-    auth::AuthConfig, admin::ADMIN_QQ_PLACEHOLDER, cors::CorsConfig, AdminConfig, DatabaseConfig,
+    admin::ADMIN_QQ_PLACEHOLDER, auth::AuthConfig, cors::CorsConfig, AdminConfig, DatabaseConfig,
     ElectricityFetcherConfig, NotificationConfig, QQBotConfig, RateLimitConfig, RedisConfig,
     RoomSyncConfig, StaticFilesConfig, VerificationConfig,
 };
@@ -307,7 +307,11 @@ impl AppConfig {
             ));
         }
 
-        let same_site = config.auth.refresh_cookie_same_site.trim().to_ascii_lowercase();
+        let same_site = config
+            .auth
+            .refresh_cookie_same_site
+            .trim()
+            .to_ascii_lowercase();
         if !matches!(same_site.as_str(), "lax" | "strict" | "none") {
             return Err(ConfigError::Message(format!(
                 "auth.refresh_cookie_same_site={} 非法，仅支持 lax、strict 或 none。",
@@ -406,7 +410,10 @@ impl AppConfig {
         }
     }
 
-    fn resolve_runtime_config_path(base_dir: &Path, environment: &str) -> Result<PathBuf, ConfigError> {
+    fn resolve_runtime_config_path(
+        base_dir: &Path,
+        environment: &str,
+    ) -> Result<PathBuf, ConfigError> {
         let config_dir = base_dir.join(CONFIG_DIR);
         let runtime_configs = Self::collect_runtime_configs(&config_dir)?;
         let expected_path = base_dir.join(Self::runtime_config_path(environment));
@@ -466,7 +473,10 @@ impl AppConfig {
                 continue;
             }
 
-            let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+            let file_name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default();
             if RUNTIME_CONFIG_FILENAMES.contains(&file_name) {
                 runtime_configs.push(path);
             } else {

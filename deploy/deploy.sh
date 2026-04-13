@@ -37,11 +37,25 @@ check_prerequisites() {
     require_command docker
     require_command gzip
     require_command curl
+    require_command stat
     docker info >/dev/null 2>&1 || error "Docker 守护进程未运行"
     docker compose version >/dev/null 2>&1 || error "当前环境缺少 docker compose 插件"
 
     [ -f "${COMPOSE_FILE}" ] || error "未找到 ${COMPOSE_FILE}"
     [ -d "${IMAGES_DIR}" ] || error "未找到镜像目录 ${IMAGES_DIR}"
+}
+
+validate_secret_file_permissions() {
+    local path="$1"
+    local permissions=""
+
+    [ -f "${path}" ] || error "secret file 不存在或不是常规文件: ${path}"
+
+    permissions="$(stat -c '%A' "${path}")" || error "读取 secret file 权限失败: ${path}"
+
+    if [ "${permissions:4:6}" != "------" ]; then
+        error "secret file 权限过宽: ${path} (${permissions})。请收紧到仅 owner 可读写，例如 chmod 600。"
+    fi
 }
 
 read_manifest_value() {
@@ -115,6 +129,10 @@ load_env() {
     [ -f "${APP_DATABASE_PASSWORD_SECRET_FILE}" ] || error "数据库密码 secret file 不存在: ${APP_DATABASE_PASSWORD_SECRET_FILE}"
     [ -f "${APP_JWT_SECRET_SECRET_FILE}" ] || error "JWT secret file 不存在: ${APP_JWT_SECRET_SECRET_FILE}"
     [ -f "${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE}" ] || error "QQ Bearer token secret file 不存在: ${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE}"
+
+    validate_secret_file_permissions "${APP_DATABASE_PASSWORD_SECRET_FILE}"
+    validate_secret_file_permissions "${APP_JWT_SECRET_SECRET_FILE}"
+    validate_secret_file_permissions "${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE}"
 
     docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" config >/dev/null
 

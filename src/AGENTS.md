@@ -11,6 +11,7 @@
 - 共享运行时资源真源在 `src/state.rs`；缓存、限流、连接池等共享依赖优先从 `AppState` 进入 use case。
 - 配置模型真源在 `src/config/`，并受根级 `AGENTS.md` 的配置链路与 `_FILE` secrets 规则约束。
 - 鉴权 HTTP 契约真源在 `src/handlers/auth.rs` 与 `src/modules/auth/`：access token 走 Bearer，refresh token 只走 HTTPOnly Cookie。
+- 后端统一响应安全头真源在 `src/bootstrap/router.rs` 与 `src/middleware/security_headers.rs`；改运行时安全头时必须同步 `deploy/smoke.targets` 与 readiness test。
 
 ## 首选接缝
 
@@ -26,10 +27,11 @@
 - 不要为了图快把生产 secrets、远端开发库地址或明文 token 写回 `config/development.toml`、`config/production.toml` 或 `*.toml.example`。
 - 不要启用全局 `try_parsing(true)`；当前配置链路依赖保留前导零字符串。
 - 不要把 refresh token 重新放回 JSON 响应或请求体。
+- 不要绕开统一响应安全头链路，在单个 handler 或路由里散落第二套 header 写法。
 - 不要在已有模块接缝的地方再造平行实现或临时 optimized 文件。
 
 ## 最小验证
 
 - 仅改后端文档或上下文文件时，至少做路径与引用自检，确认这里提到的目录和入口仍存在。
 - 涉及架构边界调整时，运行 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。
-- 涉及后端行为改动时，按影响范围运行 `cargo test --lib`、`cargo test --test auth_integration_test`、`cargo test --test send_verification_code_integration_test`、`cargo test --test release_readiness_test`、`cargo clippy --all-targets -- -D warnings`。
+- 涉及后端行为改动时，按影响范围运行 `cargo test --lib`、`cargo test --test auth_integration_test`、`cargo test --test send_verification_code_integration_test`、`cargo test --test release_readiness_test`、`cargo clippy --all-targets -- -D warnings`、`cargo audit -q`。

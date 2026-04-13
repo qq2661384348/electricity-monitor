@@ -13,9 +13,9 @@
 
 ## 前端与依赖审计入口
 
-- 在 `frontend/` 目录执行 `bun run test`、`bun run lint`、`bun run build:prod`。
+- 在 `frontend/` 目录执行 `bun run test`、`bun run lint`、`bun run build:prod`、`bun run check:bundle`。
 - 在 `frontend/` 目录执行 `bun audit` 做前端依赖审计。
-- 在仓库根目录执行 `cargo audit` 做 Rust 依赖审计。
+- 在仓库根目录执行 `cargo audit -q` 做 Rust 依赖审计。
 - 在仓库根目录执行 `cargo clippy --all-targets -- -D warnings` 做后端代码质量阻断检查。
 
 ## 后端测试约束
@@ -29,7 +29,7 @@
 ## readiness / smoke 契约
 
 - `deploy/smoke.targets` 是本地 readiness test 与 release smoke 共用的检查目标真源。
-- 共享检查目标包含 `/api/health`、`/api/health/db`、`/`、`release-manifest.json` 与 `deploy-result.json`。
+- 共享检查目标包含 `/api/health`、`/api/health/db`、`/`、`release-manifest.json`、`deploy-result.json` 与一组统一响应安全头。
 - 如果修改健康检查路径、静态入口或 release 产物文件名，必须先更新 `deploy/smoke.targets`，再同步测试、脚本与文档。
 
 ## 外部依赖测试策略
@@ -42,9 +42,9 @@
 
 - `backend-tests`：准备本地 PostgreSQL / Redis、复制开发模板、执行迁移、后端关键回归与 `cargo clippy --all-targets -- -D warnings`。
 - `backend-external-tests`：仅在手动 workflow 且显式开启时执行真实外部测试。
-- `frontend-quality`：在 `frontend/` 中执行 `bun install --frozen-lockfile`、`bun run lint`、`bun run build:prod`。
+- `frontend-quality`：在 `frontend/` 中执行 `bun install --frozen-lockfile`、`bun run lint`、`bun audit`、`bun run build:prod`、`bun run check:bundle`。
 - `frontend-tests`：在 `frontend/` 中执行 `bun install --frozen-lockfile`、`bun run test`。
-- `dependency-audit`：执行 `cargo audit -q` 与 `bun audit --json`，上传审计 artifact 并写入 workflow summary；当前作为报告项，不阻断 workflow。
+- `dependency-audit`：执行 `cargo audit -q`，上传审计 artifact 并写入 workflow summary；当前为阻断项。
 - `architecture-guard`：执行 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。
 - 所有 job 都会上传对应日志 artifact，便于失败定位。
 
@@ -56,7 +56,5 @@
 
 ## 仍未接入默认阻断门禁的验证
 
-- `cargo audit`
-- `bun audit`
 - 尚未全部迁移完成的 `tests/infra/` 独立 target
 - 真实 Linux Docker 主机上的 smoke / 回滚演练

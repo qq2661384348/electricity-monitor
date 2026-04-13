@@ -37,8 +37,8 @@ pub fn get_user_claims(req_extensions: &axum::http::Extensions) -> Option<&Claim
 #[cfg(test)]
 mod tests {
     use super::*;
-    use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
     use crate::modules::auth::TokenKind;
+    use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 
     #[test]
     fn test_jwt_encode_decode() {

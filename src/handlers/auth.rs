@@ -78,9 +78,7 @@ pub struct UserInfo {
 
 fn has_admin_override(config: &AppConfig, qq_number: &str) -> bool {
     let admin_qq = config.admin.default_qq_number.trim();
-    !admin_qq.is_empty()
-        && !admin_qq.starts_with("CHANGE-THIS")
-        && qq_number == admin_qq
+    !admin_qq.is_empty() && !admin_qq.starts_with("CHANGE-THIS") && qq_number == admin_qq
 }
 
 fn cookie_same_site_label(config: &AppConfig) -> Result<&'static str> {
@@ -132,18 +130,18 @@ fn refresh_token_from_headers(headers: &HeaderMap) -> Option<String> {
         .get(header::COOKIE)
         .and_then(|value| value.to_str().ok())
         .and_then(|cookie_header| {
-            cookie_header
-                .split(';')
-                .map(str::trim)
-                .find_map(|segment| {
-                    segment
-                        .strip_prefix(&format!("{REFRESH_COOKIE_NAME}="))
-                        .map(ToOwned::to_owned)
-                })
+            cookie_header.split(';').map(str::trim).find_map(|segment| {
+                segment
+                    .strip_prefix(&format!("{REFRESH_COOKIE_NAME}="))
+                    .map(ToOwned::to_owned)
+            })
         })
 }
 
-fn issue_tokens(user: &crate::domain::models::User, config: &AppConfig) -> Result<(String, String, u64)> {
+fn issue_tokens(
+    user: &crate::domain::models::User,
+    config: &AppConfig,
+) -> Result<(String, String, u64)> {
     crate::modules::auth::infrastructure::ensure_jwt_crypto_provider();
 
     let now = Utc::now().timestamp() as usize;
@@ -185,7 +183,11 @@ fn issue_tokens(user: &crate::domain::models::User, config: &AppConfig) -> Resul
     Ok((access_token, refresh_token, access_expiration as u64))
 }
 
-fn build_login_response(user: crate::domain::models::User, access_token: String, expires_in: u64) -> LoginResponse {
+fn build_login_response(
+    user: crate::domain::models::User,
+    access_token: String,
+    expires_in: u64,
+) -> LoginResponse {
     LoginResponse {
         access_token,
         token_type: "Bearer".to_string(),
@@ -340,7 +342,10 @@ pub async fn verify_and_login(
 
     let (access_token, refresh_token, expires_in) = issue_tokens(&user, config)?;
     let mut headers = HeaderMap::new();
-    headers.insert(header::SET_COOKIE, build_refresh_cookie_header(config, &refresh_token)?);
+    headers.insert(
+        header::SET_COOKIE,
+        build_refresh_cookie_header(config, &refresh_token)?,
+    );
 
     tracing::info!(
         qq_number = %req.qq_number,
@@ -349,7 +354,11 @@ pub async fn verify_and_login(
         "用户登录成功"
     );
 
-    Ok((StatusCode::OK, headers, Json(build_login_response(user, access_token, expires_in))))
+    Ok((
+        StatusCode::OK,
+        headers,
+        Json(build_login_response(user, access_token, expires_in)),
+    ))
 }
 
 /// 刷新Token

@@ -118,6 +118,8 @@ vim .env
 - `APP_JWT_SECRET_SECRET_FILE`
 - `APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE`
 
+对应的宿主机 secret 文件必须在部署前收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。
+
 可按需覆盖：
 
 - `APP__DATABASE__HOST`
@@ -127,7 +129,7 @@ vim .env
 - `APP_HOST_PORT`
 - `APP_BIND_ADDRESS`
 
-如果浏览器需要跨域访问应用，还要确保生产配置中的 `cors.allowed_origins` 与实际前端域名一致。应用侧只负责 CORS 白名单和 refresh cookie 行为；反向代理、TLS 与响应安全头仍由部署环境负责。
+如果浏览器需要跨域访问应用，还要确保生产配置中的 `cors.allowed_origins` 与实际前端域名一致。应用侧会直接追加统一响应安全头，并负责 CORS 白名单与 refresh cookie 行为；反向代理、TLS、`Strict-Transport-Security` 与 WAF 仍由部署环境负责。
 
 ### 4. 执行一键部署
 
@@ -139,13 +141,14 @@ chmod +x deploy.sh
 `deploy.sh` 会自动完成：
 
 1. 校验 `docker` / `docker compose` / `gzip` / `curl`
-2. 读取 `release-manifest.json` 并校验 `APP_IMAGE_REF`
-3. 加载 `images/` 下的镜像归档
-4. 备份现有 `electricity-app` / `electricity-redis`
-5. 使用 `compose.yaml` 启动新版本
-6. 对 `GET /api/health` 做重试健康检查
-7. 将本次部署结果写入 `deploy-result.json`
-8. 若健康检查失败，则自动回滚到旧容器
+2. 校验 `.env` 中声明的 secret file 存在且权限已收紧到仅 owner 可读写
+3. 读取 `release-manifest.json` 并校验 `APP_IMAGE_REF`
+4. 加载 `images/` 下的镜像归档
+5. 备份现有 `electricity-app` / `electricity-redis`
+6. 使用 `compose.yaml` 启动新版本
+7. 对 `GET /api/health` 做重试健康检查
+8. 将本次部署结果写入 `deploy-result.json`
+9. 若健康检查失败，则自动回滚到旧容器
 
 ### 5. 执行 smoke 检查
 
@@ -161,6 +164,7 @@ chmod +x smoke.sh
 - `smoke.targets` 中声明的静态入口 `/`
 - `smoke.targets` 中声明的 `release-manifest.json`
 - `smoke.targets` 中声明的 `deploy-result.json`
+- `smoke.targets` 中声明的统一响应安全头
 
 本地 `tests/runtime/release_readiness_test.rs` 与 release 包内 `smoke.sh` 读取同一份 `smoke.targets`，避免两边各自硬编码检查目标。
 

@@ -2,3 +2,10 @@ SMOKE_HEALTH_ENDPOINT=/api/health
 SMOKE_DB_HEALTH_ENDPOINT=/api/health/db
 SMOKE_STATIC_ENTRY=/
 SMOKE_REQUIRED_FILES="release-manifest.json deploy-result.json"
+SMOKE_REQUIRED_HEADER__X_CONTENT_TYPE_OPTIONS=nosniff
+SMOKE_REQUIRED_HEADER__X_FRAME_OPTIONS=DENY
+SMOKE_REQUIRED_HEADER__REFERRER_POLICY=strict-origin-when-cross-origin
+SMOKE_REQUIRED_HEADER__PERMISSIONS_POLICY="geolocation=(), camera=(), microphone=()"
+SMOKE_REQUIRED_HEADER__CROSS_ORIGIN_OPENER_POLICY=same-origin
+SMOKE_REQUIRED_HEADER__CROSS_ORIGIN_RESOURCE_POLICY=same-origin
+SMOKE_REQUIRED_HEADER__CONTENT_SECURITY_POLICY="default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.cn; font-src 'self' https://fonts.gstatic.cn data:; img-src 'self' data: blob:; connect-src 'self' https://v2.xxapi.cn"

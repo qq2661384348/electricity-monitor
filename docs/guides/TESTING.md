@@ -8,7 +8,7 @@
 - 认证契约测试：`cargo test --test auth_integration_test`
 - runtime / readiness 契约测试：`cargo test --test release_readiness_test`
 - 前端行为测试：在 `frontend/` 目录执行 `bun run test`
-- 前端质量检查：在 `frontend/` 目录执行 `bun run lint`、`bun run build:prod`
+- 前端质量检查：在 `frontend/` 目录执行 `bun run lint`、`bun run build:prod`、`bun run check:bundle`
 - 架构守护：`powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`
 - Pull Request / 手动门禁：`.github/workflows/ci.yml`
 
@@ -20,7 +20,7 @@
 
 - `src/**`：单元测试与少量带环境门槛的基础设施测试
 - `tests/contracts/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me`、`/api/auth/refresh`、`/api/bindings` CRUD、越权访问与 admin 限制契约，同时覆盖 refresh cookie 轮换、refresh token 误用为 Bearer、access token 误用为 refresh、logout 清理 cookie
-- `tests/runtime/release_readiness_test.rs`：读取 `deploy/smoke.targets`，校验 health / db health / 静态入口契约
+- `tests/runtime/release_readiness_test.rs`：读取 `deploy/smoke.targets`，校验 health / db health / 静态入口、必需文件与统一响应安全头契约
 - `tests/contracts/send_verification_code_integration_test.rs`：通过本地 mock NapCat HTTP API 覆盖 `/api/auth/send-verification-code` 的成功发送与 `USER_NOT_FRIEND` 分支
 - `tests/support/`：共享 app factory、登录 fixture、seed helper、smoke 契约读取
 - `tests/infra/`：环境型独立 test target 的预留分层；当前目录中记录了仍在源码内的 infra 覆盖位置
@@ -61,6 +61,7 @@ cargo test --lib
 cd frontend
 bun run test
 bun run lint
+bun run check:bundle
 bun audit
 cd ..
 powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
@@ -90,9 +91,10 @@ powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1
 cd frontend
 bun run test
 bun run build:prod
+bun run check:bundle
 ```
 
-`build:prod` 会先生成 `frontend/dist/`，再复制到仓库根目录 `static/`，供后端静态文件服务与 Docker 构建使用。
+`build:prod` 会先生成 `frontend/dist/`，再复制到仓库根目录 `static/`，供后端静态文件服务与 Docker 构建使用。`check:bundle` 会对 `dist/assets/*.js` 执行细粒度体积预算检查，不再只依赖 Vite 的默认 chunk warning。
 
 ## 环境型测试说明
 
@@ -167,15 +169,16 @@ cargo test --lib
 - `frontend-quality`
   - 执行 `bun install --frozen-lockfile`
   - 运行 `bun run lint`
+  - 运行 `bun audit`
   - 运行 `bun run build:prod`
+  - 运行 `bun run check:bundle`
 - `frontend-tests`
   - 执行 `bun install --frozen-lockfile`
   - 运行 `bun run test`
 - `dependency-audit`
   - 安装并运行 `cargo audit -q`
-  - 运行 `bun audit --json`
   - 上传审计 artifact 并将摘要写入 workflow summary
-  - 当前作为报告项，不阻断 workflow
+  - 当前为 Rust 依赖阻断项，失败会直接阻断 workflow
 - `architecture-guard`
   - 运行 `scripts/check-architecture.ps1`
 
@@ -191,14 +194,14 @@ cargo test --lib
   - `/`
   - `release-manifest.json`
   - `deploy-result.json`
+  - 一组统一响应安全头
 
-这意味着如果你修改健康检查路径或 release 产物文件名，必须同时更新 `deploy/smoke.targets`，而不是只改单边硬编码。
+这意味着如果你修改健康检查路径、release 产物文件名或统一响应安全头，必须同时更新 `deploy/smoke.targets`，而不是只改单边硬编码。
 
 ## 当前缺口
 
 以下事项仍然未在默认阻断门禁中完成：
 
-- `cargo audit` 与 `bun audit` 目前仍是报告项，不直接阻断 workflow
 - 把源码内的环境型测试逐步迁移成 `tests/infra/` 下的独立 test target
 - `cargo-nextest` 试点
 - Playwright 浏览器 smoke

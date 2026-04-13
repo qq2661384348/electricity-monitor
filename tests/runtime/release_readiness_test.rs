@@ -3,13 +3,13 @@ mod support;
 
 use axum::{
     body::Body,
-    http::{Request, StatusCode},
+    http::{HeaderMap, Request, StatusCode},
 };
 use tower::ServiceExt;
 
 use support::{
     app_factory::create_test_app,
-    smoke_contract::{load_smoke_targets, smoke_targets_path},
+    smoke_contract::{load_smoke_targets, smoke_targets_path, SmokeTargets},
 };
 
 #[tokio::test]
@@ -18,9 +18,9 @@ async fn runtime_endpoints_from_smoke_contract_pass() {
     let targets = load_smoke_targets();
 
     for endpoint in [
-        targets.health_endpoint,
-        targets.db_health_endpoint,
-        targets.static_entry,
+        &targets.health_endpoint,
+        &targets.db_health_endpoint,
+        &targets.static_entry,
     ] {
         let response = test_app
             .app
@@ -39,6 +39,7 @@ async fn runtime_endpoints_from_smoke_contract_pass() {
             StatusCode::OK,
             "smoke 契约中的运行时端点应全部可用: {endpoint}"
         );
+        assert_required_headers(response.headers(), &targets, endpoint.as_str());
     }
 }
 
@@ -57,4 +58,48 @@ async fn smoke_contract_tracks_release_artifact_files() {
             "deploy-result.json".to_string(),
         ]
     );
+    assert!(
+        !targets.required_headers.is_empty(),
+        "smoke 契约必须声明统一响应安全头"
+    );
+}
+
+#[tokio::test]
+async fn smoke_contract_tracks_required_headers() {
+    let targets = load_smoke_targets();
+
+    for expected_header in [
+        "content-security-policy",
+        "cross-origin-opener-policy",
+        "cross-origin-resource-policy",
+        "permissions-policy",
+        "referrer-policy",
+        "x-content-type-options",
+        "x-frame-options",
+    ] {
+        assert!(
+            targets
+                .required_headers
+                .iter()
+                .any(|(name, _)| name == expected_header),
+            "smoke 契约缺少必需响应头: {expected_header}"
+        );
+    }
+}
+
+fn assert_required_headers(headers: &HeaderMap, targets: &SmokeTargets, endpoint: &str) {
+    for (header_name, expected_value) in &targets.required_headers {
+        let actual = headers
+            .get(header_name.as_str())
+            .unwrap_or_else(|| panic!("端点 {endpoint} 缺少响应头 {header_name}"))
+            .to_str()
+            .unwrap_or_else(|error| {
+                panic!("端点 {endpoint} 的响应头 {header_name} 不是合法字符串: {error}")
+            });
+
+        assert_eq!(
+            actual, expected_value,
+            "端点 {endpoint} 的响应头 {header_name} 应与 smoke 契约保持一致"
+        );
+    }
 }

@@ -6,7 +6,10 @@ pub struct SmokeTargets {
     pub db_health_endpoint: String,
     pub static_entry: String,
     pub required_release_files: Vec<String>,
+    pub required_headers: Vec<(String, String)>,
 }
+
+const REQUIRED_HEADER_PREFIX: &str = "SMOKE_REQUIRED_HEADER__";
 
 pub fn smoke_targets_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -32,6 +35,7 @@ pub fn load_smoke_targets() -> SmokeTargets {
             .split_whitespace()
             .map(ToString::to_string)
             .collect(),
+        required_headers: collect_required_headers(&values),
     }
 }
 
@@ -59,4 +63,17 @@ fn required_value(values: &HashMap<String, String>, key: &str) -> String {
 
 fn strip_quotes(value: &str) -> String {
     value.trim_matches('"').trim_matches('\'').to_string()
+}
+
+fn collect_required_headers(values: &HashMap<String, String>) -> Vec<(String, String)> {
+    let mut headers = values
+        .iter()
+        .filter_map(|(key, value)| {
+            key.strip_prefix(REQUIRED_HEADER_PREFIX)
+                .map(|suffix| (suffix.to_ascii_lowercase().replace('_', "-"), value.clone()))
+        })
+        .collect::<Vec<_>>();
+
+    headers.sort_by(|left, right| left.0.cmp(&right.0));
+    headers
 }

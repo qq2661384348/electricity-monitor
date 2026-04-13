@@ -158,7 +158,8 @@ async fn refresh_token_returns_new_access_token_for_same_user() {
     let qq_number = unique_qq_number();
     let login = login_with_seeded_code(&test_app.app, &test_app.state, &qq_number, "654321").await;
 
-    let response = post_with_cookie(&test_app.app, "/api/auth/refresh", &login.refresh_cookie).await;
+    let response =
+        post_with_cookie(&test_app.app, "/api/auth/refresh", &login.refresh_cookie).await;
 
     assert_eq!(response.status(), StatusCode::OK);
     assert!(
@@ -181,8 +182,13 @@ async fn refresh_token_returns_new_access_token_for_same_user() {
 #[tokio::test]
 async fn refresh_token_cookie_cannot_access_protected_routes_as_bearer() {
     let test_app = create_test_app().await;
-    let login =
-        login_with_seeded_code(&test_app.app, &test_app.state, &unique_qq_number(), "654321").await;
+    let login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "654321",
+    )
+    .await;
     let refresh_token = raw_refresh_token(&login.refresh_cookie);
 
     let response = get_with_bearer(&test_app.app, "/api/auth/me", &refresh_token).await;
@@ -192,8 +198,13 @@ async fn refresh_token_cookie_cannot_access_protected_routes_as_bearer() {
 #[tokio::test]
 async fn access_token_cannot_refresh_session() {
     let test_app = create_test_app().await;
-    let login =
-        login_with_seeded_code(&test_app.app, &test_app.state, &unique_qq_number(), "654321").await;
+    let login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "654321",
+    )
+    .await;
 
     let response = post_with_cookie(
         &test_app.app,
@@ -208,8 +219,13 @@ async fn access_token_cannot_refresh_session() {
 #[tokio::test]
 async fn logout_clears_refresh_cookie() {
     let test_app = create_test_app().await;
-    let login =
-        login_with_seeded_code(&test_app.app, &test_app.state, &unique_qq_number(), "654321").await;
+    let login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "654321",
+    )
+    .await;
 
     let response = post_with_cookie(&test_app.app, "/api/auth/logout", &login.refresh_cookie).await;
 

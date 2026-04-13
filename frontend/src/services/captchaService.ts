@@ -95,10 +95,10 @@ class CaptchaService {
       // 网络错误或超时
       if (axios.isAxiosError(error)) {
         if (error.code === 'ECONNABORTED') {
-          throw new Error('验证码服务请求超时');
+          throw new Error('验证码服务请求超时', { cause: error });
         }
         if (!error.response) {
-          throw new Error('验证码服务暂时不可用');
+          throw new Error('验证码服务暂时不可用', { cause: error });
         }
       }
       throw error;
@@ -127,10 +127,10 @@ class CaptchaService {
     } catch (error) {
       if (axios.isAxiosError(error)) {
         if (error.code === 'ECONNABORTED') {
-          throw new Error('验证码服务请求超时');
+          throw new Error('验证码服务请求超时', { cause: error });
         }
         if (!error.response) {
-          throw new Error('验证码服务暂时不可用');
+          throw new Error('验证码服务暂时不可用', { cause: error });
         }
       }
       throw error;

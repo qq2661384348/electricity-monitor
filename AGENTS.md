@@ -10,7 +10,7 @@
 
 - `src/`：Rust + Axum 后端主代码；启动装配在 `src/bootstrap/`，共享运行时资源在 `src/state.rs`。
 - `src/modules/`：后端模块化迁移主线；复杂编排优先进入 `src/modules/*/application`。
-- `frontend/`：React 19 + Vite 7 前端工作区；`bun` 是唯一包管理真源，`bun.lock` 是唯一前端 lockfile。
+- `frontend/`：React 19 + Vite 8 前端工作区；`bun` 是唯一包管理真源，`bun.lock` 是唯一前端 lockfile。
 - `tests/`：后端契约、runtime、support 与 infra 分层。
 - `deploy/`：生产发布与本地 Docker 调试资产真源。
 - `config/`：按环境命名的运行时配置与环境模板；`config/` 下只能保留一个运行时 `.toml` 文件。
@@ -34,9 +34,11 @@
 - 验证码发送契约测试：`cargo test --test send_verification_code_integration_test`
 - release readiness 测试：`cargo test --test release_readiness_test`
 - 后端 clippy 门禁：`cargo clippy --all-targets -- -D warnings`
+- Rust 依赖审计：`cargo audit -q`
 - 前端安装依赖：`bun install --cwd frontend --frozen-lockfile`
 - 前端行为测试：`bun run --cwd frontend test`
 - 前端 lint：`bun run --cwd frontend lint`
+- 前端 bundle 预算检查：`bun run --cwd frontend check:bundle`
 - 前端生产构建：`bun run --cwd frontend build:prod`
 - 前端依赖审计：`bun audit --cwd frontend`
 - 架构守护：`powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`
@@ -55,8 +57,10 @@
 - refresh token 只允许通过 `Set-Cookie` / `Cookie` 往返；JSON 响应只返回 access token。
 - `admin.default_qq_number` 只有在显式真实值时才会授予管理员权限；生产环境不能保留占位值。
 - 生产发布主线是 `.github/workflows/docker-build.yml` + `deploy/`；`deploy/build.sh` 与 `deploy/docker-compose.local.yml` 只用于本地 Docker 调试。
-- `deploy/smoke.targets` 是本地 readiness test 与 release smoke 共用的检查目标真源。
+- 后端统一响应安全头由应用层直接追加；`deploy/smoke.targets` 是本地 readiness test 与 release smoke 共用的端点、文件与响应头契约真源。
 - 前端真实 HTTP client 真源是 `frontend/src/shared/api/http-client.ts`；`frontend/src/services/api.ts` 只保留兼容 facade。
+- `frontend/package.json` 中的 `overrides` 是前端传递依赖安全修复真源；不要绕开 Bun 锁定修复版本。
+- `frontend/scripts/check-bundle-budgets.ts` 是前端 JS chunk 预算真源；`vite.config.ts` 里的 warning 阈值只做粗粒度提示。
 - 前端 `build:prod` 会在构建后把 `frontend/dist/` 复制到根目录 `static/`；`static/` 只保留目录占位 `.gitkeep`，不要把构建产物重新纳入版本控制。
 
 ## 变更同步要求
@@ -74,6 +78,7 @@
 
 - 只改文档或 agent 指令时，至少做路径、命令、引用和真源一致性自检。
 - 涉及后端行为改动时，按影响范围运行后端测试矩阵。
+- 涉及运行时安全头、release smoke 或部署脚本权限校验改动时，至少运行 `cargo test --test release_readiness_test` 与 `cargo audit -q`。
 - 涉及前端结构、测试、包管理或发布链路改动时，至少运行 `bun run --cwd frontend test`、`bun run --cwd frontend lint`、`bun run --cwd frontend build:prod`。
 - 涉及架构边界调整时，运行 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。
 - 涉及部署相关改动时，至少做路径/引用扫描；Docker 可用时再跑 `docker compose -f deploy/docker-compose.local.yml config`。

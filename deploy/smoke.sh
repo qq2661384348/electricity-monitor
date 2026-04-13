@@ -7,6 +7,8 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 TARGETS_FILE="${SCRIPT_DIR}/smoke.targets"
 MANIFEST_FILE="${SCRIPT_DIR}/release-manifest.json"
 DEPLOY_RESULT_FILE="${SCRIPT_DIR}/deploy-result.json"
+declare -a REQUIRED_HEADER_NAMES=()
+declare -a REQUIRED_HEADER_VALUES=()
 
 require_command() {
     command -v "$1" >/dev/null 2>&1 || {
@@ -37,11 +39,72 @@ load_targets() {
     # shellcheck disable=SC1090
     . "${TARGETS_FILE}"
     set +a
+
+    load_required_headers
+}
+
+load_required_headers() {
+    local variable_name=""
+    local suffix=""
+    local header_name=""
+
+    while IFS= read -r variable_name; do
+        suffix="${variable_name#SMOKE_REQUIRED_HEADER__}"
+        header_name="$(printf '%s' "${suffix}" | tr '[:upper:]' '[:lower:]' | tr '_' '-')"
+        REQUIRED_HEADER_NAMES+=("${header_name}")
+        REQUIRED_HEADER_VALUES+=("${!variable_name}")
+    done < <(compgen -A variable SMOKE_REQUIRED_HEADER__ | sort)
+}
+
+assert_response_headers() {
+    local url="$1"
+    local response_headers="$2"
+    local index=""
+    local header_name=""
+    local expected_value=""
+    local actual_value=""
+
+    for index in "${!REQUIRED_HEADER_NAMES[@]}"; do
+        header_name="${REQUIRED_HEADER_NAMES[${index}]}"
+        expected_value="${REQUIRED_HEADER_VALUES[${index}]}"
+        actual_value="$(
+            printf '%s\n' "${response_headers}" \
+                | awk -v header_name="${header_name}" '
+                    BEGIN { IGNORECASE = 1 }
+                    $0 ~ ("^" header_name ":") {
+                        sub(/^[^:]+:[[:space:]]*/, "", $0)
+                        sub(/\r$/, "", $0)
+                        print
+                        exit
+                    }
+                '
+        )"
+
+        if [ -z "${actual_value}" ]; then
+            echo "[ERROR] smoke: ${url} 缺少响应头 ${header_name}" >&2
+            exit 1
+        fi
+
+        if [ "${actual_value}" != "${expected_value}" ]; then
+            echo "[ERROR] smoke: ${url} 的响应头 ${header_name}=${actual_value}，期望 ${expected_value}" >&2
+            exit 1
+        fi
+    done
+}
+
+check_endpoint() {
+    local url="$1"
+    local response_headers=""
+
+    echo "[INFO] smoke: checking ${url}"
+    response_headers="$(curl -fsS -D - -o /dev/null "${url}")"
+    assert_response_headers "${url}" "${response_headers}"
 }
 
 main() {
     require_command curl
     require_command grep
+    require_command awk
 
     load_env
     load_targets
@@ -55,14 +118,9 @@ main() {
     : "${DEPLOY_DB_HEALTHCHECK_URL:=http://127.0.0.1:${APP_HOST_PORT}${SMOKE_DB_HEALTH_ENDPOINT}}"
     : "${DEPLOY_STATIC_ENTRY_URL:=http://127.0.0.1:${APP_HOST_PORT}${SMOKE_STATIC_ENTRY}}"
 
-    echo "[INFO] smoke: checking ${DEPLOY_HEALTHCHECK_URL}"
-    curl -fsS "${DEPLOY_HEALTHCHECK_URL}" >/dev/null
-
-    echo "[INFO] smoke: checking ${DEPLOY_DB_HEALTHCHECK_URL}"
-    curl -fsS "${DEPLOY_DB_HEALTHCHECK_URL}" >/dev/null
-
-    echo "[INFO] smoke: checking ${DEPLOY_STATIC_ENTRY_URL}"
-    curl -fsS "${DEPLOY_STATIC_ENTRY_URL}" >/dev/null
+    check_endpoint "${DEPLOY_HEALTHCHECK_URL}"
+    check_endpoint "${DEPLOY_DB_HEALTHCHECK_URL}"
+    check_endpoint "${DEPLOY_STATIC_ENTRY_URL}"
 
     for required_file in ${SMOKE_REQUIRED_FILES}; do
         file_path="${SCRIPT_DIR}/${required_file}"
@@ -79,7 +137,8 @@ main() {
                 grep -q '"status"' "${file_path}"
             fi
         else
-            echo "[WARN] smoke: ${required_file} missing"
+            echo "[ERROR] smoke: ${required_file} missing" >&2
+            exit 1
         fi
     done
 

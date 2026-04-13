@@ -2,9 +2,9 @@
 //!
 //! 负责加载和管理应用程序配置，支持多环境配置 (development/production)
 
-pub mod auth;
 pub mod admin;
 pub mod app;
+pub mod auth;
 pub mod cors;
 pub mod database;
 pub mod electricity_fetcher;
@@ -16,9 +16,9 @@ pub mod room_sync;
 pub mod static_files;
 pub mod verification;
 
-pub use auth::AuthConfig;
 pub use admin::AdminConfig;
 pub use app::{AppConfig, JwtConfig, LoggingConfig, ServerConfig};
+pub use auth::AuthConfig;
 pub use cors::CorsConfig;
 pub use database::DatabaseConfig;
 pub use electricity_fetcher::ElectricityFetcherConfig;

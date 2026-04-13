@@ -20,7 +20,7 @@
 
 1. 解压 `release-__RELEASE_TAG__.tar.gz`。
 2. 将 `.env.example` 复制为 `.env`。
-3. 按 `.env` 中的约定，在 `./secrets/` 下准备对应的 secret 文件。
+3. 按 `.env` 中的约定，在 `./secrets/` 下准备对应的 secret 文件，并把权限收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。
 4. 运行以下命令：
 
 ```bash
@@ -30,7 +30,8 @@ chmod +x deploy.sh
 ```
 
 部署完成后，脚本会在发布包目录旁写出 `deploy-result.json`，用于记录已部署的 tag、SHA 和镜像摘要。
-`smoke.sh` 会读取 `smoke.targets`，因此 smoke 检查目标和本地 readiness test 保持同一份契约真源。
+`deploy.sh` 会在真正启动容器前校验 secret file 是否存在且权限已收紧到仅 owner 可读写。
+`smoke.sh` 会读取 `smoke.targets`，因此 smoke 检查目标、必需文件和统一响应安全头都与本地 readiness test 保持同一份契约真源。
 
 ## 运行契约
 

@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "build:prod": "bun run build && bun run copy-static",
     "copy-static": "bun run ./scripts/copy-static.ts",
+    "check:bundle": "bun run ./scripts/check-bundle-budgets.ts",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -17,7 +18,6 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.97.0",
-    "@tanstack/react-query-devtools": "^5.97.0",
     "autoprefixer": "^10.4.27",
     "axios": "^1.15.0",
     "class-variance-authority": "^0.7.1",
@@ -34,25 +34,30 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
-    "@eslint/js": "^9.39.1",
+    "@eslint/js": "^10.0.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.10.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
-    "@vitejs/plugin-react": "^5.1.0",
+    "@vitejs/plugin-react": "^5.2.0",
     "babel-plugin-react-compiler": "^1.0.0",
-    "baseline-browser-mapping": "^2.10.10",
-    "eslint": "^9.39.1",
+    "eslint": "^10.2.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
     "jsdom": "^29.0.1",
     "msw": "^2.13.2",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.46.3",
-    "vite": "^7.3.2",
+    "typescript-eslint": "^8.58.1",
+    "vite": "^8.0.8",
     "vitest": "^4.1.4"
+  },
+  "overrides": {
+    "vite": "^8.0.8",
+    "rollup": "^4.59.0",
+    "picomatch": "^4.0.4",
+    "flatted": "^3.4.2"
   }
 }
