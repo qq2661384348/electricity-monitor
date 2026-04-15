@@ -1,21 +1,20 @@
 # 前端实体层 AGENTS
 
-本文件补充根目录 `AGENTS.md`、`frontend/AGENTS.md` 与 `frontend/src/AGENTS.md`，只约束 `frontend/src/entities/`。
+## 作用范围
 
-## 实体层定位
+- 本文件补充根目录 `AGENTS.md`、`frontend/AGENTS.md` 与 `frontend/src/AGENTS.md`，只约束 `frontend/src/entities/`。
+
+## 真源与入口
 
 - `entities/` 是前端按领域收敛的单域网关层，当前以 `room` 和 `binding` 为主。
 - 实体层应该保持 UI 无关，主要承接单域 API、必要的领域转换和稳定公共出口。
 - 每个实体目录都应通过 `index.ts` 暴露公共 API，避免业务层长期直接依赖深层文件路径。
-
-## 真源与复用
-
 - HTTP 访问统一复用 `shared/api/http-client.ts`。
 - query key 统一复用 `shared/api/queryKeys.ts`，不要在实体层散落重复字符串 key。
+
+## 边界与禁止项
+
 - 实体层可以暴露单域请求函数或轻量领域工具，但跨实体编排、页面流程和 query invalidation 应优先留在 feature model。
-
-## 明确禁止
-
 - 不要在实体层放 modal/page state、页面事件处理或路由跳转逻辑。
 - 不要在实体层里做跨多个实体的组合编排；那是 feature 的职责。
 - 不要重新引入对 `@/services/api` 的依赖，或在实体层里直接操作全局页面组件。

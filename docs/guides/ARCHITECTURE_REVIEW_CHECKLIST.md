@@ -19,6 +19,6 @@
 
 ## 发布与文档
 
-- 修改发布链时，同时同步 `README.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`docs/INDEX.md`、`deploy/README.md`、`memory/03-deploy-and-risk-memory.md`。
-- 修改目录职责或边界时，同步 `memory/01-repo-shape.md` 与相关架构文档。
+- 修改发布链时，同时同步 `README.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`docs/INDEX.md`、`deploy/README.md`、`memory/04-delivery/01-deploy-and-release.md`。
+- 修改目录职责或边界时，同步 `memory/01-governance/02-repo-shape-and-agents.md` 与相关架构文档。
 - 不在仓库里重新跟踪 `static/` 构建产物。

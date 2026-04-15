@@ -3,7 +3,7 @@
 ## 作用范围
 
 - 根目录 `AGENTS.md` 定义全仓共享规则；进入更深目录工作时，还要同时遵守就近的子级 `AGENTS.md`。
-- 开始任务前先读 `memory/00-memory-index.md`，再按任务范围阅读相关 memory 文件。
+- 开始任务前先读 `memory/README.md`，再按任务范围阅读对应主题目录。
 - 代码、配置、CI、脚本和当前文档真源优先于历史说明；不要把失效流程重新写回仓库。
 
 ## 仓库地图
@@ -14,14 +14,14 @@
 - `tests/`：后端契约、runtime、support 与 infra 分层。
 - `deploy/`：生产发布与本地 Docker 调试资产真源。
 - `config/`：按环境命名的运行时配置与环境模板；`config/` 下只能保留一个运行时 `.toml` 文件。
-- `memory/`：项目长期记忆与边界摘要。
+- `memory/`：项目长期记忆与边界摘要；`memory/README.md` 是唯一入口。
 
 ## 局部 AGENTS
 
-- `src/AGENTS.md`：后端入口、共享状态和最小验证。
+- `src/AGENTS.md`：后端入口、共享状态、运行时安全头和最小验证。
 - `src/modules/AGENTS.md`：模块化迁移边界与 `api / application / domain / infrastructure` 规则。
 - `frontend/AGENTS.md`：前端工作区级包管理、构建、测试与静态产物规则。
-- `frontend/src/AGENTS.md`：前端启动骨架、HTTP 真源和源码层验证要求。
+- `frontend/src/AGENTS.md`：前端启动骨架、HTTP 真源、会话模型和源码层验证要求。
 - `frontend/src/features/AGENTS.md`：feature 层 `api / model / ui / index.ts` 约定。
 - `frontend/src/entities/AGENTS.md`：entity 层单域网关、公共出口与禁用依赖。
 
@@ -62,17 +62,20 @@
 - `frontend/package.json` 中的 `overrides` 是前端传递依赖安全修复真源；不要绕开 Bun 锁定修复版本。
 - `frontend/scripts/check-bundle-budgets.ts` 是前端 JS chunk 预算真源；`vite.config.ts` 里的 warning 阈值只做粗粒度提示。
 - 前端 `build:prod` 会在构建后把 `frontend/dist/` 复制到根目录 `static/`；`static/` 只保留目录占位 `.gitkeep`，不要把构建产物重新纳入版本控制。
+- 短期记忆只允许作为例外落在对应 `memory/` 子目录下，文件名必须使用 `st-` 前缀并写明失效条件；不要把临时过程直接写进长期 memory。
 
 ## 变更同步要求
 
-- 修改 `memory/` 结构或用途时，同时更新 `memory/00-memory-index.md` 与 `memory/01-repo-shape.md`。
-- 修改仓库结构、目录职责或 AGENTS 拓扑时，同步更新 `memory/01-repo-shape.md`。
-- 修改运行时、secrets 或环境变量链路时，同步更新 `memory/02-runtime-and-config.md`。
-- 修改部署链路或 release 包契约时，同步更新 `README.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`docs/INDEX.md`、`deploy/README.md`、`memory/03-deploy-and-risk-memory.md`。
-- 修改前端工具链、前端工作区规则或前端边界时，同步更新 `frontend/README.md`、`frontend/AGENTS.md`、`memory/05-frontend-architecture.md`。
-- 修改鉴权、cookie 会话、缓存、handler/usecase 边界时，同步更新 `docs/api/API_REFERENCE.md`、`memory/06-maintainability-seams.md`。
-- 修改测试入口、测试 support、CI 门禁或 smoke/readiness 契约时，同步更新 `docs/guides/TESTING.md`、`.github/workflows/ci.yml`、`deploy/smoke.targets`、`memory/07-testing-and-quality-gates.md`。
-- 修改质量风险、安全风险或依赖审计基线时，同步更新 `memory/08-quality-and-security-risks.md`。
+- 修改 `memory/` 结构或用途时，同时更新 `memory/README.md` 与 `memory/01-governance/02-repo-shape-and-agents.md`。
+- 修改仓库结构、目录职责或 AGENTS 拓扑时，同步更新 `memory/01-governance/02-repo-shape-and-agents.md`。
+- 修改运行时、环境变量或 secrets 链路时，同步更新 `memory/02-runtime/01-config-and-environments.md`。
+- 修改鉴权、cookie 会话、CORS 或管理员提升规则时，同步更新 `docs/api/API_REFERENCE.md` 与 `memory/02-runtime/02-auth-session-and-cors.md`。
+- 修改前端工具链、前端工作区规则或前端边界时，同步更新 `frontend/README.md`、`frontend/AGENTS.md`、`memory/03-architecture/02-frontend-architecture.md`、`memory/03-architecture/03-frontend-seams.md`。
+- 修改后端维护接缝、模块边界或外部 HTTP / 缓存接缝时，同步更新 `memory/03-architecture/01-backend-seams.md`。
+- 修改架构热点判断时，同步更新 `memory/03-architecture/04-hotspots.md`。
+- 修改部署链路或 release 包契约时，同步更新 `README.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`docs/INDEX.md`、`deploy/README.md`、`memory/04-delivery/01-deploy-and-release.md`。
+- 修改测试入口、测试 support、CI 门禁或 smoke/readiness 契约时，同步更新 `docs/guides/TESTING.md`、`.github/workflows/ci.yml`、`deploy/smoke.targets`、`memory/04-delivery/02-testing-and-quality-gates.md`。
+- 修改质量风险、安全风险或依赖审计基线时，同步更新 `memory/05-risks/01-quality-and-security-risks.md`。
 
 ## 验证要求
 
@@ -88,4 +91,4 @@
 - 文档索引：`docs/INDEX.md`
 - 测试真源：`docs/guides/TESTING.md`
 - 部署说明：`deploy/README.md`
-- 项目长期记忆：`memory/00-memory-index.md`
+- 项目长期记忆：`memory/README.md`

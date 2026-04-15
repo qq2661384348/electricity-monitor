@@ -1,4 +1,4 @@
-# Electricity Monitor 仓库记忆：测试真源与质量门禁
+# Electricity Monitor 测试真源与质量门禁
 
 ## 测试真源
 
@@ -56,5 +56,5 @@
 
 ## 仍未接入默认阻断门禁的验证
 
-- 尚未全部迁移完成的 `tests/infra/` 独立 target
-- 真实 Linux Docker 主机上的 smoke / 回滚演练
+- 尚未全部迁移完成的 `tests/infra/` 独立 target。
+- 真实 Linux Docker 主机上的 smoke / 回滚演练。

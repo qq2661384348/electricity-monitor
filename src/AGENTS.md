@@ -1,8 +1,10 @@
 # 后端源码 AGENTS
 
-本文件补充根目录 `AGENTS.md`，只约束 `src/` 里的后端代码协作方式。
+## 作用范围
 
-## 入口与真源
+- 本文件补充根目录 `AGENTS.md`，只约束 `src/` 里的后端代码协作方式。
+
+## 真源与入口
 
 - 后端进程入口是 `src/main.rs`，它只应调用 `bootstrap::app::run()`；不要把启动编排重新塞回 `main.rs`。
 - 启动装配真源在 `src/bootstrap/`；配置初始化、日志、路由装配、运行时任务和 shutdown 都应优先在这里收敛。
@@ -21,7 +23,7 @@
 - 需要访问数据库或 Redis 时，优先沿用现有 repository、pool 和 state 注入方式，保持依赖方向稳定。
 - 修改 JWT 解码、认证中间件或刷新流程时，必须保持 `token_kind=access|refresh` 边界，不要把两类 token 重新混用。
 
-## 明确禁止
+## 边界与禁止项
 
 - 不要把新的编排逻辑、权限判断或跨仓储流程继续堆回 `src/handlers/`。
 - 不要为了图快把生产 secrets、远端开发库地址或明文 token 写回 `config/development.toml`、`config/production.toml` 或 `*.toml.example`。
@@ -35,3 +37,8 @@
 - 仅改后端文档或上下文文件时，至少做路径与引用自检，确认这里提到的目录和入口仍存在。
 - 涉及架构边界调整时，运行 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。
 - 涉及后端行为改动时，按影响范围运行 `cargo test --lib`、`cargo test --test auth_integration_test`、`cargo test --test send_verification_code_integration_test`、`cargo test --test release_readiness_test`、`cargo clippy --all-targets -- -D warnings`、`cargo audit -q`。
+
+## 同步要求
+
+- 修改运行时、安全头、鉴权或 cookie 会话边界时，同步更新根 `AGENTS.md`、`docs/api/API_REFERENCE.md`、`memory/02-runtime/02-auth-session-and-cors.md` 与 `memory/04-delivery/02-testing-and-quality-gates.md`。
+- 修改后端维护接缝、缓存、外部 HTTP 或 handler / module 分工时，同步更新 `memory/03-architecture/01-backend-seams.md`。

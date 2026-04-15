@@ -1,4 +1,4 @@
-# Electricity Monitor 仓库记忆：质量与安全风险
+# Electricity Monitor 质量与安全风险
 
 ## 目的
 
@@ -23,6 +23,7 @@
 
 - `DashboardPage.tsx` 仍是高耦合页面容器，虽然 modal 已做懒加载，但 dashboard 数据装配和交互编排仍偏集中。
 - `frontend/src/services/api.ts` 仍保留兼容 facade，后续需要继续缩小存在感，避免旧入口反向扩张。
+- 部署脚本的回滚路径仍需要在真实 Linux Docker 主机上做端到端演练，本地 readiness test 不能替代这类验证。
 
 ## 当前供应链风险
 

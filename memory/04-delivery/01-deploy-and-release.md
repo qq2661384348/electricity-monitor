@@ -1,4 +1,4 @@
-# Electricity Monitor 仓库记忆：部署链路与长期风险
+# Electricity Monitor 部署与 release 契约
 
 ## 生产发布主线
 
@@ -26,10 +26,3 @@
 - `deploy/smoke.targets` 是本地 readiness test 与 release smoke 的共享检查目标真源。
 - release artifact 会携带 `release-manifest.json`；服务器部署结果写入 `deploy-result.json`。
 - `deploy.sh` 会读取 manifest 做一致性校验，`smoke.sh` 会检查 `/api/health`、`/api/health/db`、静态入口、必需响应头和 manifest / result 文件。
-
-## 长期风险
-
-- 仓库曾出现过把真实敏感配置写入 git 历史的风险，因此真实 `QQ/JWT/DB` 凭据必须继续留在运行时配置或 secret file 中，不能回写仓库。
-- 真实凭据轮换仍依赖外部 secret file 或部署目标访问权；在没有外部执行证据前，不应在仓库文档中写成“已完成轮换”。
-- 部署脚本的回滚路径仍需要在真实 Linux Docker 主机上做端到端演练，本地 readiness test 不能替代这类验证。
-- 发布链路、配置模板、memory 和部署文档容易产生漂移；改部署时必须同步更新 `README.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`deploy/README.md` 和相关 memory。

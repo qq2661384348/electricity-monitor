@@ -1,4 +1,4 @@
-# Electricity Monitor 仓库记忆：前端架构专项
+# Electricity Monitor 前端架构基线
 
 ## 技术基线
 
@@ -20,7 +20,7 @@
 
 ## 前端目录职责
 
-- `frontend/src/main.tsx`：挂载根节点并注入 QueryClientProvider。
+- `frontend/src/main.tsx`：挂载根节点并注入 `QueryClientProvider`。
 - `frontend/src/App.tsx`：在首次渲染前调用 `/api/auth/refresh` 恢复会话，再转交 `AppRouter`。
 - `frontend/src/routes.tsx`：路由与页面级 lazy load 真源。
 - `frontend/src/shared/api/http-client.ts`：统一 `/api` 前缀、Bearer token 注入、`withCredentials`、单次 refresh 和 401 重放。
@@ -36,18 +36,3 @@
 - 在 `frontend/` 目录执行 `bun install --frozen-lockfile` 安装依赖。
 - 在 `frontend/` 目录执行 `bun run test`、`bun run lint`、`bun run build:prod`、`bun run check:bundle` 做前端最小回归。
 - 在 `frontend/` 目录执行 `bun audit` 做前端依赖审计。
-
-## 会话模型
-
-- 浏览器端只在内存持有 access token。
-- refresh token 只存在于后端签发的 HTTPOnly Cookie，不通过 JSON 暴露给前端代码。
-- 页面刷新后的会话恢复统一走 `/api/auth/refresh`。
-- 并发 401 回收敛到单个 in-flight refresh promise，避免同一轮失效触发刷新风暴。
-
-## 仍需持续关注的前端热点
-
-- `DashboardPage.tsx` 仍是高耦合页面容器。
-- `BindRoomModal.tsx` 仍是多步骤流程型组件。
-- `frontend/src/services/api.ts` 仍是需要继续缩小职责的兼容 facade。
-- `frontend/src/features/dashboard/hooks/useDashboardData.ts` 仍保留迁移痕迹，说明 dashboard 数据层尚未完全收敛。
-- `vite.config.ts` 中的 warning 阈值只做粗粒度提示；真正的 JS chunk 体积约束由 bundle budget 脚本维护。

@@ -1,4 +1,4 @@
-# Electricity Monitor 仓库记忆：可维护性接缝
+# Electricity Monitor 后端可维护性接缝
 
 ## 鉴权接缝
 
@@ -31,8 +31,3 @@
 - `src/infrastructure/external/` 提供统一 `reqwest` 客户端构造与 HTTP 状态错误映射。
 - `electricity`、`room_sync crawler`、`qq_client` 已接入这条统一入口。
 - 新增外部 HTTP 依赖时，应优先复用这条接缝，而不是各模块自行创建 `reqwest::Client`。
-
-## 前端可复用接缝
-
-- `frontend/src/components/ui/comic-modal/` 已采用 compound components 模式，是当前较成熟的可复用 UI 资产。
-- 前端后续升级应优先复用现有基础设施，而不是重做一套新的 UI 组件模式。

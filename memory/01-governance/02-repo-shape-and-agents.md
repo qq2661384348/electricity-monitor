@@ -1,10 +1,10 @@
-# Electricity Monitor 仓库记忆：仓库形态与模块边界
+# Electricity Monitor 仓库形态与 AGENTS 拓扑
 
 ## 仓库定位
 
 - 仓库是一个前后端同仓的电费监控系统；后端是 Rust + Axum 单体服务，前端是 React + Vite 单页应用。
 - 生产交付主线是 GitHub Actions 构建 release artifact，再由服务器执行 release 包内脚本完成部署。
-- `memory/00-memory-index.md` 是 memory 入口；协作规则以根级与就近子级 `AGENTS.md` 为准。
+- `memory/README.md` 是 memory 唯一入口；协作规则以根级与就近子级 `AGENTS.md` 为准。
 
 ## 关键目录
 

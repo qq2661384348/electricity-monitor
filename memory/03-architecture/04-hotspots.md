@@ -1,4 +1,4 @@
-# Electricity Monitor 仓库记忆：架构热点
+# Electricity Monitor 架构热点
 
 ## 后端热点
 
