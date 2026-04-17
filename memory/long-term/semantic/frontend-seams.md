@@ -1,3 +1,17 @@
+---
+type: semantic
+status: verified
+scope: 前端可维护性接缝
+updated_at: 2026-04-17
+verified_at: 2026-04-17
+sources:
+  - frontend/src/App.tsx
+  - frontend/src/shared/api/http-client.ts
+  - frontend/src/features
+  - frontend/src/entities
+summary: 前端启动、会话、HTTP、page/feature/entity 和可复用 UI 接缝
+---
+
 # Electricity Monitor 前端可维护性接缝
 
 ## 启动与会话接缝

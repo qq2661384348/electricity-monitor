@@ -1,3 +1,18 @@
+---
+type: semantic
+status: verified
+scope: 前端架构与工作区真源
+updated_at: 2026-04-17
+verified_at: 2026-04-17
+sources:
+  - frontend/package.json
+  - frontend/vite.config.ts
+  - frontend/src/App.tsx
+  - frontend/src/shared/api/http-client.ts
+  - frontend/src/stores/authStore.ts
+summary: 前端技术基线、工作区真源、目录职责和验证入口
+---
+
 # Electricity Monitor 前端架构基线
 
 ## 技术基线
@@ -36,3 +51,8 @@
 - 在 `frontend/` 目录执行 `bun install --frozen-lockfile` 安装依赖。
 - 在 `frontend/` 目录执行 `bun run test`、`bun run lint`、`bun run build:prod`、`bun run check:bundle` 做前端最小回归。
 - 在 `frontend/` 目录执行 `bun audit` 做前端依赖审计。
+
+## 相关决策
+
+- `../../decisions/frontend-package-manager-is-bun.md`
+- `../../decisions/browser-session-uses-memory-access-token-and-cookie-refresh.md`

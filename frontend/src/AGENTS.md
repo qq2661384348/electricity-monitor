@@ -32,4 +32,4 @@
 
 ## 同步要求
 
-- 修改前端启动骨架、HTTP client、会话模型或共享 query key 真源时，同时更新 `memory/03-architecture/02-frontend-architecture.md` 与 `memory/03-architecture/03-frontend-seams.md`。
+- 修改前端启动骨架、HTTP client、会话模型或共享 query key 真源时，同时更新 `memory/long-term/semantic/frontend-architecture.md` 与 `memory/long-term/semantic/frontend-seams.md`；若改变浏览器会话模型，再同步 `memory/decisions/browser-session-uses-memory-access-token-and-cookie-refresh.md`。

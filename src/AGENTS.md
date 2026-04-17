@@ -40,5 +40,5 @@
 
 ## 同步要求
 
-- 修改运行时、安全头、鉴权或 cookie 会话边界时，同步更新根 `AGENTS.md`、`docs/api/API_REFERENCE.md`、`memory/02-runtime/02-auth-session-and-cors.md` 与 `memory/04-delivery/02-testing-and-quality-gates.md`。
-- 修改后端维护接缝、缓存、外部 HTTP 或 handler / module 分工时，同步更新 `memory/03-architecture/01-backend-seams.md`。
+- 修改运行时、安全头、鉴权或 cookie 会话边界时，同步更新根 `AGENTS.md`、`docs/api/API_REFERENCE.md`、`memory/long-term/semantic/auth-session-and-cors.md` 与 `memory/long-term/procedural/testing-and-quality-gates.md`；若改变浏览器会话模型，再同步 `memory/decisions/browser-session-uses-memory-access-token-and-cookie-refresh.md`。
+- 修改后端维护接缝、缓存、外部 HTTP 或 handler / module 分工时，同步更新 `memory/long-term/semantic/backend-seams.md`。

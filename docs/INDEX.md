@@ -52,4 +52,4 @@
 ## 文档维护
 
 - 最后更新：2026-03-24
-- 更新部署相关内容时，同时核对 `README.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`deploy/README.md` 与 `memory/04-delivery/01-deploy-and-release.md`
+- 更新部署相关内容时，同时核对 `README.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`deploy/README.md` 与 `memory/long-term/procedural/deploy-and-release.md`

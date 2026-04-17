@@ -35,4 +35,4 @@
 
 ## 同步要求
 
-- 修改前端工具链、lockfile、CI 或构建脚本时，同时更新 `frontend/README.md`、`docs/guides/TESTING.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`memory/03-architecture/02-frontend-architecture.md`、`memory/03-architecture/03-frontend-seams.md`、`memory/04-delivery/02-testing-and-quality-gates.md`。
+- 修改前端工具链、lockfile、CI 或构建脚本时，同时更新 `frontend/README.md`、`docs/guides/TESTING.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`memory/long-term/semantic/frontend-architecture.md`、`memory/long-term/semantic/frontend-seams.md`、`memory/long-term/procedural/testing-and-quality-gates.md`；若改变包管理真源，再同步 `memory/decisions/frontend-package-manager-is-bun.md`。

@@ -1,44 +1,56 @@
-# Electricity Monitor memory 目录索引
+---
+type: index
+status: active
+scope: 全项目
+created_at: 2026-04-17
+updated_at: 2026-04-17
+summary: Electricity Monitor 项目记忆系统总入口
+---
 
-## 使用入口
+# Electricity Monitor 项目记忆索引
 
-- 开始任务时先读本文件，再按任务范围进入对应主题目录。
-- `memory/` 默认只保存跨会话仍然成立的长期事实、边界、真源入口、长期风险和验证规则。
-- 代码、配置、CI、脚本和当前文档真源优先于 memory；当真源变化时，应同步修正对应 memory，而不是保留失效说明。
+## 记忆结构
 
-## 如何阅读
+- `long-term/semantic/`：长期稳定事实、模块边界、配置真源、架构热点和长期风险。
+- `long-term/procedural/`：长期稳定流程、治理规则、部署契约和质量门禁。
+- `short-term/working/`：短期工作态目录；固定入口是 `short-term/working/current.md`。
+- `issues/`：结构化问题记录；只有值得长期复用的排障资产才进入。
+- `decisions/`：影响协作边界、运行时契约或长期维护方式的稳定决策。
 
-- 需要判断 `memory/` 怎么写、短期事项能否进入仓库时，先读 `01-governance/01-memory-rules.md`。
-- 需要理解仓库结构、目录职责或各级 `AGENTS.md` 拓扑时，读 `01-governance/02-repo-shape-and-agents.md`。
-- 需要处理运行时配置、环境变量、鉴权会话或 CORS 时，读 `02-runtime/`。
-- 需要理解前后端架构、维护接缝或热点时，读 `03-architecture/`。
-- 需要处理部署、release、测试、CI 或 smoke 契约时，读 `04-delivery/`。
-- 需要复核质量风险、安全风险和仓库外部控制面边界时，读 `05-risks/01-quality-and-security-risks.md`。
+## 当前优先入口
 
-## 如何写入
+- 当前工作态：`short-term/working/current.md`
+- 关键长期事实：
+  - `long-term/semantic/repo-shape-and-agents.md`
+  - `long-term/semantic/config-and-environments.md`
+  - `long-term/semantic/auth-session-and-cors.md`
+  - `long-term/semantic/frontend-architecture.md`
+  - `long-term/semantic/backend-seams.md`
+  - `long-term/semantic/quality-and-security-risks.md`
+- 关键长期流程：
+  - `long-term/procedural/memory-governance.md`
+  - `long-term/procedural/deploy-and-release.md`
+  - `long-term/procedural/testing-and-quality-gates.md`
+- 关键决策：
+  - `decisions/frontend-package-manager-is-bun.md`
+  - `decisions/runtime-config-uses-environment-named-toml.md`
+  - `decisions/browser-session-uses-memory-access-token-and-cookie-refresh.md`
 
-- 长期记忆使用常规编号文件，例如 `01-*.md`、`02-*.md`。
-- 短期记忆不单独建专区；只有确有必要时，才在对应主题目录下创建 `st-<slug>.md`。
-- 短期文件头必须包含：`状态`、`来源`、`最后校验`、`失效条件`。
-- 短期事项一旦稳定，要么并入对应长期文件，要么直接删除；不要把一次性进度、脏工作树状态或单次调试记录混进长期文件。
-- 不记录机器私有环境、真实凭据、最近一次通过数、单次审计统计、一次性迁移进度或无复用价值的过程噪音。
+## 当前短期记忆状态
 
-## 目录地图
+- 当前没有活动中的短期工作态。
+- `short-term/working/current.md` 是固定入口；只有在出现需要跨会话延续、但尚未稳定到长期层的工作态时才填充内容或拆分额外短期文件。
+- 额外短期文件名统一使用 `st-<slug>.md`；创建时必须显式写明状态、来源、最后校验和失效条件。
 
-- `01-governance/01-memory-rules.md`：memory 的写作规则、长期/短期边界和更新原则。
-- `01-governance/02-repo-shape-and-agents.md`：仓库结构、目录职责、真源入口和 AGENTS 拓扑。
-- `02-runtime/01-config-and-environments.md`：运行时配置加载规则、环境语义、关键依赖和 fail-fast 约束。
-- `02-runtime/02-auth-session-and-cors.md`：鉴权会话、cookie 契约、CORS 与管理员提升规则。
-- `03-architecture/01-backend-seams.md`：后端可维护性接缝和模块化边界。
-- `03-architecture/02-frontend-architecture.md`：前端技术基线、工作区真源和目录职责。
-- `03-architecture/03-frontend-seams.md`：前端可复用接缝、页面/feature/entity 边界和会话模型。
-- `03-architecture/04-hotspots.md`：当前仍需持续关注的前后端结构性热点。
-- `04-delivery/01-deploy-and-release.md`：部署主线、release 产物、服务器职责与共享部署契约。
-- `04-delivery/02-testing-and-quality-gates.md`：测试入口、CI 门禁、readiness / smoke 契约与本地执行约定。
-- `05-risks/01-quality-and-security-risks.md`：长期质量风险、安全风险、供应链风险与仓库外部安全边界。
+## 最近重要变化
 
-## 更新原则
+- 2026-04-17：`memory/` 从自定义主题编号结构切换到 `project-memory` 默认主干。
+- 2026-04-17：全局索引入口统一为 `memory/README.md`，短期工作态固定入口统一为 `short-term/working/current.md`。
+- 2026-04-17：Bun 包管理、环境命名配置文件和浏览器会话模型三项协作边界被单独提升为决策记录。
 
-- 任何新增内容都必须能从代码、配置、脚本、CI 或当前文档真源验证。
-- 架构、运行时、测试门禁、部署或协作边界变化时，同时更新对应 `AGENTS.md` 与文档真源。
-- 修改 `memory/` 的结构、职责或目录索引时，要同时更新本文件和 `01-governance/02-repo-shape-and-agents.md`。
+## 维护约定
+
+- 长期记忆只收录稳定、可复用、可验证的知识，不记录一次性进度、脏工作树状态或单次调试噪音。
+- 短期记忆只作为例外存在；稳定后要并入长期层，失效后要删除或归档。
+- 重要问题不强行补历史档案；只有真正形成排障资产时才进入 `issues/`。
+- 重要协作边界、运行时契约或长期策略变化，应在 `decisions/` 留痕，并同步修正相关长期文件。

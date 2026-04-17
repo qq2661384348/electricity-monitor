@@ -1,4 +1,23 @@
+---
+type: procedural
+status: verified
+scope: 测试与质量门禁
+updated_at: 2026-04-17
+verified_at: 2026-04-17
+sources:
+  - docs/guides/TESTING.md
+  - .github/workflows/ci.yml
+  - deploy/smoke.targets
+  - scripts/backend-checks.ps1
+summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执行约定
+---
+
 # Electricity Monitor 测试真源与质量门禁
+
+## 适用场景
+
+- 需要运行后端回归、前端回归、依赖审计、clippy 门禁或 readiness / smoke 契约验证时。
+- 需要调整 CI 工作流、测试入口、shared support 或本地检查脚本时。
 
 ## 测试真源
 
@@ -32,12 +51,6 @@
 - 共享检查目标包含 `/api/health`、`/api/health/db`、`/`、`release-manifest.json`、`deploy-result.json` 与一组统一响应安全头。
 - 如果修改健康检查路径、静态入口或 release 产物文件名，必须先更新 `deploy/smoke.targets`，再同步测试、脚本与文档。
 
-## 外部依赖测试策略
-
-- 房间树和电费抓取保留真实测试，并要求在需要时通过 `RUN_EXTERNAL_INTEGRATION_TESTS=1` 显式执行。
-- 在真实测试之外，mock 回归承担稳定回归职责，覆盖房间树、批量抓取、验证码校验和 QQ 发送链路。
-- 真实 NapCat HTTP 服务联通性验证应在私有运维环境完成，验证记录不写回公开仓库的 memory 或文档。
-
 ## CI 门禁结构
 
 - `backend-tests`：准备本地 PostgreSQL / Redis、复制开发模板、执行迁移、后端关键回归与 `cargo clippy --all-targets -- -D warnings`。
@@ -58,3 +71,8 @@
 
 - 尚未全部迁移完成的 `tests/infra/` 独立 target。
 - 真实 Linux Docker 主机上的 smoke / 回滚演练。
+
+## 常见风险
+
+- 真实外部依赖测试和运维环境 smoke 不能被本地 mock 或 readiness test 替代。
+- 调整健康检查、静态入口或 release 产物命名时，如果漏改 `deploy/smoke.targets`，会同时破坏本地 readiness 与 release smoke。

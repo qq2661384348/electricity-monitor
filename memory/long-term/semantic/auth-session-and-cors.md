@@ -1,3 +1,17 @@
+---
+type: semantic
+status: verified
+scope: 鉴权会话、CORS 与管理员提升规则
+updated_at: 2026-04-17
+verified_at: 2026-04-17
+sources:
+  - src/handlers/auth.rs
+  - src/modules/auth/api/middleware.rs
+  - src/config/cors.rs
+  - docs/api/API_REFERENCE.md
+summary: JWT 类型边界、cookie 会话契约、CORS 白名单和管理员提升规则
+---
+
 # Electricity Monitor 鉴权会话、CORS 与权限提升规则
 
 ## 鉴权边界
@@ -25,3 +39,7 @@
 - `admin.default_qq_number` 只在值非空且不是模板占位值时才会授予 `admin`。
 - `production` 环境会拒绝空白或占位值管理员 QQ。
 - 管理员登录链路与普通用户一致，不再保留独立的绕行凭据入口。
+
+## 相关决策
+
+- `../../decisions/browser-session-uses-memory-access-token-and-cookie-refresh.md`

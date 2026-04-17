@@ -1,3 +1,17 @@
+---
+type: semantic
+status: verified
+scope: 后端可维护性接缝
+updated_at: 2026-04-17
+verified_at: 2026-04-17
+sources:
+  - src/modules/auth/api/middleware.rs
+  - src/infrastructure/cache/cache_manager.rs
+  - src/domain/services/notification_gate.rs
+  - src/domain/services/notification_service.rs
+summary: 后端鉴权、缓存、通知域和模块化迁移接缝
+---
+
 # Electricity Monitor 后端可维护性接缝
 
 ## 鉴权接缝

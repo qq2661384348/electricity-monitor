@@ -1,3 +1,17 @@
+---
+type: semantic
+status: verified
+scope: 前后端结构热点
+updated_at: 2026-04-17
+verified_at: 2026-04-17
+sources:
+  - src/infrastructure/repositories/room_repository.rs
+  - src/domain/services/notification_gate.rs
+  - frontend/src/pages/DashboardPage.tsx
+  - frontend/src/services/api.ts
+summary: 当前仍需持续关注的后端、前端和横向结构热点
+---
+
 # Electricity Monitor 架构热点
 
 ## 后端热点

@@ -1,3 +1,17 @@
+---
+type: semantic
+status: verified
+scope: 长期质量风险与安全风险
+updated_at: 2026-04-17
+verified_at: 2026-04-17
+sources:
+  - docs/guides/TECHNICAL_DEBT.md
+  - docs/guides/SECRETS_INVENTORY.md
+  - .github/workflows/ci.yml
+  - frontend/package.json
+summary: 已关闭风险、当前质量风险、供应链风险和仓库外部安全边界
+---
+
 # Electricity Monitor 质量与安全风险
 
 ## 目的

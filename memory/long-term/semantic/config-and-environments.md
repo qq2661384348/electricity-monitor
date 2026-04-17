@@ -1,8 +1,26 @@
+---
+type: semantic
+status: verified
+scope: 运行时配置与环境
+updated_at: 2026-04-17
+verified_at: 2026-04-17
+sources:
+  - src/config/app.rs
+  - config/development.toml.example
+  - config/production.toml.example
+  - scripts/backend-checks.ps1
+summary: 运行时配置加载顺序、环境语义、关键依赖和 fail-fast 约束
+---
+
 # Electricity Monitor 运行时配置与环境
 
-## 配置加载规则
+## 背景
 
 - 配置入口在 `src/config/app.rs`。
+- 运行时配置由活动环境对应的 `.toml` 文件和 `APP__...` 覆盖链共同决定。
+
+## 稳定事实
+
 - 加载顺序固定为：
   1. 当前环境对应的运行时配置文件：`config/development.toml` 或 `config/production.toml`
   2. 环境变量 `APP__<SECTION>__<KEY>`
@@ -18,16 +36,9 @@
 - `APP_ENV` 既决定环境校验与 fail-fast 规则，也要求运行时配置文件名与之保持一致。
 - `RUST_LOG` 的优先级高于配置文件中的 `logging.level`。
 
-## 关键运行依赖
+## 关键依赖与约束
 
-- PostgreSQL：主数据存储。
-- Redis：验证码、限流、缓存和后台任务协作。
-- 房间树接口：`room_sync.crawler.api_url`。
-- 电费抓取接口：`electricity_fetcher.api_url`。
-- NapCat HTTP 机器人服务：`qq_bot.api_url`；仓库只保留 loopback 或占位值，真实地址必须通过运行时配置注入。
-
-## 关键约束
-
+- PostgreSQL 是主数据存储，Redis 负责验证码、限流、缓存和后台任务协作。
 - `APP__SECTION__KEY` 与 `APP__SECTION__KEY_FILE` 都是正式支持的覆盖方式。
 - 不要启用全局 `try_parsing(true)`；当前配置链路依赖保留前导零字符串。
 - 开发环境要求在复制出来的 `config/development.toml` 中显式填写 `database.password`，不能依赖隐式环境变量。
@@ -39,3 +50,7 @@
 - `RUN_INTEGRATION_TESTS=1`：显式开启依赖本地 PostgreSQL / Redis 的源码内环境型测试。
 - `REDIS_HOST` / `REDIS_PORT`：覆盖 Redis 测试连接。
 - `RUN_EXTERNAL_INTEGRATION_TESTS=1`：显式开启依赖外部网络的真实测试。
+
+## 相关决策
+
+- `../../decisions/runtime-config-uses-environment-named-toml.md`
