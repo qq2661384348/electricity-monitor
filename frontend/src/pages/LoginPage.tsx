@@ -4,6 +4,8 @@ import { Zap } from 'lucide-react';
 import { AxiosError } from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/features/auth-login';
+import { fallbackPublicConfig } from '@/entities/public-config';
+import { usePublicConfig } from '@/features/public-config';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { CaptchaModal } from '@/components/CaptchaModal';
@@ -21,7 +23,11 @@ const quotes = [
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, isAuthenticated } = useAuthStore();
-  
+  const { data: publicConfig } = usePublicConfig();
+  const resolvedPublicConfig = publicConfig ?? fallbackPublicConfig;
+  const codeLength = resolvedPublicConfig.verification.code_length;
+  const codePlaceholder = `${codeLength}位验证码`;
+
   const [qqNumber, setQqNumber] = useState('');
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -49,6 +55,14 @@ export default function LoginPage() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
+  const formatUserNotFriendMessage = () => {
+    const botQQ = resolvedPublicConfig.notification.qq_bot_public_qq_number.trim();
+    const adminQQ = resolvedPublicConfig.notification.admin_qq_number.trim();
+    const botText = botQQ || '请联系管理员获取机器人QQ号';
+    const adminText = adminQQ || '请联系管理员';
+    return `请先添加机器人QQ号：${botText}。遇到问题请联系管理员：${adminText}。`;
+  };
+
   // 点击发送验证码，先弹出算数验证码
   const handleSendCode = () => {
     if (!qqNumber) {
@@ -72,8 +86,8 @@ export default function LoginPage() {
       if (err instanceof AxiosError && err.response?.data) {
         const data = err.response.data as Record<string, unknown>;
         // 识别 USER_NOT_FRIEND 错误
-        if (data.error === 'USER_NOT_FRIEND' && typeof data.message === 'string') {
-          errorMessage = data.message;
+        if (data.error === 'USER_NOT_FRIEND') {
+          errorMessage = formatUserNotFriendMessage();
         } else if (typeof data.detail === 'string') {
           errorMessage = data.detail;
         } else if (typeof data.message === 'string') {
@@ -87,7 +101,10 @@ export default function LoginPage() {
   };
 
   const handleLogin = async () => {
-    if (!qqNumber || !code) return;
+    if (!qqNumber || code.length !== codeLength) {
+      setError(`请输入QQ号和${codeLength}位验证码`);
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -166,11 +183,11 @@ export default function LoginPage() {
                 id="verification-code"
                 type="text"
                 value={code}
-                onChange={(e) => setCode(e.target.value.replaceAll(/\D/g, '').slice(0, 6))}
-                placeholder="######"
-                className="text-center text-xl sm:text-2xl md:text-3xl tracking-[0.3em] sm:tracking-[0.5em] font-black"
+                onChange={(e) => setCode(e.target.value.replaceAll(/\D/g, '').slice(0, codeLength))}
+                placeholder={codePlaceholder}
+                className="text-center text-xl sm:text-2xl md:text-3xl tracking-[0.12em] font-black"
                 disabled={isLoading}
-                maxLength={6}
+                maxLength={codeLength}
               />
             </div>
 
@@ -186,7 +203,7 @@ export default function LoginPage() {
 
             <Button
               onClick={handleLogin}
-              disabled={isLoading || code?.length !== 6}
+              disabled={isLoading || code.length !== codeLength}
               fullWidth
               size="lg"
               isLoading={isLoading}
@@ -211,6 +228,7 @@ export default function LoginPage() {
          isOpen={showCaptcha}
          onClose={() => setShowCaptcha(false)}
          onSuccess={handleCaptchaSuccess}
+         publicConfig={resolvedPublicConfig}
        />
     </div>
   );

@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader2, Zap } from 'lucide-react';
 import { AxiosError } from 'axios';
 import { authApi } from '@/features/auth-login';
+import { fallbackPublicConfig } from '@/entities/public-config';
+import { usePublicConfig } from '@/features/public-config';
 import { useAuthStore } from '@/stores/authStore';
 import { getMarvelQuote } from '@/lib/utils';
 import { CaptchaModal } from '@/components/CaptchaModal';
@@ -21,8 +23,20 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
   const [error, setError] = useState('');
   const [quote] = useState(getMarvelQuote());
   const [showCaptcha, setShowCaptcha] = useState(false);
-  
+  const { data: publicConfig } = usePublicConfig();
+  const resolvedPublicConfig = publicConfig ?? fallbackPublicConfig;
+  const codeLength = resolvedPublicConfig.verification.code_length;
+  const codePlaceholder = `${codeLength}位验证码`;
+
   const { login } = useAuthStore();
+
+  const formatUserNotFriendMessage = () => {
+    const botQQ = resolvedPublicConfig.notification.qq_bot_public_qq_number.trim();
+    const adminQQ = resolvedPublicConfig.notification.admin_qq_number.trim();
+    const botText = botQQ || '请联系管理员获取机器人QQ号';
+    const adminText = adminQQ || '请联系管理员';
+    return `请先添加机器人QQ号：${botText}。遇到问题请联系管理员：${adminText}。`;
+  };
 
   // 倒计时
   useEffect(() => {
@@ -61,8 +75,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     
     // 特殊错误处理: USER_NOT_FRIEND
     if (data.error === 'USER_NOT_FRIEND') {
-      const message = data.message?.trim();
-      return message || '请先添加当前通知机器人为好友后再发送验证码';
+      return formatUserNotFriendMessage();
     }
     
     // 通用错误处理
@@ -100,8 +113,8 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
 
   // 验证登录
   const handleLogin = async () => {
-    if (!qqNumber || code?.length !== 6) {
-      setError('请输入完整信息');
+    if (!qqNumber || code.length !== codeLength) {
+      setError(`请输入QQ号和${codeLength}位验证码`);
       return;
     }
 
@@ -123,7 +136,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
   // 键盘回车提交
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isLoading) {
-      if (code.length === 6) {
+      if (code.length === codeLength) {
         handleLogin();
       } else if (qqNumber && countdown === 0) {
         handleSendCode();
@@ -222,12 +235,12 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                       id="auth-code"
                       type="text"
                       value={code}
-                      onChange={(e) => setCode(e.target.value.replaceAll(/\D/g, '').slice(0, 6))}
+                      onChange={(e) => setCode(e.target.value.replaceAll(/\D/g, '').slice(0, codeLength))}
                       onKeyDown={handleKeyDown}
-                      placeholder="######"
-                      className="comic-input text-center text-xl sm:text-2xl md:text-3xl tracking-[0.3em] sm:tracking-[0.5em] font-black focus:ring-brand-primary"
+                      placeholder={codePlaceholder}
+                      className="comic-input text-center text-xl sm:text-2xl md:text-3xl tracking-[0.12em] font-black focus:ring-brand-primary"
                       disabled={isLoading}
-                      maxLength={6}
+                      maxLength={codeLength}
                     />
                   </div>
 
@@ -245,7 +258,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                   {/* 登录按钮 */}
                   <button
                     onClick={handleLogin}
-                    disabled={isLoading || code?.length !== 6}
+                    disabled={isLoading || code.length !== codeLength}
                     className="comic-button w-full text-xl py-4 mt-4 bg-brand-primary hover:bg-sky-400"
                   >
                     <span className="flex items-center justify-center gap-2">
@@ -275,6 +288,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
         isOpen={showCaptcha}
         onClose={() => setShowCaptcha(false)}
         onSuccess={handleCaptchaSuccess}
+        publicConfig={resolvedPublicConfig}
       />
     </>
   );

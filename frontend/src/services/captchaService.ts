@@ -6,10 +6,8 @@
  */
 
 import axios from 'axios';
-import api from './api';
-
-// 第三方验证码API配置
-const CAPTCHA_API_URL = 'https://v2.xxapi.cn/api/captcha';
+import { fallbackPublicConfig, type PublicCaptchaConfig, type PublicCaptchaType } from '@/entities/public-config';
+import httpClient from '@/shared/api/http-client';
 
 /**
  * 验证码类型
@@ -67,22 +65,32 @@ export interface VerifyCaptchaResponse {
  * 验证码服务类
  */
 class CaptchaService {
+  private normalizeCaptchaType(type: string): PublicCaptchaType {
+    if (type === 'string' || type === 'math' || type === 'digit') {
+      return type;
+    }
+
+    return fallbackPublicConfig.captcha.captcha_type;
+  }
+
   /**
-   * 生成算数验证码
-   * 直接请求第三方API
+   * 按公开运行时配置生成验证码。
+   * 前端直连第三方生成接口，后端使用同一份配置代理校验。
    */
-  async generateMathCaptcha(): Promise<GenerateCaptchaResponse> {
+  async generateConfiguredCaptcha(
+    config: PublicCaptchaConfig = fallbackPublicConfig.captcha,
+  ): Promise<GenerateCaptchaResponse> {
     try {
       const response = await axios.get<GenerateCaptchaResponse>(
-        CAPTCHA_API_URL,
+        config.api_url,
         {
           params: {
-            type: 'math',
-            width: 300,
-            height: 100,
-            options: 2, // 中等难度
+            type: this.normalizeCaptchaType(config.captcha_type),
+            width: config.width,
+            height: config.height,
+            options: config.options,
           },
-          timeout: 5000, // 5秒超时
+          timeout: config.request_timeout_seconds * 1000,
         }
       );
 
@@ -106,16 +114,23 @@ class CaptchaService {
   }
 
   /**
+   * 保留旧入口，默认使用运行时模板中的算数验证码参数。
+   */
+  async generateMathCaptcha(): Promise<GenerateCaptchaResponse> {
+    return this.generateConfiguredCaptcha();
+  }
+
+  /**
    * 生成自定义验证码
    * @param params 验证码参数
    */
   async generateCaptcha(params: GenerateCaptchaParams): Promise<GenerateCaptchaResponse> {
     try {
       const response = await axios.get<GenerateCaptchaResponse>(
-        CAPTCHA_API_URL,
+        fallbackPublicConfig.captcha.api_url,
         {
           params,
-          timeout: 5000,
+          timeout: fallbackPublicConfig.captcha.request_timeout_seconds * 1000,
         }
       );
 
@@ -143,7 +158,7 @@ class CaptchaService {
    */
   async verifyCaptcha(params: VerifyCaptchaParams): Promise<VerifyCaptchaResponse> {
     try {
-      const response = await api.post<VerifyCaptchaResponse>(
+      const response = await httpClient.post<VerifyCaptchaResponse>(
         '/captcha/verify',
         params
       );
@@ -185,7 +200,7 @@ class CaptchaService {
     id: string;
     imageUrl: string;
   }> {
-    const response = await this.generateMathCaptcha();
+    const response = await this.generateConfiguredCaptcha();
     return {
       id: response.data.id,
       imageUrl: response.data.url,

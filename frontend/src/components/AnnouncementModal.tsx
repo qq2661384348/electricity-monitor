@@ -1,9 +1,26 @@
 import { Megaphone, MessageSquareHeart } from 'lucide-react';
 import { ComicModal } from '@/components/ui/comic-modal';
+import { fallbackPublicConfig } from '@/entities/public-config';
+import { usePublicConfig } from '@/features/public-config';
+import { CopyableQQNumber } from '@/components/CopyableQQNumber';
 
 interface AnnouncementModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
+}
+
+interface InlineQQNumberProps {
+  readonly value: string;
+  readonly fallback: string;
+}
+
+function InlineQQNumber({ value, fallback }: InlineQQNumberProps) {
+  const qqNumber = value.trim();
+  if (qqNumber) {
+    return <CopyableQQNumber value={qqNumber} />;
+  }
+
+  return <span className="font-black text-black">{fallback}</span>;
 }
 
 /**
@@ -13,6 +30,10 @@ interface AnnouncementModalProps {
  * 无需手动管理动画、装饰元素等重复逻辑
  */
 export function AnnouncementModal({ isOpen, onClose }: AnnouncementModalProps) {
+  const { data: publicConfig } = usePublicConfig();
+  const resolvedPublicConfig = publicConfig ?? fallbackPublicConfig;
+  const adminQQ = resolvedPublicConfig.notification.admin_qq_number;
+
   return (
     <ComicModal
       isOpen={isOpen}
@@ -47,13 +68,24 @@ export function AnnouncementModal({ isOpen, onClose }: AnnouncementModalProps) {
               <MessageSquareHeart className="w-6 h-6 text-black" strokeWidth={3} />
             </div>
             <div>
-              <p className="text-xs font-black uppercase tracking-widest text-gray-600">支持公告</p>
-              <p className="text-base font-black text-black">需要帮助？请联系当前部署维护者</p>
+              <p className="text-xs font-black uppercase tracking-widest text-gray-600">开源公告</p>
+              <p className="text-base font-black text-black">项目源码已公开发布</p>
             </div>
           </div>
 
           <p className="text-sm font-bold text-gray-800 leading-relaxed">
-            如遇到任何问题或需要帮助，请通过仓库文档、Issue 或部署者提供的支持渠道反馈。公开仓库不再内置个人联系方式。
+            项目已开源到{' '}
+            <a
+              href="https://github.com/qq2661384348/electricity-monitor"
+              target="_blank"
+              rel="noreferrer"
+              className="break-all font-black text-brand-primary underline decoration-2 underline-offset-4 hover:text-sky-600"
+            >
+              https://github.com/qq2661384348/electricity-monitor
+            </a>
+            。如果有问题及时联系管理员：
+            <InlineQQNumber value={adminQQ} fallback="正在读取管理员QQ" />
+            。
           </p>
         </div>
       </div>

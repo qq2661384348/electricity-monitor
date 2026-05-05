@@ -3,10 +3,11 @@
  * Comic风格设计，与现有UI保持一致
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 import { captchaService } from '@/services/captchaService';
+import { fallbackPublicConfig, type PublicConfig } from '@/entities/public-config';
 import { ComicModal } from '@/components/ui/comic-modal';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
@@ -15,13 +16,14 @@ interface CaptchaModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onSuccess: (token: string) => void;
+  readonly publicConfig?: PublicConfig;
 }
 
 /**
  * 算数验证码Modal
  * 使用ComicModal组件保持风格一致
  */
-export function CaptchaModal({ isOpen, onClose, onSuccess }: CaptchaModalProps) {
+export function CaptchaModal({ isOpen, onClose, onSuccess, publicConfig }: CaptchaModalProps) {
   const [captchaId, setCaptchaId] = useState<string>('');
   const [captchaImage, setCaptchaImage] = useState<string>('');
   const [userAnswer, setUserAnswer] = useState<string>('');
@@ -29,15 +31,17 @@ export function CaptchaModal({ isOpen, onClose, onSuccess }: CaptchaModalProps) 
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const captchaConfig = publicConfig?.captcha ?? fallbackPublicConfig.captcha;
+  const tokenExpireMinutes = Math.max(1, Math.ceil(captchaConfig.token_expire_seconds / 60));
 
   // 加载验证码
-  const loadCaptcha = async () => {
+  const loadCaptcha = useCallback(async () => {
     setIsRefreshing(true);
     setError('');
     setUserAnswer('');
-    
+
     try {
-      const response = await captchaService.generateMathCaptcha();
+      const response = await captchaService.generateConfiguredCaptcha(captchaConfig);
       setCaptchaId(response.data.id);
       setCaptchaImage(response.data.url);
     } catch (err) {
@@ -45,7 +49,7 @@ export function CaptchaModal({ isOpen, onClose, onSuccess }: CaptchaModalProps) 
     } finally {
       setIsRefreshing(false);
     }
-  };
+  }, [captchaConfig]);
 
   // 提交验证
   const handleSubmit = async () => {
@@ -61,7 +65,7 @@ export function CaptchaModal({ isOpen, onClose, onSuccess }: CaptchaModalProps) 
       const response = await captchaService.verifyCaptcha({
         id: captchaId,
         key: userAnswer,
-        type: 'math',
+        type: captchaConfig.captcha_type,
       });
 
       if (response.success && response.token) {
@@ -102,7 +106,7 @@ export function CaptchaModal({ isOpen, onClose, onSuccess }: CaptchaModalProps) 
       setCaptchaId('');
       setCaptchaImage('');
     }
-  }, [isOpen]);
+  }, [isOpen, loadCaptcha]);
 
   return (
     <ComicModal
@@ -140,7 +144,7 @@ export function CaptchaModal({ isOpen, onClose, onSuccess }: CaptchaModalProps) 
         {/* 说明文字 */}
         <div className="text-center">
           <p className="text-sm font-bold text-gray-700">
-            请计算下面的算式并输入答案
+            {captchaConfig.captcha_type === 'math' ? '请计算下面的算式并输入答案' : '请输入图片中的验证码'}
           </p>
         </div>
 
@@ -235,7 +239,7 @@ export function CaptchaModal({ isOpen, onClose, onSuccess }: CaptchaModalProps) 
         {/* 提示文字 */}
         <div className="text-center">
           <p className="text-xs text-gray-600">
-            验证码2分钟内有效，错误将自动刷新
+            验证通过后的安全 token 约 {tokenExpireMinutes} 分钟内有效，错误将自动刷新
           </p>
         </div>
       </div>

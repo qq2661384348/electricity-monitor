@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, UserPlus, LogIn, Link2, Settings, Bell, ChevronDown, ChevronUp } from 'lucide-react';
+import { fallbackPublicConfig } from '@/entities/public-config';
+import { usePublicConfig } from '@/features/public-config';
+import { CopyableQQNumber } from '@/components/CopyableQQNumber';
 
 // 导入本地图片
 import tutorialStep2Img1 from '@/assets/images/tutorial-step2-img1.png';
@@ -13,19 +16,41 @@ import tutorialStep6Img from '@/assets/images/tutorial-step6.png';
 
 interface TutorialStep {
   id: number;
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
-  description: string;
+  description: ReactNode;
   image?: string;
   images?: string[];
 }
 
-const tutorialSteps: TutorialStep[] = [
+interface InlineQQNumberProps {
+  readonly value: string;
+  readonly fallback: string;
+}
+
+function InlineQQNumber({ value, fallback }: InlineQQNumberProps) {
+  const qqNumber = value.trim();
+  if (qqNumber) {
+    return <CopyableQQNumber value={qqNumber} />;
+  }
+
+  return <span className="font-black text-black">{fallback}</span>;
+}
+
+const createTutorialSteps = (botQQ: string, adminQQ: string): TutorialStep[] => [
   {
     id: 1,
     icon: <UserPlus className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />,
     title: '添加机器人好友',
-    description: '先添加已经部署并登录的 NapCat 机器人账号为好友；具体账号由部署者在私有渠道提供。',
+    description: (
+      <>
+        通知方式有两种，分别有邮箱通知和QQ机器人通知。若你希望使用QQ机器人进行通知先添加机器人QQ号：
+        <InlineQQNumber value={botQQ} fallback="正在读取通知配置" />
+        。遇到问题请联系管理员：
+        <InlineQQNumber value={adminQQ} fallback="正在读取管理员QQ" />
+        。
+      </>
+    ),
   },
   {
     id: 2,
@@ -91,6 +116,12 @@ const itemVariants = {
 
 export function HeroDashboard() {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { data: publicConfig } = usePublicConfig();
+  const resolvedPublicConfig = publicConfig ?? fallbackPublicConfig;
+  const tutorialSteps = createTutorialSteps(
+    resolvedPublicConfig.notification.qq_bot_public_qq_number,
+    resolvedPublicConfig.notification.admin_qq_number,
+  );
 
   return (
     <motion.div
@@ -101,7 +132,6 @@ export function HeroDashboard() {
       {/* 标题区域 */}
       <div className="text-center mb-6">
         <div className="inline-block relative mb-4">
-          <div className="absolute inset-0 bg-brand-secondary transform translate-x-2 translate-y-2 border-2 border-black" />
           <h2 className="relative bg-linear-to-br from-[#ffe173] to-[#ffd966] px-4 py-2 md:px-6 md:py-3 text-black border-4 border-black shadow-[4px_4px_0_0_#000] font-black text-xl md:text-2xl lg:text-3xl">
             🎓 面向校园宿舍场景的电费提醒系统
           </h2>

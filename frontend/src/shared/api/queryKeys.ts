@@ -12,3 +12,7 @@ export const roomKeys = {
   pathTree: (parent = '') => ['rooms', 'path-tree', parent] as const,
   byPath: (path: string) => ['rooms', 'path', path] as const,
 };
+
+export const publicConfigKeys = {
+  all: ['public-config'] as const,
+};

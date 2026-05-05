@@ -62,6 +62,28 @@ const roomByPath: RoomByPathResponse = {
 };
 
 export const handlers = [
+  http.get('*/api/public-config', () =>
+    HttpResponse.json({
+      notification: {
+        qq_bot_public_qq_number: '3776431946',
+        admin_qq_number: '2661384348',
+      },
+      captcha: {
+        api_url: 'https://v2.xxapi.cn/api/captcha',
+        request_timeout_seconds: 5,
+        token_expire_seconds: 60,
+        captcha_type: 'math',
+        width: 300,
+        height: 100,
+        options: 2,
+      },
+      verification: {
+        code_length: 6,
+        expire_seconds: 300,
+      },
+    }),
+  ),
+
   http.post('*/api/auth/send-verification-code', () =>
     HttpResponse.json({
       message: '验证码已发送',
