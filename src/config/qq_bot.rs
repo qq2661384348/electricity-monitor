@@ -26,7 +26,7 @@ pub struct QQBotConfig {
 impl Default for QQBotConfig {
     fn default() -> Self {
         Self {
-            api_url: "http://127.0.0.1:3000/send_private_msg".to_string(),
+            api_url: String::new(),
             public_qq_number: String::new(),
             bearer_token: String::new(),
             bearer_token_file: None,
@@ -43,7 +43,8 @@ mod tests {
     fn test_default_config() {
         let config = QQBotConfig::default();
         assert_eq!(config.timeout_seconds, 10);
+        assert!(config.api_url.is_empty());
         assert!(config.public_qq_number.is_empty());
-        assert!(config.api_url.contains("send_private_msg"));
+        assert!(config.bearer_token.is_empty());
     }
 }

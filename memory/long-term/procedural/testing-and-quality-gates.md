@@ -42,6 +42,7 @@ summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执�
 
 - 认证集成测试必须走真实 `/api/auth/verify-and-login` 链路；不要回退到本地签发 JWT 伪造登录成功。
 - 认证集成测试覆盖 `/api/auth/send-verification-code` 必须携带一次性 captcha token；缺失 token 应在调用 QQ 机器人前被拒绝。
+- 认证集成测试覆盖管理员可以创建并列出自己的 `/api/bindings` 个人绑定；不要把管理员绑定列表固定为空数组。
 - 认证集成测试覆盖未绑定用户不能通过 `/api/rooms/by-path` 或 `/api/rooms/by-hash` 读取房间电费详情；路径树叶子节点只能提供绑定所需的最小 `roomid`。
 - `tests/support/app_factory.rs` 负责统一装配 `AppState` 与 Router，避免顶层集成测试重复拼装依赖。
 - `tests/support/auth_fixture.rs` 通过写入 Redis 验证码来驱动真实登录链，再访问受保护接口。
@@ -69,8 +70,9 @@ summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执�
 
 - 本地运行前先从 `config/development.toml.example` 复制生成 `config/development.toml`，不要直接编辑仓库模板保存local environment参数。
 - 若本地 PostgreSQL 密码与开发模板不一致，直接修改本地 `config/development.toml` 中的 `database.password`。
-- `config/development.toml` 还必须填写 `qq_bot.public_qq_number`；它会被 `/api/public-config` readiness 覆盖校验并用于前端好友添加引导。
-- `scripts/backend-checks.sh` 与 `scripts/backend-checks.ps1` 会检查 `config/development.toml` 是否仍保留模板占位值，并统一执行迁移与后端关键回归；前者用于 Linux，后者用于 Windows 原生环境。
+- `config/development.toml` 还必须填写 `qq_bot.api_url`、`qq_bot.public_qq_number`、`qq_bot.bearer_token`、`public_site.domain` 与 `public_site.port`；机器人 QQ 会被 `/api/public-config` readiness 覆盖校验并用于前端好友添加引导，公开站点配置用于 QQ 通知访问链接。
+- `.github/workflows/ci.yml` 复制开发模板后会写入 CI 专用的数据库密码、QQ 机器人发送配置和公开站点域名/端口，避免必填运行时配置留空。
+- `scripts/backend-checks.sh` 与 `scripts/backend-checks.ps1` 会检查 `config/development.toml` 是否仍保留数据库密码占位值，或仍留空 QQ 机器人发送配置与公开站点域名/端口，并统一执行迁移与后端关键回归；前者用于 Linux，后者用于 Windows 原生环境。
 
 ## 仍未接入默认阻断门禁的验证
 

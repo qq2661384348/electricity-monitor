@@ -25,6 +25,7 @@ impl MessageBuilder {
     ///
     /// # 参数
     /// * `room` - 房间信息
+    /// * `public_url` - 公开访问地址，由运行时配置生成
     ///
     /// # 返回
     /// 格式化的预警消息文本
@@ -33,12 +34,13 @@ impl MessageBuilder {
     /// - 使用 emoji 增强视觉层次
     /// - 显示房间路径（primary_roompath）而非房间名称
     /// - 不显示内部 roomid，提升用户体验
-    pub fn build_electricity_alert_message(room: &Room) -> String {
+    pub fn build_electricity_alert_message(room: &Room, public_url: &str) -> String {
         format!(
-            "⚡ 【电量预警提醒】\n\n📍 房间位置: {}\n🔋 当前剩余: {:.2} kWh\n⚠️  预警阈值: {:.2} kWh\n\n💡 您的电量已低于预警阈值，请及时充值！\n\n访问https://y-electricity-monitor-65535.xyz:11451/  以更新你的数据",
+            "⚡ 【电量预警提醒】\n\n📍 房间位置: {}\n🔋 当前剩余: {:.2} kWh\n⚠️  预警阈值: {:.2} kWh\n\n💡 您的电量已低于预警阈值，请及时充值！\n\n访问{} 以更新你的数据",
             room.primary_roompath,
             room.electricity_fee,
-            room.threshold
+            room.threshold,
+            public_url.trim()
         )
     }
 
@@ -92,7 +94,8 @@ mod tests {
             updated_at: chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc(),
         };
 
-        let message = MessageBuilder::build_electricity_alert_message(&room);
+        let public_url = "https://pythonrust.icu:11451/";
+        let message = MessageBuilder::build_electricity_alert_message(&room, public_url);
 
         // 检查 emoji 存在
         assert!(message.contains("⚡"));
@@ -108,6 +111,7 @@ mod tests {
         // 检查电量数据
         assert!(message.contains("5.50"));
         assert!(message.contains("10.00"));
+        assert!(message.contains(public_url));
 
         // 确认不显示 "roomid" 或 "房间ID" 字样
         assert!(!message.contains("roomid"));

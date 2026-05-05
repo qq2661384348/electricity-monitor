@@ -50,14 +50,14 @@ Linux：
 
 ```bash
 cp config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port
 ```
 
 Windows 原生：
 
 ```powershell
 Copy-Item config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port
 ```
 
 生产环境则应先复制：

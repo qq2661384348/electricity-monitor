@@ -69,6 +69,11 @@ jobs:
         run: |
           cp config/development.toml.example config/development.toml
           sed -i 's/CHANGE-THIS-LOCAL-POSTGRES-PASSWORD/postgres/' config/development.toml
+          sed -i 's#api_url = "你的napcat应用URL"#api_url = "http://127.0.0.1:3000/send_private_msg"#' config/development.toml
+          sed -i 's/public_qq_number = ""/public_qq_number = "100000002"/' config/development.toml
+          sed -i 's/bearer_token = ""/bearer_token = "ci-mock-token"/' config/development.toml
+          sed -i 's/domain = ""/domain = "localhost"/' config/development.toml
+          sed -i 's/port = ""/port = "5173"/' config/development.toml
 
       - name: Wait for PostgreSQL and Redis
         run: |
@@ -132,6 +137,11 @@ jobs:
         run: |
           cp config/development.toml.example config/development.toml
           sed -i 's/CHANGE-THIS-LOCAL-POSTGRES-PASSWORD/postgres/' config/development.toml
+          sed -i 's#api_url = "你的napcat应用URL"#api_url = "http://127.0.0.1:3000/send_private_msg"#' config/development.toml
+          sed -i 's/public_qq_number = ""/public_qq_number = "100000002"/' config/development.toml
+          sed -i 's/bearer_token = ""/bearer_token = "ci-mock-token"/' config/development.toml
+          sed -i 's/domain = ""/domain = "localhost"/' config/development.toml
+          sed -i 's/port = ""/port = "5173"/' config/development.toml
 
       - name: Run real external integration tests
         shell: bash

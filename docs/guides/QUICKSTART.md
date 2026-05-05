@@ -36,7 +36,7 @@ createdb -h 127.0.0.1 -U postgres electricity_dev
 ```bash
 cp config/development.toml.example config/development.toml
 # 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
-# 同时填写 qq_bot.public_qq_number；这是前端提示用户添加好友的机器人 QQ 号
+# 同时填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port
 export APP_ENV=development
 export RUST_LOG=debug
 ```
@@ -68,7 +68,7 @@ Windows 原生开发需要 PostgreSQL、Redis、Rust 工具链和 Diesel CLI。P
 ```powershell
 cargo install diesel_cli --no-default-features --features postgres
 Copy-Item config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.public_qq_number
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port
 $env:APP_ENV="development"
 $env:RUST_LOG="debug"
 cargo run --bin migrate

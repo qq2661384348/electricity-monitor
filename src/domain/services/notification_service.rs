@@ -462,7 +462,8 @@ impl NotificationService {
 
         // 并发发送通知给所有用户（使用内存中的用户数据，带持久化）
         // 工程化设计：克隆所有数据以完全避免生命周期问题
-        let message = MessageBuilder::build_electricity_alert_message(room);
+        let public_url = crate::config::AppConfig::global().public_site.public_url();
+        let message = MessageBuilder::build_electricity_alert_message(room, &public_url);
         let user_map_arc = Arc::new(user_map.clone());
         let bindings_vec: Vec<_> = bindings.to_vec();
 

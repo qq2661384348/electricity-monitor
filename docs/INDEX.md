@@ -45,11 +45,12 @@
 - 生产发布以 `.github/workflows/docker-build.yml` 和仓库 `deploy/` 目录为准。
 - PR / 手动质量门禁以 `.github/workflows/ci.yml` 为准。
 - release artifact 内的 `release-manifest.json` 是发布包身份真源，`deploy-result.json` 是服务器侧部署结果记录。
+- release `.env` 是生产非敏感运行时值真源，包括 CORS、QQ 机器人发送地址、公开站点域名/端口和管理员 QQ；生产配置模板不写入具体部署值。
 - `deploy/smoke.targets` 是 readiness test 与 release smoke 共用的检查目标真源，包含端点、必需文件与统一响应安全头。
 - `deploy/build.sh` 与 `deploy/docker-compose.local.yml` 仅用于本地 Docker 调试。
 - 服务器上线消费 GitHub Actions 产出的 release artifact，不从源码重新构建。
 
 ## 文档维护
 
-- 最后更新：2026-03-24
+- 最后更新：2026-05-05
 - 更新部署相关内容时，同时核对 `README.md`、`docs/guides/DOCKER_DEPLOYMENT.md`、`deploy/README.md` 与 `memory/long-term/procedural/deploy-and-release.md`

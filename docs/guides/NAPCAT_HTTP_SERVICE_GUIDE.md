@@ -10,16 +10,20 @@
 
 ## 推荐配置
 
-开发或联调环境建议把 `qq_bot.api_url` 指向local environment或内网可访问的 NapCat action endpoint，例如：
+开发或联调环境必须把 `qq_bot.api_url` 指向当前可访问的 NapCat action endpoint。配置模板只保留中文占位和示例注释，不内置本地 mock 地址或任何部署环境的真实值：
 
 ```toml
 [qq_bot]
-api_url = "http://127.0.0.1:3000/send_private_msg"
+# QQ 私聊发送链路：登录验证码和电量通知都会通过此 NapCat action 发送。
+# NapCat HTTP action 地址，例如：http://127.0.0.1:3000/send_private_msg
+api_url = "你的napcat应用URL"
 # 必须由部署者手动填写，前端会通过 /api/public-config 公开展示该值。
 public_qq_number = ""
 bearer_token = ""
 timeout_seconds = 10
 ```
+
+复制到运行时配置后，`qq_bot.api_url` 应填写为 `http(s)://<napcat-host>:<port>/send_private_msg`，`qq_bot.bearer_token` 应通过运行时配置或 `APP__QQ_BOT__BEARER_TOKEN_FILE` 注入真实 token。验证码发送和电量预警通知都会复用这一段 `[qq_bot]` 配置。
 
 `qq_bot.public_qq_number` 是用户添加好友时看到的机器人 QQ 号真源。它必须手动配置，不能从管理员 QQ 推断，也不能通过自动读取 NapCat 登录信息来替代。
 

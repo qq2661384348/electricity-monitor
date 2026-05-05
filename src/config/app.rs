@@ -9,8 +9,9 @@ use std::sync::OnceLock;
 
 use super::{
     admin::ADMIN_QQ_PLACEHOLDER, auth::AuthConfig, captcha::CaptchaConfig, cors::CorsConfig,
-    AdminConfig, DatabaseConfig, ElectricityFetcherConfig, NotificationConfig, QQBotConfig,
-    RateLimitConfig, RedisConfig, RoomSyncConfig, StaticFilesConfig, VerificationConfig,
+    AdminConfig, DatabaseConfig, ElectricityFetcherConfig, NotificationConfig, PublicSiteConfig,
+    QQBotConfig, RateLimitConfig, RedisConfig, RoomSyncConfig, StaticFilesConfig,
+    VerificationConfig,
 };
 
 const CONFIG_DIR: &str = "config";
@@ -19,6 +20,7 @@ const SUPPORTED_ENVIRONMENTS: [&str; 2] = ["development", "production"];
 const RUNTIME_CONFIG_FILENAMES: [&str; 2] = ["development.toml", "production.toml"];
 const DEVELOPMENT_DATABASE_PASSWORD_PLACEHOLDER: &str = "CHANGE-THIS-LOCAL-POSTGRES-PASSWORD";
 const CORS_ALLOW_ORIGINS_PLACEHOLDER: &str = "CHANGE-THIS-PRODUCTION-FRONTEND-ORIGIN";
+const QQ_BOT_API_URL_PLACEHOLDER: &str = "你的napcat应用URL";
 const QQ_BOT_PUBLIC_QQ_PLACEHOLDER: &str = "CHANGE-THIS-QQ-BOT-PUBLIC-QQ";
 
 /// 服务器配置
@@ -111,6 +113,10 @@ pub struct AppConfig {
     /// 管理员配置
     #[serde(default)]
     pub admin: AdminConfig,
+
+    /// 公开站点访问配置
+    #[serde(default)]
+    pub public_site: PublicSiteConfig,
 
     /// 静态文件服务配置
     #[serde(default)]
@@ -306,6 +312,7 @@ impl AppConfig {
     }
 
     fn validate_public_runtime_config(config: &Self) -> Result<(), ConfigError> {
+        Self::validate_qq_bot_runtime_config(&config.qq_bot)?;
         Self::validate_required_qq_number(
             "qq_bot.public_qq_number",
             &config.qq_bot.public_qq_number,
@@ -316,6 +323,7 @@ impl AppConfig {
             &config.admin.default_qq_number,
             ADMIN_QQ_PLACEHOLDER,
         )?;
+        Self::validate_public_site_config(&config.public_site)?;
 
         if config.captcha.api_url.trim().is_empty()
             || config.captcha.api_url.trim().starts_with("CHANGE-THIS")
@@ -366,6 +374,78 @@ impl AppConfig {
         if config.verification.expire_seconds == 0 {
             return Err(ConfigError::Message(
                 "verification.expire_seconds 必须大于 0。".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn validate_qq_bot_runtime_config(config: &QQBotConfig) -> Result<(), ConfigError> {
+        let api_url = config.api_url.trim();
+        if api_url.is_empty()
+            || api_url == QQ_BOT_API_URL_PLACEHOLDER
+            || api_url.starts_with("CHANGE-THIS")
+        {
+            return Err(ConfigError::Message(
+                "qq_bot.api_url 必须配置为真实 NapCat send_private_msg HTTP 地址，不能留空或使用占位值。".to_string(),
+            ));
+        }
+
+        if !(api_url.starts_with("http://") || api_url.starts_with("https://"))
+            || api_url.chars().any(|ch| ch.is_ascii_whitespace())
+        {
+            return Err(ConfigError::Message(
+                "qq_bot.api_url 必须是以 http:// 或 https:// 开头且不包含空白字符的 HTTP 地址。"
+                    .to_string(),
+            ));
+        }
+
+        let bearer_token = config.bearer_token.trim();
+        if bearer_token.is_empty() || bearer_token.starts_with("CHANGE-THIS") {
+            return Err(ConfigError::Message(
+                "qq_bot.bearer_token 必须通过运行时配置或 secret file 注入真实 token，不能留空或使用占位值。".to_string(),
+            ));
+        }
+
+        if config.timeout_seconds == 0 {
+            return Err(ConfigError::Message(
+                "qq_bot.timeout_seconds 必须大于 0。".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn validate_public_site_config(config: &PublicSiteConfig) -> Result<(), ConfigError> {
+        let domain = config.domain.trim();
+        if domain.is_empty() || domain.starts_with("CHANGE-THIS") {
+            return Err(ConfigError::Message(
+                "public_site.domain 必须配置为真实公开访问域名，不能留空或使用占位值。".to_string(),
+            ));
+        }
+
+        if domain.contains("://")
+            || domain.contains('/')
+            || domain.chars().any(|ch| ch.is_ascii_whitespace())
+        {
+            return Err(ConfigError::Message(
+                "public_site.domain 只填写域名本身，不能包含协议、路径或空白字符。".to_string(),
+            ));
+        }
+
+        let port = config.port.trim();
+        if port.is_empty() || port.starts_with("CHANGE-THIS") {
+            return Err(ConfigError::Message(
+                "public_site.port 必须配置为真实公开访问端口，不能留空或使用占位值。".to_string(),
+            ));
+        }
+
+        let parsed_port = port.parse::<u16>().map_err(|_| {
+            ConfigError::Message("public_site.port 必须是 1 到 65535 之间的端口号。".to_string())
+        })?;
+        if parsed_port == 0 {
+            return Err(ConfigError::Message(
+                "public_site.port 必须是 1 到 65535 之间的端口号。".to_string(),
             ));
         }
 
@@ -671,6 +751,7 @@ mod tests {
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
             admin: AdminConfig::default(),
+            public_site: PublicSiteConfig::default(),
             static_files: StaticFilesConfig::default(),
         };
 
@@ -725,6 +806,7 @@ mod tests {
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
             admin: AdminConfig::default(),
+            public_site: PublicSiteConfig::default(),
             static_files: StaticFilesConfig::default(),
         };
 
@@ -784,6 +866,7 @@ mod tests {
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
             admin: AdminConfig::default(),
+            public_site: PublicSiteConfig::default(),
             static_files: StaticFilesConfig::default(),
         };
 
@@ -855,6 +938,104 @@ mod tests {
 
         assert_eq!(config.jwt.secret, "00123456");
         assert_eq!(config.admin.default_qq_number, "00100000001");
+    }
+
+    #[test]
+    fn test_public_site_config_requires_domain_and_port() {
+        let empty_domain = PublicSiteConfig {
+            domain: "".to_string(),
+            port: "11451".to_string(),
+        };
+        let err = AppConfig::validate_public_site_config(&empty_domain)
+            .expect_err("公开访问域名不能为空");
+        assert!(err.to_string().contains("public_site.domain"));
+
+        let empty_port = PublicSiteConfig {
+            domain: "pythonrust.icu".to_string(),
+            port: "".to_string(),
+        };
+        let err =
+            AppConfig::validate_public_site_config(&empty_port).expect_err("公开访问端口不能为空");
+        assert!(err.to_string().contains("public_site.port"));
+    }
+
+    #[test]
+    fn test_public_site_config_rejects_url_like_domain_and_invalid_port() {
+        let url_like_domain = PublicSiteConfig {
+            domain: "https://pythonrust.icu".to_string(),
+            port: "11451".to_string(),
+        };
+        let err = AppConfig::validate_public_site_config(&url_like_domain)
+            .expect_err("域名字段不能包含协议");
+        assert!(err.to_string().contains("不能包含协议"));
+
+        let invalid_port = PublicSiteConfig {
+            domain: "pythonrust.icu".to_string(),
+            port: "65536".to_string(),
+        };
+        let err = AppConfig::validate_public_site_config(&invalid_port).expect_err("端口必须合法");
+        assert!(err.to_string().contains("1 到 65535"));
+    }
+
+    #[test]
+    fn test_qq_bot_runtime_config_requires_real_api_url_and_token() {
+        let missing_api_url = QQBotConfig {
+            api_url: "".to_string(),
+            public_qq_number: "100000002".to_string(),
+            bearer_token: "test-token".to_string(),
+            bearer_token_file: None,
+            timeout_seconds: 10,
+        };
+        let err = AppConfig::validate_qq_bot_runtime_config(&missing_api_url)
+            .expect_err("QQ 机器人 API 地址不能为空");
+        assert!(err.to_string().contains("qq_bot.api_url"));
+
+        let placeholder_api_url = QQBotConfig {
+            api_url: QQ_BOT_API_URL_PLACEHOLDER.to_string(),
+            public_qq_number: "100000002".to_string(),
+            bearer_token: "test-token".to_string(),
+            bearer_token_file: None,
+            timeout_seconds: 10,
+        };
+        let err = AppConfig::validate_qq_bot_runtime_config(&placeholder_api_url)
+            .expect_err("QQ 机器人 API 地址不能保留模板占位");
+        assert!(err.to_string().contains("qq_bot.api_url"));
+
+        let missing_token = QQBotConfig {
+            api_url: "http://127.0.0.1:3000/send_private_msg".to_string(),
+            public_qq_number: "100000002".to_string(),
+            bearer_token: "".to_string(),
+            bearer_token_file: None,
+            timeout_seconds: 10,
+        };
+        let err = AppConfig::validate_qq_bot_runtime_config(&missing_token)
+            .expect_err("QQ 机器人 token 不能为空");
+        assert!(err.to_string().contains("qq_bot.bearer_token"));
+    }
+
+    #[test]
+    fn test_qq_bot_runtime_config_rejects_invalid_url_and_timeout() {
+        let invalid_url = QQBotConfig {
+            api_url: "127.0.0.1:3000/send_private_msg".to_string(),
+            public_qq_number: "100000002".to_string(),
+            bearer_token: "test-token".to_string(),
+            bearer_token_file: None,
+            timeout_seconds: 10,
+        };
+        let err = AppConfig::validate_qq_bot_runtime_config(&invalid_url)
+            .expect_err("QQ 机器人 API 地址必须带协议");
+        assert!(err.to_string().contains("http://"));
+
+        let invalid_timeout = QQBotConfig {
+            api_url: "http://127.0.0.1:3000/send_private_msg".to_string(),
+            public_qq_number: "100000002".to_string(),
+            bearer_token: "test-token".to_string(),
+            bearer_token_file: None,
+            timeout_seconds: 0,
+        };
+        let err = AppConfig::validate_qq_bot_runtime_config(&invalid_timeout)
+            .expect_err("QQ 机器人请求超时必须大于 0");
+        assert!(err.to_string().contains("qq_bot.timeout_seconds"));
     }
 
     #[test]
@@ -978,6 +1159,7 @@ mod tests {
             admin: AdminConfig {
                 default_qq_number: "100000001".to_string(),
             },
+            public_site: PublicSiteConfig::default(),
             static_files: StaticFilesConfig::default(),
         };
 
@@ -1048,6 +1230,7 @@ mod tests {
             admin: AdminConfig {
                 default_qq_number: ADMIN_QQ_PLACEHOLDER.to_string(),
             },
+            public_site: PublicSiteConfig::default(),
             static_files: StaticFilesConfig::default(),
         };
 
@@ -1118,6 +1301,7 @@ mod tests {
             admin: AdminConfig {
                 default_qq_number: "100000001".to_string(),
             },
+            public_site: PublicSiteConfig::default(),
             static_files: StaticFilesConfig::default(),
         };
 

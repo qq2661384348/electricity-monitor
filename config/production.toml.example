@@ -5,6 +5,11 @@
 host = "0.0.0.0"
 port = 8000
 
+[public_site]
+# 通知消息中的公开访问链接由这里生成；模板故意留空，发布前必须填写真实域名和端口。
+domain = ""
+port = ""
+
 [database]
 type = "postgres"
 host = "db.example.internal"
@@ -68,7 +73,9 @@ retry_delay_seconds = 30
 retry_backoff_multiplier = 2.0
 
 [qq_bot]
-api_url = "http://127.0.0.1:3000/send_private_msg"
+# QQ 私聊发送链路：登录验证码和电量通知都会通过此 NapCat action 发送。
+# NapCat HTTP action 地址，例如：http://127.0.0.1:3000/send_private_msg
+api_url = "你的napcat应用URL"
 # 必须填写已经部署并登录的机器人 QQ 号；前端会公开展示该值用于用户添加好友。
 public_qq_number = ""
 bearer_token = ""
