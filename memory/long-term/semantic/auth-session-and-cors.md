@@ -27,6 +27,7 @@ summary: JWT 类型边界、cookie 会话契约、CORS 白名单、管理员提�
 - `/api/auth/verify-and-login` 只接受与 `verification.code_length` 完全一致的数字验证码，不应在前端或后端继续硬编码 6 位长度。
 - JWT claims 显式区分 `token_kind=access|refresh`；受保护接口只接受 access token，`/api/auth/refresh` 只接受 refresh token。
 - `src/handlers/auth.rs` 负责签发 access token、轮换 refresh cookie 与 logout 清理 cookie 的 HTTP 契约；不要在其他 handler 重新实现这套逻辑。
+- `/api/bindings` 以当前登录账号为个人绑定主体；管理员账号与普通用户账号都可以创建并列出自己的绑定，管理员仍可查看、更新或删除任意绑定。
 - `/api/rooms/by-path` 与 `/api/rooms/by-hash` 是房间详情读取入口，必须通过 `RoomAccessUseCase::ensure_room_access` 约束为管理员或已绑定用户；绑定前路径树只允许返回叶子节点 `roomid` 这类最小绑定标识，不返回电费余额或阈值。
 
 ## 会话模型

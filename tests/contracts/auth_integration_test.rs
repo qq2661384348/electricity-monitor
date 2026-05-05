@@ -66,7 +66,7 @@ async fn admin_login_flow_returns_admin_profile() {
 }
 
 #[tokio::test]
-async fn admin_bindings_endpoint_returns_stable_empty_array() {
+async fn admin_bindings_endpoint_returns_authenticated_array() {
     let test_app = create_test_app().await;
     let login =
         login_with_seeded_code(&test_app.app, &test_app.state, &admin_qq_number(), "123456").await;
@@ -74,11 +74,7 @@ async fn admin_bindings_endpoint_returns_stable_empty_array() {
     let response = get_with_bearer(&test_app.app, "/api/bindings", &login.access_token).await;
     assert_eq!(response.status(), StatusCode::OK);
 
-    let bindings: Vec<Value> = read_json(response).await;
-    assert!(
-        bindings.is_empty(),
-        "管理员当前应返回稳定的空数组，而不是不确定状态"
-    );
+    let _bindings: Vec<Value> = read_json(response).await;
 }
 
 #[tokio::test]
@@ -499,7 +495,7 @@ async fn user_needs_binding_before_reading_room_path_details() {
 }
 
 #[tokio::test]
-async fn admin_cannot_create_binding() {
+async fn admin_can_create_and_list_own_binding() {
     let test_app = create_test_app().await;
     let room = seed_room(&test_app.state).await;
     let admin_login =
@@ -516,7 +512,32 @@ async fn admin_cannot_create_binding() {
     )
     .await;
 
-    assert_eq!(create_response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+    let created_binding: Value = read_json(create_response).await;
+    let binding_id = created_binding["id"]
+        .as_str()
+        .expect("绑定 ID 应为字符串")
+        .to_string();
+    assert_eq!(created_binding["roomid"], room.roomid);
+
+    let list_response =
+        get_with_bearer(&test_app.app, "/api/bindings", &admin_login.access_token).await;
+    assert_eq!(list_response.status(), StatusCode::OK);
+    let bindings: Vec<Value> = read_json(list_response).await;
+    assert!(
+        bindings
+            .iter()
+            .any(|binding| binding["id"].as_str() == Some(binding_id.as_str())),
+        "管理员创建个人绑定后应能在自己的绑定列表中看到它"
+    );
+
+    let delete_response = delete_with_bearer(
+        &test_app.app,
+        &format!("/api/bindings/{binding_id}"),
+        &admin_login.access_token,
+    )
+    .await;
+    assert_eq!(delete_response.status(), StatusCode::NO_CONTENT);
 
     delete_room(&test_app.state, room.id).await;
 }

@@ -90,11 +90,6 @@ pub async fn create_binding(
     Extension(user_ctx): Extension<UserContext>,
     Json(req): Json<CreateBindingRequest>,
 ) -> Result<(StatusCode, Json<BindingResponse>)> {
-    // 管理员不能创建绑定（没有user_id）
-    if user_ctx.is_admin {
-        return Err(AppError::Forbidden);
-    }
-
     let user_id_str = user_ctx
         .user_id
         .as_ref()
@@ -169,13 +164,6 @@ pub async fn list_bindings(
     State(state): State<AppState>,
     Extension(user_ctx): Extension<UserContext>,
 ) -> Result<Json<Vec<BindingResponse>>> {
-    // 管理员可以查看所有绑定（TODO: 实现管理员查询所有绑定）
-    // 目前管理员返回空列表
-    if user_ctx.is_admin {
-        // TODO: 实现管理员查询所有绑定
-        return Ok(Json(Vec::new()));
-    }
-
     let user_id_str = user_ctx
         .user_id
         .as_ref()
