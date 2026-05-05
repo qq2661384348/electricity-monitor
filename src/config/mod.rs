@@ -5,6 +5,7 @@
 pub mod admin;
 pub mod app;
 pub mod auth;
+pub mod captcha;
 pub mod cors;
 pub mod database;
 pub mod electricity_fetcher;
@@ -19,6 +20,7 @@ pub mod verification;
 pub use admin::AdminConfig;
 pub use app::{AppConfig, JwtConfig, LoggingConfig, ServerConfig};
 pub use auth::AuthConfig;
+pub use captcha::CaptchaConfig;
 pub use cors::CorsConfig;
 pub use database::DatabaseConfig;
 pub use electricity_fetcher::ElectricityFetcherConfig;

@@ -11,4 +11,5 @@ pub fn routes() -> Router<AppState> {
         // 健康检查
         .route("/health", get(handlers::health_check))
         .route("/health/db", get(handlers::health_check_db))
+        .route("/public-config", get(handlers::public_config))
 }

@@ -8,9 +8,9 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use super::{
-    admin::ADMIN_QQ_PLACEHOLDER, auth::AuthConfig, cors::CorsConfig, AdminConfig, DatabaseConfig,
-    ElectricityFetcherConfig, NotificationConfig, QQBotConfig, RateLimitConfig, RedisConfig,
-    RoomSyncConfig, StaticFilesConfig, VerificationConfig,
+    admin::ADMIN_QQ_PLACEHOLDER, auth::AuthConfig, captcha::CaptchaConfig, cors::CorsConfig,
+    AdminConfig, DatabaseConfig, ElectricityFetcherConfig, NotificationConfig, QQBotConfig,
+    RateLimitConfig, RedisConfig, RoomSyncConfig, StaticFilesConfig, VerificationConfig,
 };
 
 const CONFIG_DIR: &str = "config";
@@ -19,6 +19,7 @@ const SUPPORTED_ENVIRONMENTS: [&str; 2] = ["development", "production"];
 const RUNTIME_CONFIG_FILENAMES: [&str; 2] = ["development.toml", "production.toml"];
 const DEVELOPMENT_DATABASE_PASSWORD_PLACEHOLDER: &str = "CHANGE-THIS-LOCAL-POSTGRES-PASSWORD";
 const CORS_ALLOW_ORIGINS_PLACEHOLDER: &str = "CHANGE-THIS-PRODUCTION-FRONTEND-ORIGIN";
+const QQ_BOT_PUBLIC_QQ_PLACEHOLDER: &str = "CHANGE-THIS-QQ-BOT-PUBLIC-QQ";
 
 /// 服务器配置
 #[derive(Debug, Clone, Deserialize)]
@@ -95,6 +96,10 @@ pub struct AppConfig {
     #[serde(default)]
     pub qq_bot: QQBotConfig,
 
+    /// 第三方图形验证码配置
+    #[serde(default)]
+    pub captcha: CaptchaConfig,
+
     /// 验证码配置
     #[serde(default)]
     pub verification: VerificationConfig,
@@ -155,6 +160,7 @@ impl AppConfig {
 
         let app_config = Self::resolve_secrets(config.try_deserialize::<Self>()?, &environment)?;
         Self::validate_environment_rules(&app_config, &environment)?;
+        Self::validate_public_runtime_config(&app_config)?;
         Self::validate_sensitive_config(&app_config, &environment)?;
         Self::validate_security_contracts(&app_config, &environment)?;
         Ok(app_config)
@@ -297,6 +303,96 @@ impl AppConfig {
             "production 环境要求通过 Compose secrets 注入敏感配置，以下字段缺失或未通过 secret file 提供: {}",
             missing.join(", ")
         )))
+    }
+
+    fn validate_public_runtime_config(config: &Self) -> Result<(), ConfigError> {
+        Self::validate_required_qq_number(
+            "qq_bot.public_qq_number",
+            &config.qq_bot.public_qq_number,
+            QQ_BOT_PUBLIC_QQ_PLACEHOLDER,
+        )?;
+        Self::validate_required_qq_number(
+            "admin.default_qq_number",
+            &config.admin.default_qq_number,
+            ADMIN_QQ_PLACEHOLDER,
+        )?;
+
+        if config.captcha.api_url.trim().is_empty()
+            || config.captcha.api_url.trim().starts_with("CHANGE-THIS")
+        {
+            return Err(ConfigError::Message(
+                "captcha.api_url 必须配置为真实第三方验证码 API 地址。".to_string(),
+            ));
+        }
+
+        if config.captcha.request_timeout_seconds == 0 {
+            return Err(ConfigError::Message(
+                "captcha.request_timeout_seconds 必须大于 0。".to_string(),
+            ));
+        }
+
+        if config.captcha.token_expire_seconds == 0 {
+            return Err(ConfigError::Message(
+                "captcha.token_expire_seconds 必须大于 0。".to_string(),
+            ));
+        }
+
+        let captcha_type = config.captcha.captcha_type.trim().to_ascii_lowercase();
+        if !matches!(captcha_type.as_str(), "string" | "math" | "digit") {
+            return Err(ConfigError::Message(format!(
+                "captcha.captcha_type={} 非法，仅支持 string、math 或 digit。",
+                config.captcha.captcha_type
+            )));
+        }
+
+        if config.captcha.width == 0 || config.captcha.height == 0 {
+            return Err(ConfigError::Message(
+                "captcha.width 与 captcha.height 必须大于 0。".to_string(),
+            ));
+        }
+
+        if !(1..=3).contains(&config.captcha.options) {
+            return Err(ConfigError::Message(
+                "captcha.options 仅支持 1、2 或 3。".to_string(),
+            ));
+        }
+
+        if config.verification.code_length == 0 || config.verification.code_length > 20 {
+            return Err(ConfigError::Message(
+                "verification.code_length 必须在 1 到 20 之间。".to_string(),
+            ));
+        }
+
+        if config.verification.expire_seconds == 0 {
+            return Err(ConfigError::Message(
+                "verification.expire_seconds 必须大于 0。".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn validate_required_qq_number(
+        field_name: &str,
+        value: &str,
+        placeholder: &str,
+    ) -> Result<(), ConfigError> {
+        let trimmed = value.trim();
+        if trimmed.is_empty() || trimmed == placeholder || trimmed.starts_with("CHANGE-THIS") {
+            return Err(ConfigError::Message(format!(
+                "{} 必须配置为真实 QQ 号，不能留空或使用占位值。",
+                field_name
+            )));
+        }
+
+        if !(5..=20).contains(&trimmed.len()) || !trimmed.chars().all(|ch| ch.is_ascii_digit()) {
+            return Err(ConfigError::Message(format!(
+                "{} 必须是 5 到 20 位数字。",
+                field_name
+            )));
+        }
+
+        Ok(())
     }
 
     fn validate_security_contracts(config: &Self, environment: &str) -> Result<(), ConfigError> {
@@ -571,6 +667,7 @@ mod tests {
             room_sync: RoomSyncConfig::default(),
             electricity_fetcher: ElectricityFetcherConfig::default(),
             qq_bot: QQBotConfig::default(),
+            captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
             admin: AdminConfig::default(),
@@ -624,6 +721,7 @@ mod tests {
             room_sync: RoomSyncConfig::default(),
             electricity_fetcher: ElectricityFetcherConfig::default(),
             qq_bot: QQBotConfig::default(),
+            captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
             admin: AdminConfig::default(),
@@ -682,6 +780,7 @@ mod tests {
             room_sync: RoomSyncConfig::default(),
             electricity_fetcher: ElectricityFetcherConfig::default(),
             qq_bot: QQBotConfig::default(),
+            captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
             admin: AdminConfig::default(),
@@ -873,6 +972,7 @@ mod tests {
             room_sync: RoomSyncConfig::default(),
             electricity_fetcher: ElectricityFetcherConfig::default(),
             qq_bot: QQBotConfig::default(),
+            captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
             admin: AdminConfig {
@@ -939,8 +1039,10 @@ mod tests {
             qq_bot: QQBotConfig {
                 bearer_token: "qq-token".to_string(),
                 bearer_token_file: Some("/run/secrets/qq_token".to_string()),
+                public_qq_number: "100000002".to_string(),
                 ..QQBotConfig::default()
             },
+            captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
             admin: AdminConfig {
@@ -1007,8 +1109,10 @@ mod tests {
             qq_bot: QQBotConfig {
                 bearer_token: "qq-token".to_string(),
                 bearer_token_file: Some("/run/secrets/qq_token".to_string()),
+                public_qq_number: "100000002".to_string(),
                 ..QQBotConfig::default()
             },
+            captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
             admin: AdminConfig {

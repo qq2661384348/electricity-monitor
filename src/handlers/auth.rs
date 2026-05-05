@@ -46,8 +46,8 @@ pub struct VerifyAndLoginRequest {
     #[validate(length(min = 5, max = 20, message = "QQ号长度必须在5-20字符之间"))]
     pub qq_number: String,
 
-    /// 验证码（6位数字）
-    #[validate(length(equal = 6, message = "验证码必须为6位数字"))]
+    /// 验证码（长度由 verification.code_length 配置控制）
+    #[validate(length(min = 1, max = 20, message = "验证码长度必须在1-20字符之间"))]
     pub code: String,
 }
 
@@ -288,6 +288,16 @@ pub async fn verify_and_login(
     req.validate()
         .map_err(|e| AppError::Internal(format!("验证失败: {}", e)))?;
 
+    let config = AppConfig::global();
+    if req.code.len() != config.verification.code_length
+        || !req.code.chars().all(|ch| ch.is_ascii_digit())
+    {
+        return Err(AppError::Unauthorized(format!(
+            "验证码必须为{}位数字",
+            config.verification.code_length
+        )));
+    }
+
     tracing::info!(
         qq_number = %req.qq_number,
         "收到登录请求"
@@ -320,7 +330,6 @@ pub async fn verify_and_login(
     // 创建用户仓储
     let user_repo = UserRepository::new(state.db_pool.clone());
 
-    let config = AppConfig::global();
     let desired_role = if has_admin_override(config, &req.qq_number) {
         "admin"
     } else {

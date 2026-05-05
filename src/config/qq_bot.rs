@@ -8,6 +8,10 @@ pub struct QQBotConfig {
     /// NapCat action API 地址
     pub api_url: String,
 
+    /// 对用户公开展示的机器人 QQ 号
+    #[serde(default)]
+    pub public_qq_number: String,
+
     /// Bearer Token
     pub bearer_token: String,
 
@@ -23,6 +27,7 @@ impl Default for QQBotConfig {
     fn default() -> Self {
         Self {
             api_url: "http://127.0.0.1:3000/send_private_msg".to_string(),
+            public_qq_number: String::new(),
             bearer_token: String::new(),
             bearer_token_file: None,
             timeout_seconds: 10,
@@ -38,6 +43,7 @@ mod tests {
     fn test_default_config() {
         let config = QQBotConfig::default();
         assert_eq!(config.timeout_seconds, 10);
+        assert!(config.public_qq_number.is_empty());
         assert!(config.api_url.contains("send_private_msg"));
     }
 }

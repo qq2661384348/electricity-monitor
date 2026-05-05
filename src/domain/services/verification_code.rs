@@ -37,11 +37,12 @@ impl VerificationCodeService {
     /// 生成验证码
     ///
     /// # 返回
-    /// 6位数字验证码字符串
+    /// 按配置长度生成的数字验证码字符串
     fn generate_code(&self) -> String {
         let mut rng = rand::rng();
-        let code: u32 = rng.random_range(100000..1000000);
-        code.to_string()
+        (0..self.config.code_length)
+            .map(|_| char::from(b'0' + rng.random_range(0..10) as u8))
+            .collect()
     }
 
     /// 发送验证码并存储

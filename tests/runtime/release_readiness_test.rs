@@ -2,13 +2,14 @@
 mod support;
 
 use axum::{
-    body::Body,
+    body::{to_bytes, Body},
     http::{HeaderMap, Request, StatusCode},
 };
+use serde_json::Value;
 use tower::ServiceExt;
 
 use support::{
-    app_factory::create_test_app,
+    app_factory::{create_test_app, test_config},
     smoke_contract::{load_smoke_targets, smoke_targets_path, SmokeTargets},
 };
 
@@ -41,6 +42,54 @@ async fn runtime_endpoints_from_smoke_contract_pass() {
         );
         assert_required_headers(response.headers(), &targets, endpoint.as_str());
     }
+}
+
+#[tokio::test]
+async fn public_config_exposes_only_non_sensitive_runtime_values() {
+    let test_app = create_test_app().await;
+    let targets = load_smoke_targets();
+    let config = test_config();
+
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/public-config")
+                .body(Body::empty())
+                .expect("构造请求失败"),
+        )
+        .await
+        .expect("请求执行失败");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_required_headers(response.headers(), &targets, "/api/public-config");
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("读取响应体失败");
+    let body: Value = serde_json::from_slice(&body).expect("响应体应为 JSON");
+
+    assert_eq!(
+        body["notification"]["qq_bot_public_qq_number"].as_str(),
+        Some(config.qq_bot.public_qq_number.as_str())
+    );
+    assert_eq!(
+        body["notification"]["admin_qq_number"].as_str(),
+        Some(config.admin.default_qq_number.as_str())
+    );
+    assert_eq!(
+        body["verification"]["code_length"].as_u64(),
+        Some(config.verification.code_length as u64)
+    );
+    assert_eq!(
+        body["captcha"]["captcha_type"].as_str(),
+        Some(config.captcha.captcha_type.as_str())
+    );
+    assert!(
+        body.get("qq_bot").is_none(),
+        "公开配置不能暴露完整 qq_bot 配置或 bearer token"
+    );
 }
 
 #[tokio::test]

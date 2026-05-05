@@ -69,9 +69,20 @@ retry_backoff_multiplier = 2.0
 
 [qq_bot]
 api_url = "http://127.0.0.1:3000/send_private_msg"
+# 必须填写已经部署并登录的机器人 QQ 号；前端会公开展示该值用于用户添加好友。
+public_qq_number = ""
 # 公开仓库不保存真实 token；本地调试请通过 APP__QQ_BOT__BEARER_TOKEN(_FILE) 注入
 bearer_token = ""
 timeout_seconds = 10
+
+[captcha]
+api_url = "https://v2.xxapi.cn/api/captcha"
+request_timeout_seconds = 5
+token_expire_seconds = 60
+captcha_type = "math"
+width = 300
+height = 100
+options = 2
 
 [verification]
 code_length = 6

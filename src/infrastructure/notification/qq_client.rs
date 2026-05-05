@@ -181,6 +181,7 @@ mod tests {
     fn test_qq_client_creation() {
         let config = QQBotConfig {
             api_url: "http://test.com/api".to_string(),
+            public_qq_number: "100000002".to_string(),
             bearer_token: "test_token".to_string(),
             bearer_token_file: None,
             timeout_seconds: 10,

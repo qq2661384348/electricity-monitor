@@ -3,6 +3,7 @@
 //! 采用"客户端直连获取、网关代理校验"架构
 //! 第三方API: https://v2.xxapi.cn/api/captcha
 
+use crate::config::CaptchaConfig;
 use crate::errors::{AppError, Result};
 use crate::infrastructure::RedisPool;
 use redis::AsyncCommands;
@@ -47,35 +48,40 @@ pub struct CaptchaVerificationService {
 
     /// 第三方API地址
     api_url: String,
+
+    /// 一次性 token 有效期（秒）
+    token_expire_seconds: u64,
 }
 
 impl CaptchaVerificationService {
     /// 创建验证码校验服务
     pub fn new(redis_pool: RedisPool) -> Self {
+        Self::with_config(redis_pool, &crate::config::AppConfig::global().captcha)
+    }
+
+    fn with_config(redis_pool: RedisPool, config: &CaptchaConfig) -> Self {
         let http_client = Client::builder()
-            .timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(config.request_timeout_seconds))
             .build()
             .expect("Failed to create HTTP client");
 
         Self {
             http_client,
             redis_pool,
-            api_url: "https://v2.xxapi.cn/api/captcha".to_string(),
+            api_url: config.api_url.clone(),
+            token_expire_seconds: config.token_expire_seconds,
         }
     }
 
     #[cfg(test)]
     fn with_api_url(redis_pool: RedisPool, api_url: String) -> Self {
-        let http_client = Client::builder()
-            .timeout(Duration::from_secs(5))
-            .build()
-            .expect("Failed to create HTTP client");
-
-        Self {
-            http_client,
+        Self::with_config(
             redis_pool,
-            api_url,
-        }
+            &CaptchaConfig {
+                api_url,
+                ..CaptchaConfig::default()
+            },
+        )
     }
 
     /// 校验验证码（网关代理）
@@ -152,7 +158,7 @@ impl CaptchaVerificationService {
         // 验证成功，生成一次性token
         let token = Uuid::new_v4().to_string();
 
-        // 存储token到Redis，有效期60秒
+        // 存储 token 到 Redis，过期时间由运行时配置控制，避免前端流程与后端消费窗口漂移。
         let mut conn = self
             .redis_pool
             .get()
@@ -160,7 +166,7 @@ impl CaptchaVerificationService {
             .map_err(|e| AppError::Redis(format!("获取Redis连接失败: {}", e)))?;
 
         let redis_key = format!("captcha:token:{}", token);
-        conn.set_ex::<_, _, ()>(&redis_key, "valid", 60)
+        conn.set_ex::<_, _, ()>(&redis_key, "valid", self.token_expire_seconds)
             .await
             .map_err(|e| AppError::Redis(format!("存储验证码token失败: {}", e)))?;
 
