@@ -121,6 +121,7 @@ vim .env
 - `APP_DATABASE_PASSWORD_SECRET_FILE`
 - `APP_JWT_SECRET_SECRET_FILE`
 - `APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE`
+- `APP_EMAIL_SMTP_PASSWORD_SECRET_FILE`
 - `APP__CORS__ALLOWED_ORIGINS`
 - `APP__QQ_BOT__API_URL`
 - `APP__QQ_BOT__PUBLIC_QQ_NUMBER`
@@ -128,7 +129,7 @@ vim .env
 - `APP__PUBLIC_SITE__PORT`
 - `APP__ADMIN__DEFAULT_QQ_NUMBER`
 
-对应的宿主机 secret 文件必须在部署前收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。
+对应的宿主机 secret 文件必须在部署前收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。SMTP 授权码使用 `APP_EMAIL_SMTP_PASSWORD_SECRET_FILE` 指向的宿主机文件提供，容器内固定挂载为 `/run/secrets/app_email_smtp_password`。
 
 可按需覆盖：
 

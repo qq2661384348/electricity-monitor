@@ -177,7 +177,7 @@ powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 - 工作流：`.github/workflows/docker-build.yml`
 - 镜像构建：`deploy/Dockerfile`
 - 运行时配置：工作流会先将 `config/production.toml.example` 复制为 `config/production.toml` 再构建镜像
-- 生产模板中的 `cors.allowed_origins`、`auth.refresh_cookie_secure`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`public_site.domain`、`public_site.port` 和 `admin.default_qq_number` 必须在发布前补成真实生产值；`qq_bot.bearer_token` 生产环境必须通过 secret file 注入
+- 生产模板中的 `cors.allowed_origins`、`auth.refresh_cookie_secure`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`public_site.domain`、`public_site.port` 和 `admin.default_qq_number` 必须在发布前补成真实生产值；`qq_bot.bearer_token` 和 `email.smtp_password` 生产环境必须通过 secret file 注入
 - release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
 - smoke 契约：`deploy/smoke.targets`，由 `tests/runtime/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用，包含端点、必需文件与统一响应安全头
 - release manifest：artifact 内的 `release/release-manifest.json`
@@ -187,7 +187,7 @@ powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 - `cargo audit -q` 已纳入 `.github/workflows/ci.yml` 阻断门禁
 1. 在 GitHub Actions 中手动触发发布工作流并指定 `git_tag`
 2. 下载生成的 release artifact
-3. 在服务器解压后准备 `.env` 与 `secrets/` 中的 Compose secrets 文件，并把 secret file 权限收紧到仅 owner 可读写
+3. 在服务器解压后准备 `.env` 与 `secrets/` 中的 Compose secrets 文件，并把数据库、JWT、QQ token 和 SMTP 授权码 secret file 权限收紧到仅 owner 可读写
 4. 执行 release 包中的 `deploy.sh`，必要时再执行 `smoke.sh`；smoke 会继续校验运行时端点、必需文件与统一响应安全头
 5. 部署结果会写入 release 目录下的 `deploy-result.json`
 

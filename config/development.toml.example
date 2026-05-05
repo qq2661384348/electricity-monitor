@@ -82,6 +82,19 @@ public_qq_number = ""
 bearer_token = ""
 timeout_seconds = 10
 
+[email]
+# SMTP 邮件发送链路；当前仅提供后端可复用邮件模块，不会替换 QQ 验证码发送。
+smtp_host = "smtp.qq.com"
+smtp_port = 465
+smtp_user = "cogniaegis@qq.com"
+# 公开仓库不保存真实 SMTP 授权码；本地调试请通过 APP__EMAIL__SMTP_PASSWORD(_FILE) 注入。
+smtp_password = ""
+smtp_use_tls = true
+from_name = "CogniAegis"
+timeout_seconds = 30
+max_retries = 3
+retry_delay_seconds = 2
+
 [captcha]
 api_url = "https://v2.xxapi.cn/api/captcha"
 request_timeout_seconds = 5

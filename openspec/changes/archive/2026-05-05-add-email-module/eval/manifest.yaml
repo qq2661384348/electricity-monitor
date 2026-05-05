@@ -1,0 +1,30 @@
+change: add-email-module
+scope:
+  - backend email infrastructure
+  - runtime config templates
+  - release secret wiring
+dependencies:
+  services:
+    - none for automated tests
+  external:
+    - smtp.qq.com only for optional manual smoke
+fixtures:
+  - eval/fixtures/email-config-sample.toml
+commands:
+  format: cargo fmt --check
+  unit: cargo test --lib
+  release_readiness: cargo test --test release_readiness_test
+  clippy: cargo clippy --all-targets -- -D warnings
+  audit: cargo audit -q
+  deploy_script_syntax: bash -n deploy/deploy.sh
+  compose_config: docker compose -f deploy/docker-compose.local.yml config
+assertions:
+  - ACC-001
+  - ACC-002
+  - ACC-003
+  - ACC-004
+  - ACC-005
+  - ACC-006
+  - ACC-007
+  - ACC-007b
+  - ACC-008

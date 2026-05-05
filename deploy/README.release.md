@@ -2,7 +2,7 @@
 
 此发布包由 GitHub Actions 生成，目标运行环境为 Alibaba Cloud Linux 3 amd64。
 
-镜像在工作流中基于 `config/production.toml.example -> config/production.toml` 的运行时配置构建；生产数据库密码、JWT secret 和 QQ bot token 仍以运行时 secret file 覆盖为准。CORS、QQ 机器人发送地址、机器人 QQ、公开站点域名/端口和管理员 QQ 通过 `.env` 注入，不写入模板。
+镜像在工作流中基于 `config/production.toml.example -> config/production.toml` 的运行时配置构建；生产数据库密码、JWT secret、QQ bot token 和 SMTP 授权码仍以运行时 secret file 覆盖为准。CORS、QQ 机器人发送地址、机器人 QQ、公开站点域名/端口和管理员 QQ 通过 `.env` 注入，不写入模板。
 
 ## 包内内容
 
@@ -20,7 +20,7 @@
 
 1. 解压 `release-__RELEASE_TAG__.tar.gz`。
 2. 将 `.env.example` 复制为 `.env`。
-3. 按 `.env` 中的约定填写必需运行时值，并在 `./secrets/` 下准备对应的 secret 文件，把权限收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。
+3. 按 `.env` 中的约定填写必需运行时值，并在 `./secrets/` 下准备对应的 secret 文件，包括 `app_email_smtp_password`，把权限收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。
 4. 运行以下命令：
 
 ```bash

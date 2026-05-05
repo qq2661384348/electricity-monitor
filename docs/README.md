@@ -174,8 +174,8 @@ export APP__JWT__SECRET_FILE="/run/secrets/app_jwt_secret"
 
 ### 当前配置
 
-- **开发环境**: 从 `config/development.toml.example` 复制到 `config/development.toml`，再直接修改 `database.password`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`qq_bot.bearer_token`、`public_site.domain` 和 `public_site.port`
-- **生产环境**: 通过 Compose secrets 注入数据库密码与 JWT/QQ token
+- **开发环境**: 从 `config/development.toml.example` 复制到 `config/development.toml`，再直接修改 `database.password`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`qq_bot.bearer_token`、`public_site.domain` 和 `public_site.port`；如需调试邮件发送，再通过运行时配置或 `APP__EMAIL__SMTP_PASSWORD(_FILE)` 注入 SMTP 授权码
+- **生产环境**: 通过 Compose secrets 注入数据库密码、JWT secret、QQ token 与 SMTP 授权码
 
 开发环境运行时会校验数据库和 Redis 主机，拒绝非本地地址，防止误连远端环境。
 

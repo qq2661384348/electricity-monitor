@@ -82,6 +82,19 @@ bearer_token = ""
 bearer_token_file = "/run/secrets/app_qq_bot_bearer_token"
 timeout_seconds = 10
 
+[email]
+# SMTP 邮件发送链路；生产 SMTP 授权码必须通过 secret file 注入。
+smtp_host = "smtp.qq.com"
+smtp_port = 465
+smtp_user = "cogniaegis@qq.com"
+smtp_password = ""
+smtp_password_file = "/run/secrets/app_email_smtp_password"
+smtp_use_tls = true
+from_name = "CogniAegis"
+timeout_seconds = 30
+max_retries = 3
+retry_delay_seconds = 2
+
 [captcha]
 api_url = "https://v2.xxapi.cn/api/captcha"
 request_timeout_seconds = 5

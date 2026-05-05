@@ -9,8 +9,8 @@ use std::sync::OnceLock;
 
 use super::{
     admin::ADMIN_QQ_PLACEHOLDER, auth::AuthConfig, captcha::CaptchaConfig, cors::CorsConfig,
-    AdminConfig, DatabaseConfig, ElectricityFetcherConfig, NotificationConfig, PublicSiteConfig,
-    QQBotConfig, RateLimitConfig, RedisConfig, RoomSyncConfig, StaticFilesConfig,
+    AdminConfig, DatabaseConfig, ElectricityFetcherConfig, EmailConfig, NotificationConfig,
+    PublicSiteConfig, QQBotConfig, RateLimitConfig, RedisConfig, RoomSyncConfig, StaticFilesConfig,
     VerificationConfig,
 };
 
@@ -109,6 +109,10 @@ pub struct AppConfig {
     /// 通知配置
     #[serde(default)]
     pub notification: NotificationConfig,
+
+    /// 邮件发送配置
+    #[serde(default)]
+    pub email: EmailConfig,
 
     /// 管理员配置
     #[serde(default)]
@@ -258,11 +262,17 @@ impl AppConfig {
                 Self::read_secret_file(secret_file, "qq_bot.bearer_token_file")?;
         }
 
+        if let Some(secret_file) = config.email.smtp_password_file.as_deref() {
+            config.email.smtp_password =
+                Self::read_secret_file(secret_file, "email.smtp_password_file")?;
+        }
+
         tracing::info!(
             environment = environment,
             jwt_secret_from_file = config.jwt.secret_file.is_some(),
             database_password_from_file = config.database.password_file.is_some(),
             qq_bot_token_from_file = config.qq_bot.bearer_token_file.is_some(),
+            email_password_from_file = config.email.smtp_password_file.is_some(),
             "敏感配置解析完成"
         );
 
@@ -274,7 +284,7 @@ impl AppConfig {
             return Ok(());
         }
 
-        let missing = [
+        let mut missing = [
             (
                 "jwt.secret_file",
                 config.jwt.secret_file.as_ref(),
@@ -300,6 +310,13 @@ impl AppConfig {
             }
         })
         .collect::<Vec<_>>();
+
+        if config.email.requires_secret_file_in_production()
+            && (config.email.smtp_password_file.is_none()
+                || !config.email.has_valid_resolved_password())
+        {
+            missing.push("email.smtp_password_file");
+        }
 
         if missing.is_empty() {
             return Ok(());
@@ -750,6 +767,7 @@ mod tests {
             captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
+            email: EmailConfig::default(),
             admin: AdminConfig::default(),
             public_site: PublicSiteConfig::default(),
             static_files: StaticFilesConfig::default(),
@@ -805,6 +823,7 @@ mod tests {
             captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
+            email: EmailConfig::default(),
             admin: AdminConfig::default(),
             public_site: PublicSiteConfig::default(),
             static_files: StaticFilesConfig::default(),
@@ -865,6 +884,7 @@ mod tests {
             captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
+            email: EmailConfig::default(),
             admin: AdminConfig::default(),
             public_site: PublicSiteConfig::default(),
             static_files: StaticFilesConfig::default(),
@@ -903,6 +923,8 @@ mod tests {
         );
         env.insert("APP__DATABASE__PORT".to_string(), "15432".to_string());
         env.insert("APP__REDIS__PORT".to_string(), "16379".to_string());
+        env.insert("APP__EMAIL__SMTP_PORT".to_string(), "587".to_string());
+        env.insert("APP__EMAIL__SMTP_USE_TLS".to_string(), "false".to_string());
         env.insert(
             "APP__DATABASE__MAX_CONNECTIONS".to_string(),
             "11".to_string(),
@@ -915,6 +937,8 @@ mod tests {
 
         assert_eq!(config.database.port, 15432);
         assert_eq!(config.redis.port, 16379);
+        assert_eq!(config.email.smtp_port, 587);
+        assert!(!config.email.smtp_use_tls);
         assert_eq!(config.database.max_connections, 11);
         assert_eq!(config.jwt.expiration_hours, 48);
         assert!(!config.room_sync.enabled);
@@ -1048,10 +1072,12 @@ mod tests {
         let jwt_secret_path = temp_dir.join("jwt_secret");
         let db_password_path = temp_dir.join("db_password");
         let qq_token_path = temp_dir.join("qq_token");
+        let email_password_path = temp_dir.join("email_password");
 
         fs::write(&jwt_secret_path, "secret-from-file\n").unwrap();
         fs::write(&db_password_path, "db-password-from-file\n").unwrap();
         fs::write(&qq_token_path, "qq-token-from-file\n").unwrap();
+        fs::write(&email_password_path, "email-password-from-file\n").unwrap();
 
         let mut env = HashMap::new();
         env.insert(
@@ -1066,6 +1092,10 @@ mod tests {
             "APP__QQ_BOT__BEARER_TOKEN_FILE".to_string(),
             qq_token_path.to_string_lossy().to_string(),
         );
+        env.insert(
+            "APP__EMAIL__SMTP_PASSWORD_FILE".to_string(),
+            email_password_path.to_string_lossy().to_string(),
+        );
 
         let config = AppConfig::load_for_environment_with_source("development", Some(env))
             .expect("secret file 覆盖应成功");
@@ -1073,10 +1103,12 @@ mod tests {
         assert_eq!(config.jwt.secret, "secret-from-file");
         assert_eq!(config.database.password, "db-password-from-file");
         assert_eq!(config.qq_bot.bearer_token, "qq-token-from-file");
+        assert_eq!(config.email.smtp_password, "email-password-from-file");
 
         let _ = fs::remove_file(jwt_secret_path);
         let _ = fs::remove_file(db_password_path);
         let _ = fs::remove_file(qq_token_path);
+        let _ = fs::remove_file(email_password_path);
         let _ = fs::remove_dir(temp_dir);
     }
 
@@ -1156,6 +1188,7 @@ mod tests {
             captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
+            email: EmailConfig::default(),
             admin: AdminConfig {
                 default_qq_number: "100000001".to_string(),
             },
@@ -1167,6 +1200,84 @@ mod tests {
             .expect_err("production 环境缺少 secret file 时应失败");
 
         assert!(err.to_string().contains("Compose secrets"));
+    }
+
+    #[test]
+    fn test_production_requires_email_secret_file_when_email_is_configured() {
+        let config = AppConfig {
+            server: ServerConfig {
+                host: "0.0.0.0".to_string(),
+                port: 8000,
+            },
+            database: DatabaseConfig {
+                db_type: DatabaseType::Postgres,
+                host: "db.example.internal".to_string(),
+                port: 5432,
+                username: "postgres".to_string(),
+                password: "secret".to_string(),
+                password_file: Some("/run/secrets/db_password".to_string()),
+                database: "electricity_pro".to_string(),
+                max_connections: 20,
+                min_connections: 5,
+                connection_timeout: 30,
+            },
+            jwt: JwtConfig {
+                secret: "jwt-secret".to_string(),
+                secret_file: Some("/run/secrets/jwt_secret".to_string()),
+                expiration_hours: 24,
+            },
+            auth: AuthConfig {
+                refresh_expiration_hours: 24 * 7,
+                refresh_cookie_secure: true,
+                refresh_cookie_same_site: "lax".to_string(),
+            },
+            logging: LoggingConfig {
+                level: "info".to_string(),
+                format: "json".to_string(),
+            },
+            redis: RedisConfig {
+                host: "redis.example.internal".to_string(),
+                port: 6379,
+                max_connections: 10,
+                min_connections: 2,
+                connection_timeout: 30,
+            },
+            cors: CorsConfig {
+                allowed_origins: "https://frontend.example.com".to_string(),
+            },
+            rate_limit: RateLimitConfig {
+                insert_per_second: 200,
+                query_per_second: 200,
+            },
+            room_sync: RoomSyncConfig::default(),
+            electricity_fetcher: ElectricityFetcherConfig::default(),
+            qq_bot: QQBotConfig {
+                bearer_token: "qq-token".to_string(),
+                bearer_token_file: Some("/run/secrets/qq_token".to_string()),
+                public_qq_number: "100000002".to_string(),
+                ..QQBotConfig::default()
+            },
+            captcha: CaptchaConfig::default(),
+            verification: VerificationConfig::default(),
+            notification: NotificationConfig::default(),
+            email: EmailConfig {
+                smtp_host: "smtp.qq.com".to_string(),
+                smtp_user: "cogniaegis@qq.com".to_string(),
+                smtp_password: "".to_string(),
+                smtp_password_file: None,
+                ..EmailConfig::default()
+            },
+            admin: AdminConfig {
+                default_qq_number: "100000001".to_string(),
+            },
+            public_site: PublicSiteConfig::default(),
+            static_files: StaticFilesConfig::default(),
+        };
+
+        let err = AppConfig::validate_sensitive_config(&config, "production")
+            .expect_err("配置 email SMTP 时 production 必须提供 smtp_password_file");
+
+        assert!(err.to_string().contains("email.smtp_password_file"));
     }
 
     #[test]
@@ -1227,6 +1338,7 @@ mod tests {
             captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
+            email: EmailConfig::default(),
             admin: AdminConfig {
                 default_qq_number: ADMIN_QQ_PLACEHOLDER.to_string(),
             },
@@ -1298,6 +1410,7 @@ mod tests {
             captcha: CaptchaConfig::default(),
             verification: VerificationConfig::default(),
             notification: NotificationConfig::default(),
+            email: EmailConfig::default(),
             admin: AdminConfig {
                 default_qq_number: "100000001".to_string(),
             },

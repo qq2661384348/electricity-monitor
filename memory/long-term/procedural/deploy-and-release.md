@@ -2,12 +2,15 @@
 type: procedural
 status: verified
 scope: 部署与 release 流程
-updated_at: 2026-04-17
-verified_at: 2026-04-17
+updated_at: 2026-05-05
+verified_at: 2026-05-05
 sources:
   - .github/workflows/docker-build.yml
+  - deploy/compose.release.yml
+  - deploy/deploy.sh
   - deploy/README.md
   - deploy/README.release.md
+  - deploy/release.env.example
   - deploy/smoke.targets
 summary: 生产发布主线、release 产物、服务器职责和共享部署契约
 ---
@@ -36,7 +39,8 @@ summary: 生产发布主线、release 产物、服务器职责和共享部署契
 
 - `deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`、`deploy/smoke.sh`、`deploy/smoke.targets`、`deploy/README.release.md` 负责 release 包模板。
 - `deploy/build.sh` 与 `deploy/docker-compose.local.yml` 只用于本地 Docker 调试，不是生产发布主线。
-- release 部署脚本会对 `APP_DATABASE_PASSWORD_SECRET_FILE`、`APP_JWT_SECRET_SECRET_FILE`、`APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE` 做 owner-only 权限校验；group / other 有权限位时直接失败。
+- release 部署脚本会对 `APP_DATABASE_PASSWORD_SECRET_FILE`、`APP_JWT_SECRET_SECRET_FILE`、`APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE`、`APP_EMAIL_SMTP_PASSWORD_SECRET_FILE` 做 owner-only 权限校验；group / other 有权限位时直接失败。
+- SMTP 授权码在 release 包内通过 `APP_EMAIL_SMTP_PASSWORD_SECRET_FILE` 指向宿主机文件，并由 compose 挂载为 `/run/secrets/app_email_smtp_password`，应用侧通过 `APP__EMAIL__SMTP_PASSWORD_FILE` 读取。
 - release `.env` 必须显式提供 `APP__CORS__ALLOWED_ORIGINS`、`APP__QQ_BOT__API_URL`、`APP__QQ_BOT__PUBLIC_QQ_NUMBER`、`APP__PUBLIC_SITE__DOMAIN`、`APP__PUBLIC_SITE__PORT` 与 `APP__ADMIN__DEFAULT_QQ_NUMBER`；这些非敏感运行时值不写入生产配置模板。
 - `deploy/smoke.targets` 是本地 readiness test 与 release smoke 的共享检查目标真源。
 - `deploy.sh` 会读取 manifest 做一致性校验，`smoke.sh` 会检查 `/api/health`、`/api/health/db`、静态入口、必需响应头和 manifest / result 文件。

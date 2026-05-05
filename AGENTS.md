@@ -66,6 +66,7 @@
 - `frontend/scripts/check-bundle-budgets.ts` 是前端 JS chunk 预算真源；`vite.config.ts` 里的 warning 阈值只做粗粒度提示。
 - 前端 `build:prod` 会在构建后把 `frontend/dist/` 复制到根目录 `static/`；`static/` 只保留目录占位 `.gitkeep`，不要把构建产物重新纳入版本控制。
 - `memory/short-term/working/current.md` 是短期工作态固定入口；额外短期文件只允许作为例外使用 `st-` 前缀，并写明失效条件；不要把临时过程直接写进长期 memory。
+- `openspec/` 下的 proposal、requirements、design、worklog、ADR、eval 等可公开工件不能记录local environment绝对路径、用户目录、WSL / Windows 挂载路径或私有参考项目源码路径；引用参考实现时只描述可复用能力和必要配置。
 
 ## 变更同步要求
 

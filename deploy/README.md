@@ -18,7 +18,7 @@
 
 - `build.sh`: 本地 Docker 调试入口
 - `docker-compose.local.yml`: 本地 Docker 调试使用的 compose 文件
-- `build.sh` 会在缺少 `config/development.toml` 时自动从 `config/development.toml.example` 复制一份本地运行时配置；运行前仍需填写数据库密码、`qq_bot.api_url`、`qq_bot.public_qq_number`、`qq_bot.bearer_token`、`public_site.domain` 和 `public_site.port`
+- `build.sh` 会在缺少 `config/development.toml` 时自动从 `config/development.toml.example` 复制一份本地运行时配置；运行前仍需填写数据库密码、`qq_bot.api_url`、`qq_bot.public_qq_number`、`qq_bot.bearer_token`、`public_site.domain` 和 `public_site.port`。如需本地调试邮件发送，再通过 `APP__EMAIL__SMTP_PASSWORD(_FILE)` 注入 SMTP 授权码。
 
 ## 当前真源
 
@@ -26,7 +26,7 @@
 - PR / 手动质量门禁：`.github/workflows/ci.yml`
 - 服务器部署方式：下载 GitHub Actions artifact，解压后执行包内 `deploy.sh`
 - 本地 Docker 调试前会优先使用 `config/development.toml.example -> config/development.toml` 的本地运行时配置，且该运行时配置必须补齐 `database.password`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`qq_bot.bearer_token`、`public_site.domain` 与 `public_site.port`
-- 生产敏感配置通过 Compose secrets 提供，并由 `.env` 中的 `*_SECRET_FILE` 指向宿主机文件
+- 生产敏感配置通过 Compose secrets 提供，并由 `.env` 中的 `*_SECRET_FILE` 指向宿主机文件，当前覆盖数据库密码、JWT secret、QQ bearer token 和 SMTP 授权码
 - `.env` 还必须显式填写 CORS、QQ 机器人发送配置、公开站点域名/端口和管理员 QQ；这些值不会写入 `production.toml.example`
 - release 部署前必须把 secret file 权限收紧到仅 owner 可读写；`deploy.sh` 会对权限过宽的文件直接 fail-fast
 - 服务器部署时会读取 `release-manifest.json`，并在 release 目录写出 `deploy-result.json`

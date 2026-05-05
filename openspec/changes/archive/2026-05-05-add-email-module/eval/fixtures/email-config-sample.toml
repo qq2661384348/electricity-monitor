@@ -1,0 +1,10 @@
+[email]
+smtp_host = "smtp.qq.com"
+smtp_port = 465
+smtp_user = "cogniaegis@qq.com"
+smtp_password = ""
+smtp_use_tls = true
+from_name = "CogniAegis"
+timeout_seconds = 30
+max_retries = 3
+retry_delay_seconds = 2

@@ -124,6 +124,7 @@ load_env() {
     : "${APP_DATABASE_PASSWORD_SECRET_FILE:?APP_DATABASE_PASSWORD_SECRET_FILE 未配置}"
     : "${APP_JWT_SECRET_SECRET_FILE:?APP_JWT_SECRET_SECRET_FILE 未配置}"
     : "${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE:?APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE 未配置}"
+    : "${APP_EMAIL_SMTP_PASSWORD_SECRET_FILE:?APP_EMAIL_SMTP_PASSWORD_SECRET_FILE 未配置}"
     : "${APP__CORS__ALLOWED_ORIGINS:?APP__CORS__ALLOWED_ORIGINS 未配置}"
     : "${APP__QQ_BOT__API_URL:?APP__QQ_BOT__API_URL 未配置}"
     : "${APP__QQ_BOT__PUBLIC_QQ_NUMBER:?APP__QQ_BOT__PUBLIC_QQ_NUMBER 未配置}"
@@ -135,10 +136,12 @@ load_env() {
     [ -f "${APP_DATABASE_PASSWORD_SECRET_FILE}" ] || error "数据库密码 secret file 不存在: ${APP_DATABASE_PASSWORD_SECRET_FILE}"
     [ -f "${APP_JWT_SECRET_SECRET_FILE}" ] || error "JWT secret file 不存在: ${APP_JWT_SECRET_SECRET_FILE}"
     [ -f "${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE}" ] || error "QQ Bearer token secret file 不存在: ${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE}"
+    [ -f "${APP_EMAIL_SMTP_PASSWORD_SECRET_FILE}" ] || error "SMTP 授权码 secret file 不存在: ${APP_EMAIL_SMTP_PASSWORD_SECRET_FILE}"
 
     validate_secret_file_permissions "${APP_DATABASE_PASSWORD_SECRET_FILE}"
     validate_secret_file_permissions "${APP_JWT_SECRET_SECRET_FILE}"
     validate_secret_file_permissions "${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE}"
+    validate_secret_file_permissions "${APP_EMAIL_SMTP_PASSWORD_SECRET_FILE}"
 
     docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" config >/dev/null
 
