@@ -28,6 +28,7 @@ cargo install diesel_cli --no-default-features --features postgres
 cp config/development.toml.example config/development.toml
 
 # 4. 将 config/development.toml 中的 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
+#    同时填写 qq_bot.public_qq_number；这是前端提示用户添加好友的机器人 QQ 号
 
 # 5. 配置环境
 export APP_ENV=development
@@ -50,7 +51,7 @@ Windows 原生：
 ```powershell
 cargo install diesel_cli --no-default-features --features postgres
 Copy-Item config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值，并填写 qq_bot.public_qq_number
 $env:APP_ENV="development"
 cargo run --bin migrate
 cargo run
@@ -118,7 +119,7 @@ deploy/
 
 ```bash
 cp config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.public_qq_number
 export APP_ENV=development
 export RUST_LOG=debug
 # development 环境只允许连接本地 PostgreSQL / Redis；
@@ -129,7 +130,7 @@ export RUST_LOG=debug
 
 ```powershell
 Copy-Item config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.public_qq_number
 $env:APP_ENV="development"
 $env:RUST_LOG="debug"
 # development 环境只允许连接本地 PostgreSQL / Redis
@@ -149,7 +150,9 @@ export RUST_LOG=info
 
 - `cors.allowed_origins` 使用逗号分隔字符串维护前端 Origin 白名单；开发模板默认是 `http://localhost:5173`。
 - `auth.refresh_cookie_secure` 与 `auth.refresh_cookie_same_site` 控制 refresh cookie；生产环境要求 `refresh_cookie_secure = true`。
+- `qq_bot.public_qq_number` 必须由部署者手动填写，前端会通过 `/api/public-config` 展示该机器人 QQ 号，不能从管理员 QQ 或 NapCat 登录信息自动推断。
 - `admin.default_qq_number` 在生产环境不能留空，也不能保留模板占位值；只有显式配置的真实管理员 QQ 才会授予 `admin`。
+- `[captcha]` 和 `[verification]` 控制第三方图形验证码参数、一次性 captcha token 有效期以及 QQ 登录验证码长度。
 - 登录成功后，refresh token 只通过 HTTPOnly Cookie 下发；前端只接收和持有 access token。
 
 ## 开发工具
@@ -173,7 +176,7 @@ powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 - 工作流：`.github/workflows/docker-build.yml`
 - 镜像构建：`deploy/Dockerfile`
 - 运行时配置：工作流会先将 `config/production.toml.example` 复制为 `config/production.toml` 再构建镜像
-- 生产模板中的 `cors.allowed_origins`、`auth.refresh_cookie_secure` 和 `admin.default_qq_number` 必须在发布前补成真实生产值
+- 生产模板中的 `cors.allowed_origins`、`auth.refresh_cookie_secure`、`qq_bot.public_qq_number` 和 `admin.default_qq_number` 必须在发布前补成真实生产值
 - release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
 - smoke 契约：`deploy/smoke.targets`，由 `tests/runtime/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用，包含端点、必需文件与统一响应安全头
 - release manifest：artifact 内的 `release/release-manifest.json`

@@ -2,10 +2,13 @@
 type: semantic
 status: verified
 scope: 运行时配置与环境
-updated_at: 2026-04-17
-verified_at: 2026-04-17
+updated_at: 2026-05-05
+verified_at: 2026-05-05
 sources:
   - src/config/app.rs
+  - src/config/captcha.rs
+  - src/config/qq_bot.rs
+  - src/handlers/public_config.rs
   - config/development.toml.example
   - config/production.toml.example
   - scripts/backend-checks.ps1
@@ -29,6 +32,7 @@ summary: 运行时配置加载顺序、环境语义、关键依赖和 fail-fast 
 - `config/` 目录下只能保留一个运行时 `.toml` 文件，文件名必须是 `development.toml` 或 `production.toml`，并与 `APP_ENV` 保持一致。
 - `config/development.toml` 与 `config/production.toml` 都不纳入版本控制；运行前先从对应模板复制，再在目标环境中补齐真实值。
 - 缺少当前环境对应的运行时配置文件时，应用会明确报错并提示从模板复制。
+- `GET /api/public-config` 只暴露前端需要的非敏感运行时配置：机器人 QQ、管理员 QQ、第三方图形验证码参数和 QQ 验证码参数。
 
 ## 环境语义
 
@@ -45,6 +49,10 @@ summary: 运行时配置加载顺序、环境语义、关键依赖和 fail-fast 
 - 开发环境要求在复制出来的 `config/development.toml` 中显式填写 `database.password`，不能依赖隐式环境变量；如果本地 Docker PostgreSQL 使用 trust 认证，也必须把占位符替换为非空开发值。
 - `development` 环境下如果 `database.password` 为空或仍是模板占位值，应用会在配置阶段直接失败。
 - `production` 环境缺少 `jwt.secret_file`、`database.password_file` 或 `qq_bot.bearer_token_file` 时会 fail-fast。
+- `qq_bot.public_qq_number` 是部署者手动填写的机器人 QQ 号真源，模板默认留空，运行时必须配置为真实 QQ 号；它不能从 `admin.default_qq_number` 推断，也不能通过自动读取 NapCat 登录信息替代。
+- `admin.default_qq_number` 同时用于管理员提升和前端支持引导，运行时必须是 5 到 20 位数字且不能保留占位值。
+- `[captcha]` 控制第三方图形验证码的 `api_url`、请求超时、一次性 `captcha_token` 有效期、验证码类型、宽高和难度；前端与后端校验代理通过 `/api/public-config` 共享这些非敏感参数，避免硬编码漂移。
+- `[verification]` 控制 QQ 登录验证码长度、Redis 有效期和 key 前缀；验证码长度允许配置为 1 到 20 位数字。
 
 ## 与测试相关的环境变量
 

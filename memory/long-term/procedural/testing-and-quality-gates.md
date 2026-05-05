@@ -52,6 +52,7 @@ summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执�
 
 - `deploy/smoke.targets` 是本地 readiness test 与 release smoke 共用的检查目标真源。
 - 共享检查目标包含 `/api/health`、`/api/health/db`、`/`、`release-manifest.json`、`deploy-result.json` 与一组统一响应安全头。
+- `tests/runtime/release_readiness_test.rs` 额外覆盖 `/api/public-config`，确保公开运行时配置响应带统一安全头且不暴露完整 `qq_bot` 配置或 bearer token。
 - 如果修改健康检查路径、静态入口或 release 产物文件名，必须先更新 `deploy/smoke.targets`，再同步测试、脚本与文档。
 
 ## CI 门禁结构
@@ -68,6 +69,7 @@ summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执�
 
 - 本地运行前先从 `config/development.toml.example` 复制生成 `config/development.toml`，不要直接编辑仓库模板保存local environment参数。
 - 若本地 PostgreSQL 密码与开发模板不一致，直接修改本地 `config/development.toml` 中的 `database.password`。
+- `config/development.toml` 还必须填写 `qq_bot.public_qq_number`；它会被 `/api/public-config` readiness 覆盖校验并用于前端好友添加引导。
 - `scripts/backend-checks.sh` 与 `scripts/backend-checks.ps1` 会检查 `config/development.toml` 是否仍保留模板占位值，并统一执行迁移与后端关键回归；前者用于 Linux，后者用于 Windows 原生环境。
 
 ## 仍未接入默认阻断门禁的验证

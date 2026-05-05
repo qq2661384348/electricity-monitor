@@ -6,11 +6,12 @@
 
 ## 真源与入口
 
-- `entities/` 是前端按领域收敛的单域网关层，当前以 `room` 和 `binding` 为主。
+- `entities/` 是前端按领域收敛的单域网关层，当前以 `room`、`binding` 和 `public-config` 为主。
 - 实体层应该保持 UI 无关，主要承接单域 API、必要的领域转换和稳定公共出口。
 - 每个实体目录都应通过 `index.ts` 暴露公共 API，避免业务层长期直接依赖深层文件路径。
 - HTTP 访问统一复用 `shared/api/http-client.ts`。
 - query key 统一复用 `shared/api/queryKeys.ts`，不要在实体层散落重复字符串 key。
+- `entities/public-config/` 只承接 `/api/public-config` 的非敏感运行时配置，供页面层和 feature 层读取机器人 QQ、管理员 QQ、验证码参数和 QQ 验证码长度。
 
 ## 边界与禁止项
 

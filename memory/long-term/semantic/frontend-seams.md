@@ -2,11 +2,13 @@
 type: semantic
 status: verified
 scope: 前端可维护性接缝
-updated_at: 2026-04-17
-verified_at: 2026-04-17
+updated_at: 2026-05-05
+verified_at: 2026-05-05
 sources:
   - frontend/src/App.tsx
   - frontend/src/shared/api/http-client.ts
+  - frontend/src/entities/public-config/api/publicConfigApi.ts
+  - frontend/src/features/public-config/model/usePublicConfig.ts
   - frontend/src/features
   - frontend/src/entities
 summary: 前端启动、会话、HTTP、page/feature/entity 和可复用 UI 接缝
@@ -27,6 +29,12 @@ summary: 前端启动、会话、HTTP、page/feature/entity 和可复用 UI 接�
 - `frontend/src/shared/api/http-client.ts` 是真实 HTTP client 真源，统一处理 `/api` 前缀、`withCredentials`、Bearer token 注入、refresh 和 401 重放。
 - `frontend/src/services/api.ts` 只是兼容 facade，不应重新演化成新的 API 真源。
 - 新增接口优先落在 `shared/api`、`entities/*/api` 或 `features/*/api`，不要直接在页面或组件里散落 Axios 调用。
+
+## 公开运行时配置接缝
+
+- `/api/public-config` 的前端访问收敛在 `frontend/src/entities/public-config/api/publicConfigApi.ts`，React Query hook 收敛在 `frontend/src/features/public-config/model/usePublicConfig.ts`。
+- 登录页、登录弹窗、验证码弹窗、首页教程和公告中的机器人 QQ、管理员 QQ、第三方验证码参数与 QQ 验证码长度都应读取公开配置；不要在 UI 中硬编码机器人号、管理员号或 6 位验证码长度。
+- `frontend/src/entities/public-config/api/publicConfigApi.ts` 中的 fallback 只用于接口短暂不可用时维持旧默认体验；真实运行时仍依赖后端配置校验保证机器人 QQ 与管理员 QQ 非空。
 
 ## 页面 / feature / entity 接缝
 

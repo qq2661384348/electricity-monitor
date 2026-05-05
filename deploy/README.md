@@ -18,14 +18,14 @@
 
 - `build.sh`: 本地 Docker 调试入口
 - `docker-compose.local.yml`: 本地 Docker 调试使用的 compose 文件
-- `build.sh` 会在缺少 `config/development.toml` 时自动从 `config/development.toml.example` 复制一份本地运行时配置
+- `build.sh` 会在缺少 `config/development.toml` 时自动从 `config/development.toml.example` 复制一份本地运行时配置；运行前仍需填写数据库密码和 `qq_bot.public_qq_number`
 
 ## 当前真源
 
 - 生产发布主线：`.github/workflows/docker-build.yml`
 - PR / 手动质量门禁：`.github/workflows/ci.yml`
 - 服务器部署方式：下载 GitHub Actions artifact，解压后执行包内 `deploy.sh`
-- 本地 Docker 调试前会优先使用 `config/development.toml.example -> config/development.toml` 的本地运行时配置
+- 本地 Docker 调试前会优先使用 `config/development.toml.example -> config/development.toml` 的本地运行时配置，且该运行时配置必须补齐 `database.password` 与 `qq_bot.public_qq_number`
 - 生产敏感配置通过 Compose secrets 提供，并由 `.env` 中的 `*_SECRET_FILE` 指向宿主机文件
 - release 部署前必须把 secret file 权限收紧到仅 owner 可读写；`deploy.sh` 会对权限过宽的文件直接 fail-fast
 - 服务器部署时会读取 `release-manifest.json`，并在 release 目录写出 `deploy-result.json`

@@ -6,6 +6,8 @@ updated_at: 2026-05-05
 verified_at: 2026-05-05
 sources:
   - src/handlers/auth.rs
+  - src/config/captcha.rs
+  - src/config/verification.rs
   - src/modules/auth/api/middleware.rs
   - src/modules/room/application/mod.rs
   - src/handlers/path_tree.rs
@@ -21,6 +23,8 @@ summary: JWT 类型边界、cookie 会话契约、CORS 白名单、管理员提�
 - `src/modules/auth/` 是鉴权边界真源，负责 claims 解析、`Actor` 映射和认证中间件。
 - `src/middleware/auth.rs` 仅保留兼容 facade / `UserContext` 投影，不应重新变成主逻辑入口。
 - `/api/auth/send-verification-code` 必须先消费 `/api/captcha/verify` 签发的一次性 `captcha_token`，缺失、过期或重复使用时不得调用 QQ 机器人发送验证码。
+- `/api/captcha/verify` 签发的 `captcha_token` 有效期由 `captcha.token_expire_seconds` 控制；QQ 登录验证码长度和 Redis 有效期分别由 `verification.code_length` 与 `verification.expire_seconds` 控制。
+- `/api/auth/verify-and-login` 只接受与 `verification.code_length` 完全一致的数字验证码，不应在前端或后端继续硬编码 6 位长度。
 - JWT claims 显式区分 `token_kind=access|refresh`；受保护接口只接受 access token，`/api/auth/refresh` 只接受 refresh token。
 - `src/handlers/auth.rs` 负责签发 access token、轮换 refresh cookie 与 logout 清理 cookie 的 HTTP 契约；不要在其他 handler 重新实现这套逻辑。
 - `/api/rooms/by-path` 与 `/api/rooms/by-hash` 是房间详情读取入口，必须通过 `RoomAccessUseCase::ensure_room_access` 约束为管理员或已绑定用户；绑定前路径树只允许返回叶子节点 `roomid` 这类最小绑定标识，不返回电费余额或阈值。

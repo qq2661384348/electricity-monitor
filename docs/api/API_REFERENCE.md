@@ -73,6 +73,64 @@ curl http://localhost:8000/api/health/db
 
 ---
 
+## 公开运行时配置
+
+### 读取公开配置
+
+- **端点**: `GET /api/public-config`
+- **认证**: 无需认证
+- **描述**: 返回前端需要展示或复用的非敏感运行时配置，包括机器人 QQ、管理员 QQ、第三方图形验证码参数和 QQ 验证码参数。该接口不会暴露 NapCat Bearer token、JWT secret、数据库密码等敏感字段。
+
+#### 请求示例
+
+```bash
+curl http://localhost:8000/api/public-config
+```
+
+#### 响应示例
+
+```json
+{
+  "notification": {
+    "qq_bot_public_qq_number": "100000002",
+    "admin_qq_number": "100000001"
+  },
+  "captcha": {
+    "api_url": "https://v2.xxapi.cn/api/captcha",
+    "request_timeout_seconds": 5,
+    "token_expire_seconds": 60,
+    "captcha_type": "math",
+    "width": 300,
+    "height": 100,
+    "options": 2
+  },
+  "verification": {
+    "code_length": 6,
+    "expire_seconds": 300
+  }
+}
+```
+
+#### 响应字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| notification.qq_bot_public_qq_number | string | 部署者手动配置的机器人 QQ 号，用于前端引导用户添加好友 |
+| notification.admin_qq_number | string | 管理员 QQ 号，用于前端公告和异常引导 |
+| captcha.api_url | string | 第三方图形验证码生成与校验 API 地址 |
+| captcha.request_timeout_seconds | number | 第三方验证码 HTTP 请求超时时间，单位秒 |
+| captcha.token_expire_seconds | number | `/api/captcha/verify` 成功后签发的一次性 `captcha_token` 有效期，单位秒 |
+| captcha.captcha_type | string | 图形验证码类型，支持 `string`、`math`、`digit` |
+| captcha.width | number | 前端生成验证码图片时传给第三方的宽度 |
+| captcha.height | number | 前端生成验证码图片时传给第三方的高度 |
+| captcha.options | number | 前端生成验证码图片时传给第三方的难度等级，支持 `1`、`2`、`3` |
+| verification.code_length | number | QQ 登录验证码长度 |
+| verification.expire_seconds | number | QQ 登录验证码在 Redis 中的有效期，单位秒 |
+
+> `qq_bot_public_qq_number` 必须由部署者手动填写，不能从 NapCat 登录信息自动推断。
+
+---
+
 ## 认证
 
 当前认证链路采用“双 token”模型：
@@ -124,6 +182,8 @@ curl http://localhost:8000/api/health/db
 }
 ```
 
+> `type` 应与 `GET /api/public-config` 返回的 `captcha.captcha_type` 保持一致。
+
 #### 响应示例
 
 ```json
@@ -153,6 +213,8 @@ curl http://localhost:8000/api/health/db
   "code": "123456"
 }
 ```
+
+> `code` 长度由 `verification.code_length` 控制，默认模板为 6 位数字。
 
 #### 响应头
 

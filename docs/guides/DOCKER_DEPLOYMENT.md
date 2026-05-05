@@ -78,6 +78,7 @@ deploy/
 - `cors.allowed_origins`
 - `auth.refresh_cookie_secure`
 - `auth.refresh_cookie_same_site`
+- `qq_bot.public_qq_number`
 - `admin.default_qq_number`
 
 ### 构建性能优化
@@ -126,6 +127,7 @@ vim .env
 - `APP__DATABASE__PORT`
 - `APP__DATABASE__USERNAME`
 - `APP__DATABASE__DATABASE`
+- `APP__QQ_BOT__PUBLIC_QQ_NUMBER`
 - `APP_HOST_PORT`
 - `APP_BIND_ADDRESS`
 
@@ -216,6 +218,6 @@ chmod +x smoke.sh
 
 仓库中的 `deploy/build.sh` 和 `deploy/docker-compose.local.yml` 仍可用于本地 Docker 调试，但它们不再是推荐的生产发布主线。
 
-`deploy/build.sh` 在检测到缺少 `config/development.toml` 时，会自动从 `config/development.toml.example` 复制一份本地运行时配置；后续仍需把其中的数据库密码改成当前本地 PostgreSQL 的真实密码或非空开发值。
+`deploy/build.sh` 在检测到缺少 `config/development.toml` 时，会自动从 `config/development.toml.example` 复制一份本地运行时配置；后续仍需把其中的数据库密码改成当前本地 PostgreSQL 的真实密码或非空开发值，并填写 `qq_bot.public_qq_number`。
 
 生产发布主线以 GitHub Actions artifact 为准。

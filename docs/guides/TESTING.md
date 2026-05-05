@@ -22,7 +22,7 @@
 
 - `src/**`：单元测试与少量带环境门槛的基础设施测试
 - `tests/contracts/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me`、`/api/auth/refresh`、`/api/bindings` CRUD、越权访问与 admin 限制契约，同时覆盖 refresh cookie 轮换、refresh token 误用为 Bearer、access token 误用为 refresh、logout 清理 cookie、发送 QQ 验证码必须携带一次性 captcha token、未绑定用户不能读取房间路径详情
-- `tests/runtime/release_readiness_test.rs`：读取 `deploy/smoke.targets`，校验 health / db health / 静态入口、必需文件与统一响应安全头契约
+- `tests/runtime/release_readiness_test.rs`：读取 `deploy/smoke.targets`，校验 health / db health / 静态入口、必需文件、统一响应安全头契约，并覆盖 `/api/public-config` 只暴露非敏感运行时配置
 - `tests/contracts/send_verification_code_integration_test.rs`：通过本地 mock NapCat HTTP API 覆盖 `/api/auth/send-verification-code` 的成功发送与 `USER_NOT_FRIEND` 分支；测试会直接种入一次性 captcha token，避免依赖第三方验证码服务
 - `tests/support/`：共享 app factory、登录 fixture、seed helper、smoke 契约读取
 - `tests/infra/`：环境型独立 test target 的预留分层；当前目录中记录了仍在源码内的 infra 覆盖位置
@@ -49,8 +49,9 @@
 1. 本地 PostgreSQL 与 Redis 已启动；它们可以是系统服务，也可以是映射到 `127.0.0.1:5432` / `127.0.0.1:6379` 的 Docker 容器
 2. 已从 `config/development.toml.example` 复制生成 `config/development.toml`
 3. 已将 `config/development.toml` 中的 `database.password` 改成当前本地 PostgreSQL 的真实密码或非空开发值
-4. `APP_ENV=development`
-5. 已执行迁移：`cargo run --bin migrate`
+4. 已填写 `config/development.toml` 中的 `qq_bot.public_qq_number`；该值用于 `/api/public-config` 和前端好友添加引导
+5. `APP_ENV=development`
+6. 已执行迁移：`cargo run --bin migrate`
 
 开发环境只允许连接本地 PostgreSQL / Redis；不要把 `development` 指向远端库。
 
@@ -89,7 +90,7 @@ Linux：
 
 ```bash
 cp config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值，并填写 qq_bot.public_qq_number
 export APP_ENV=development
 cargo run --bin migrate
 cargo clippy --all-targets -- -D warnings
@@ -102,7 +103,7 @@ Windows 原生：
 
 ```powershell
 Copy-Item config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值，并填写 qq_bot.public_qq_number
 $env:APP_ENV="development"
 cargo run --bin migrate
 cargo clippy --all-targets -- -D warnings
