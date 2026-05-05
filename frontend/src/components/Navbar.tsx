@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { Zap, User, Bell, LogOut } from 'lucide-react';
 import { AnnouncementModal } from '@/components/AnnouncementModal';
 import { UserInfoModal } from '@/components/UserInfoModal';
+import { Button } from '@/components/ui/Button';
+import { ComicModal } from '@/components/ui/comic-modal';
 import { authApi } from '@/features/auth-login';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -14,11 +16,22 @@ export function Navbar({ onLoginClick }: NavbarProps) {
   const { user, isAuthenticated, logout } = useAuthStore();
   const [isAnnouncementOpen, setIsAnnouncementOpen] = useState(false);
   const [isUserInfoOpen, setIsUserInfoOpen] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const closeLogoutConfirm = () => {
+    if (!isLoggingOut) {
+      setIsLogoutConfirmOpen(false);
+    }
+  };
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       await authApi.logout();
     } finally {
+      setIsLoggingOut(false);
+      setIsLogoutConfirmOpen(false);
       logout();
     }
   };
@@ -48,16 +61,14 @@ export function Navbar({ onLoginClick }: NavbarProps) {
         {/* 用户区域 - 响应式间距 */}
         <div className="flex items-center gap-2 sm:gap-4">
           {/* 通知按钮 */}
-          {isAuthenticated && (
-            <button
-              className="relative p-2 border-2 border-black hover:border-brand-primary rounded-none transition-all hover:bg-yellow-200 shadow-[2px_2px_0_0_#000] hover:shadow-[3px_3px_0_0_#000]"
-              onClick={() => setIsAnnouncementOpen(true)}
-              aria-label="查看公告"
-            >
-              <Bell className="w-6 h-6 text-black" />
-              <span className="absolute top-1 right-1 w-3 h-3 bg-status-danger border-2 border-black rounded-full" />
-            </button>
-          )}
+          <button
+            className="relative p-2 border-2 border-black hover:border-brand-primary rounded-none transition-all hover:bg-yellow-200 shadow-[2px_2px_0_0_#000] hover:shadow-[3px_3px_0_0_#000]"
+            onClick={() => setIsAnnouncementOpen(true)}
+            aria-label="查看公告"
+          >
+            <Bell className="w-6 h-6 text-black" />
+            <span className="absolute top-1 right-1 w-3 h-3 bg-status-danger border-2 border-black rounded-full" />
+          </button>
 
           {/* 用户信息/登录按钮 */}
           {isAuthenticated && user ? (
@@ -79,9 +90,11 @@ export function Navbar({ onLoginClick }: NavbarProps) {
                   <User className="w-6 h-6 text-black" />
                 </button>
                 <button
-                  onClick={() => void handleLogout()}
+                  type="button"
+                  onClick={() => setIsLogoutConfirmOpen(true)}
                   className="p-2 bg-status-danger border-2 border-black text-white hover:translate-y-[-2px] hover:shadow-[3px_3px_0_0_#000] shadow-[2px_2px_0_0_#000] transition-all"
                   title="退出登录"
+                  aria-label="退出登录"
                 >
                   <LogOut className="w-5 h-5" />
                 </button>
@@ -98,12 +111,10 @@ export function Navbar({ onLoginClick }: NavbarProps) {
           )}
         </div>
       </div>
-      {isAuthenticated && (
-        <AnnouncementModal
-          isOpen={isAnnouncementOpen}
-          onClose={() => setIsAnnouncementOpen(false)}
-        />
-      )}
+      <AnnouncementModal
+        isOpen={isAnnouncementOpen}
+        onClose={() => setIsAnnouncementOpen(false)}
+      />
       {isAuthenticated && user && (
         <UserInfoModal
           isOpen={isUserInfoOpen}
@@ -111,6 +122,46 @@ export function Navbar({ onLoginClick }: NavbarProps) {
           qqNumber={user.qq_number}
           role={user.role}
         />
+      )}
+      {isAuthenticated && (
+        <ComicModal
+          isOpen={isLogoutConfirmOpen}
+          onClose={closeLogoutConfirm}
+          size="sm"
+          title="确认退出"
+          showCloseButton={!isLoggingOut}
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                className="flex-1"
+                disabled={isLoggingOut}
+                onClick={closeLogoutConfirm}
+              >
+                取消
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                size="lg"
+                className="flex-1"
+                isLoading={isLoggingOut}
+                onClick={() => void handleLogout()}
+              >
+                确认退出
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-center">
+            <p className="text-base font-black text-black">是否确认退出登录？</p>
+            <p className="text-sm font-bold text-gray-700">
+              退出后需要重新完成身份验证才能继续访问个人绑定和通知设置。
+            </p>
+          </div>
+        </ComicModal>
       )}
     </motion.nav>
   );
