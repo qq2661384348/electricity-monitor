@@ -14,31 +14,54 @@
 
 ## 快速开始
 
-```powershell
-# 1. 安装依赖
+Linux：
+
+```bash
+# 1. 安装系统依赖
+sudo apt-get update
+sudo apt-get install -y build-essential libpq-dev libssl-dev pkg-config postgresql-client redis-tools
+
+# 2. 安装 Diesel CLI
 cargo install diesel_cli --no-default-features --features postgres
 
-# 2. 准备本地运行时配置
-Copy-Item config/development.toml.example config/development.toml
+# 3. 准备本地运行时配置
+cp config/development.toml.example config/development.toml
 
-# 3. 将 config/development.toml 中的 database.password 改成当前local environment PostgreSQL 的真实密码
+# 4. 将 config/development.toml 中的 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
 
-# 4. 配置环境
-$env:APP_ENV="development"
+# 5. 配置环境
+export APP_ENV=development
 
-# 5. 确保本地 PostgreSQL 和本地 Redis 已启动
+# 6. 确保 PostgreSQL 和 Redis 已启动，并可通过 127.0.0.1:5432 / 127.0.0.1:6379 访问
+#    它们可以是系统服务，也可以是 Docker 映射到本地端口的容器。
 
-# 6. 运行迁移（统一命令）
+# 7. 运行迁移（统一命令）
 cargo run --bin migrate
 
-# 7. 启动服务
+# 8. 启动服务
 cargo run
 
-# 8. 测试 API
+# 9. 测试 API
+curl http://localhost:8000/api/health
+```
+
+Windows 原生：
+
+```powershell
+cargo install diesel_cli --no-default-features --features postgres
+Copy-Item config/development.toml.example config/development.toml
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
+$env:APP_ENV="development"
+cargo run --bin migrate
+cargo run
 curl http://localhost:8000/api/health
 ```
 
 也可以直接运行统一后端自检脚本：
+
+```bash
+bash scripts/backend-checks.sh
+```
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1
@@ -91,11 +114,22 @@ deploy/
 
 ## 环境配置
 
-### 开发环境（Windows）
+### 开发环境（Linux）
+
+```bash
+cp config/development.toml.example config/development.toml
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码
+export APP_ENV=development
+export RUST_LOG=debug
+# development 环境只允许连接本地 PostgreSQL / Redis；
+# 本地服务可以是系统服务，也可以是映射到 127.0.0.1 的 Docker 容器。
+```
+
+### 开发环境（Windows 原生）
 
 ```powershell
 Copy-Item config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码
 $env:APP_ENV="development"
 $env:RUST_LOG="debug"
 # development 环境只允许连接本地 PostgreSQL / Redis

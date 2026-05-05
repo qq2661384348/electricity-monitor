@@ -80,13 +80,39 @@ electricity-monitor-backend/
 
 ## 环境配置
 
-### 开发环境（Windows）
+### 开发环境（Linux）
+
+```bash
+# 安装编译和客户端依赖
+sudo apt-get update
+sudo apt-get install -y build-essential libpq-dev libssl-dev pkg-config postgresql-client redis-tools
+cargo install diesel_cli --no-default-features --features postgres
+
+# 准备运行时配置
+cp config/development.toml.example config/development.toml
+
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
+
+# 设置环境变量
+export APP_ENV=development
+export RUST_LOG=debug
+
+# 运行数据库迁移
+cargo run --bin migrate
+
+# 启动开发服务器
+cargo run
+```
+
+开发环境只允许连接本地 PostgreSQL / Redis；本地服务可以是系统服务，也可以是映射到 `127.0.0.1` 的 Docker 容器。
+
+### 开发环境（Windows 原生）
 
 ```powershell
 # 准备运行时配置
 Copy-Item config/development.toml.example config/development.toml
 
-# 继续编辑 config/development.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码
 
 # 设置环境变量
 $env:APP_ENV="development"

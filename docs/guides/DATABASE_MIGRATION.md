@@ -46,9 +46,18 @@ cargo install diesel_cli --no-default-features --features postgres,mysql
 
 运行迁移前，先准备本地运行时配置：
 
+Linux：
+
+```bash
+cp config/development.toml.example config/development.toml
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
+```
+
+Windows 原生：
+
 ```powershell
 Copy-Item config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码
 ```
 
 生产环境则应先复制：
@@ -88,7 +97,7 @@ min_connections = 5
 connection_timeout = 30
 ```
 
-开发环境迁移命令会复用应用本身的配置加载逻辑，并拒绝连接非本地数据库。
+开发环境迁移命令会复用应用本身的配置加载逻辑，并拒绝连接非本地数据库。Linux 开发可以连接系统 PostgreSQL，也可以连接映射到 `127.0.0.1:5432` 的 Docker PostgreSQL 容器。
 
 ## 创建迁移
 

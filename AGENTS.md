@@ -35,6 +35,8 @@
 - release readiness 测试：`cargo test --test release_readiness_test`
 - 后端 clippy 门禁：`cargo clippy --all-targets -- -D warnings`
 - Rust 依赖审计：`cargo audit -q`
+- Linux 后端统一自检：`bash scripts/backend-checks.sh`
+- Windows 后端统一自检：`powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1`
 - 前端安装依赖：`bun install --cwd frontend --frozen-lockfile`
 - 前端行为测试：`bun run --cwd frontend test`
 - 前端 lint：`bun run --cwd frontend lint`
@@ -50,7 +52,7 @@
 - 配置加载顺序固定为“当前环境对应的运行时 TOML 文件” -> `APP__<SECTION>__<KEY>`；`APP_ENV` 默认是 `development`。
 - `config/` 下只能存在一个运行时 `.toml` 文件，文件名必须是 `development.toml` 或 `production.toml`，且要与 `APP_ENV` 保持一致；两个运行时文件都不纳入版本控制。
 - 开发环境从 `config/development.toml.example` 复制为 `config/development.toml`，生产/发布环境从 `config/production.toml.example` 复制为 `config/production.toml`。
-- `development` 环境只能连接本地 PostgreSQL / Redis；开发环境数据库密码必须直接写入复制出来的 `config/development.toml`。
+- `development` 环境只能连接本地 PostgreSQL / Redis；本地服务可以是系统服务，也可以是映射到 `127.0.0.1` 的 Docker 容器；开发环境数据库密码必须直接写入复制出来的 `config/development.toml`。
 - 不要启用全局 `try_parsing(true)`；当前配置链路依赖保留前导零字符串。
 - 生产敏感配置必须走 `APP__...__..._FILE` 链路，例如 `APP__DATABASE__PASSWORD_FILE`、`APP__JWT__SECRET_FILE`、`APP__QQ_BOT__BEARER_TOKEN_FILE`。
 - `cors.allowed_origins` 是浏览器访问白名单真源；生产环境不能保留 `localhost` 或模板占位值。

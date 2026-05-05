@@ -3,26 +3,25 @@
 # ============================================================
 # 
 # 说明：
-# 1. PostgreSQL 16+ 自带 OpenSSL，无需单独安装
-# 2. 环境变量配置会自动应用于编译过程
-# 3. Docker 构建使用 --features static-build 启用静态链接
+# 1. 仓库级配置只保留跨平台稳定项，不保存任何宿主机私有库路径
+# 2. Windows 原生开发如需指定 PostgreSQL / OpenSSL 路径，应使用用户环境变量
+# 3. Linux 开发通过系统包提供 libpq / OpenSSL 头文件和库
+# 4. Docker 构建使用 --features static-build 启用静态链接
 #
 # ============================================================
 
-# 环境变量配置 - 统一入口
+# 环境变量配置
+#
+# 不在仓库级配置中写入 PQ_LIB_DIR / OPENSSL_DIR / OPENSSL_LIB_DIR /
+# OPENSSL_INCLUDE_DIR 这类宿主机路径。它们会被 Cargo 无条件注入到所有
+# 平台；如果这里写入 Windows 路径，Linux 构建会尝试读取 C:\... 并失败。
+#
+# Windows 原生开发如果 PostgreSQL 或 OpenSSL 不在标准路径，请在用户环境变量
+# 或当前 shell 中设置 POSTGRES_HOME、PQ_LIB_DIR、OPENSSL_DIR 等local environment私有值。
+#
+# Linux 开发应通过系统包提供 libpq/openssl，例如：
+#   apt-get install -y libpq-dev libssl-dev pkg-config postgresql-client redis-tools
 [env]
-# PostgreSQL 安装目录（包含 lib、include 等子目录）
-# build.rs 会自动检测，通常无需手动设置
-# POSTGRES_HOME = "C:\\Program Files\\PostgreSQL\\16"
-
-# OpenSSL 配置 - 使用 PostgreSQL 自带的 OpenSSL
-# PostgreSQL 16+ 包含完整的 OpenSSL 开发文件
-OPENSSL_DIR = "C:\\Program Files\\PostgreSQL\\16"
-OPENSSL_LIB_DIR = "C:\\Program Files\\PostgreSQL\\16\\lib"
-OPENSSL_INCLUDE_DIR = "C:\\Program Files\\PostgreSQL\\16\\include"
-
-# PostgreSQL 库路径
-PQ_LIB_DIR = "C:\\Program Files\\PostgreSQL\\16\\lib"
 
 # ============================================================
 # 编译优化配置

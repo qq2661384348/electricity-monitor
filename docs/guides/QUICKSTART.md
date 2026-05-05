@@ -1,149 +1,98 @@
 # 快速启动指南
 
-## 🚀 项目现状
+## 当前项目形态
 
-**项目位置**: `c:/Users/Administrator/Desktop/electricity/electricity-monitor/`
+Electricity Monitor 是 Rust + Axum + Diesel 后端与 React + Vite 前端同仓项目。后端运行依赖 PostgreSQL 与 Redis；开发环境固定使用 `APP_ENV=development`，并只允许连接本地 PostgreSQL / Redis。本地服务可以是系统服务，也可以是映射到 `127.0.0.1` 的 Docker 容器。
 
-## ✅ 当前已完成内容
+## Linux 快速启动
 
-### 1. 项目结构
-- ✅ DDD分层架构（domain/handlers/infrastructure/middleware）
-- ✅ Cargo项目配置
-- ✅ 模块化代码组织
+### 1. 安装后端依赖
 
-### 2. 核心功能
-- ✅ TOML 配置系统（按环境命名的运行时配置 + 环境模板）
-- ✅ Diesel-async数据库连接池
-- ✅ JWT认证中间件
-- ✅ 统一错误处理
-- ✅ 健康检查API
-
-### 3. 性能优化
-- ✅ sonic-rs SIMD加速JSON序列化
-- ✅ mimalloc 高性能内存分配器
-- ✅ LTO链接时优化
-- ✅ target-cpu=native编译优化
-
-### 4. 文档
-- ✅ README.md - 项目概述
-- ✅ ARCHITECTURE.md - 架构设计文档
-- ✅ 代码内注释和文档
-
-## 📋 下一步操作
-
-### 1. PostgreSQL 环境配置
-
-#### 自动检测（推荐）
-
-项目使用 `build.rs` 自动检测 PostgreSQL 安装路径，支持以下默认路径：
-
-**Windows**:
-- `C:\Program Files\PostgreSQL\16\lib`
-- `C:\Program Files\PostgreSQL\15\lib`
-- `C:\Program Files\PostgreSQL\14\lib`
-
-**Linux**:
-- `/usr/lib/postgresql/16/lib`
-- `/usr/lib/postgresql/15/lib`
-- `/usr/lib/x86_64-linux-gnu`
-
-如果使用标准安装路径，**无需任何配置**，直接运行 `cargo build` 即可。
-
-#### 自定义路径配置
-
-如果 PostgreSQL 安装在非标准路径，编辑 `.cargo/config.toml`：
-
-```toml
-[env]
-# 方式1: 直接指定 lib 目录
-PQ_LIB_DIR = "D:\\PostgreSQL\\lib"
-
-# 方式2: 指定安装根目录（自动查找 lib 子目录）
-POSTGRES_HOME = "D:\\PostgreSQL"
-```
-
-**验证配置**:
-```powershell
-# 清理构建缓存
-cargo clean
-
-# 重新编译，查看检测结果
-cargo build
-# 输出: "自动检测到 PostgreSQL: <路径>"
-```
-
-### 2. 安装依赖
-
-```powershell
-# 安装 Diesel CLI（用于数据库迁移）
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential libpq-dev libssl-dev pkg-config postgresql-client redis-tools
 cargo install diesel_cli --no-default-features --features postgres
 ```
 
-### 3. 配置本地数据库和本地 Redis
+### 2. 准备本地 PostgreSQL 和 Redis
 
-开发环境默认只允许连接本地 PostgreSQL 和本地 Redis。
+确保 PostgreSQL 和 Redis 可以通过local environment地址访问：
 
-1. 复制开发模板到本地运行时配置：
-   ```powershell
-   Copy-Item config/development.toml.example config/development.toml
-   ```
-2. 安装并启动 PostgreSQL
-3. 安装并启动 Redis
-4. 编辑本地 `config/development.toml`，把 `database.password` 改成当前local environment PostgreSQL 的真实密码
-5. 若用户名、主机或端口需要调整，也直接修改本地 `config/development.toml`，不要回写 `development.toml.example`
-
-### 3. 初始化数据库 Schema
-
-```powershell
-# 创建第一个迁移（示例：用户表）
-diesel migration generate create_users
-
-# 编辑生成的迁移文件
-# migrations/{timestamp}_create_users/up.sql
+```bash
+pg_isready -h 127.0.0.1 -p 5432 -U postgres
+redis-cli -h 127.0.0.1 -p 6379 ping
 ```
 
-示例up.sql:
-```sql
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    username VARCHAR(255) NOT NULL UNIQUE,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+PostgreSQL / Redis 可以由系统服务提供，也可以由 Docker 容器通过端口映射提供。若数据库还不存在，先创建：
+
+```bash
+createdb -h 127.0.0.1 -U postgres electricity_dev
 ```
 
-```powershell
-# 运行迁移
+如果 Docker PostgreSQL 容器启用了 trust 认证，应用配置里仍要把 `database.password` 改成一个非空开发值，因为项目会在配置阶段阻止占位密码继续运行。
+
+### 3. 准备运行时配置
+
+```bash
+cp config/development.toml.example config/development.toml
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
+export APP_ENV=development
+export RUST_LOG=debug
+```
+
+### 4. 运行迁移并启动后端
+
+```bash
 cargo run --bin migrate
-```
-
-### 4. 启动开发服务器
-
-```powershell
-# 准备本地运行时配置
-Copy-Item config/development.toml.example config/development.toml
-
-# 设置环境变量
-$env:APP_ENV="development"
-$env:RUST_LOG="debug"
-
-# 启动服务器
 cargo run
 ```
 
-### 5. 测试API
+### 5. 验证 API
+
+```bash
+curl http://localhost:8000/api/health
+curl http://localhost:8000/api/health/db
+```
+
+也可以运行 Linux 后端统一自检：
+
+```bash
+bash scripts/backend-checks.sh
+```
+
+## Windows 原生快速启动
+
+Windows 原生开发需要 PostgreSQL、Redis、Rust 工具链和 Diesel CLI。PostgreSQL 如果不在标准安装路径，请通过用户环境变量设置 `POSTGRES_HOME` 或 `PQ_LIB_DIR`，不要把local environment私有路径写回 `.cargo/config.toml`。
 
 ```powershell
-# 健康检查
+cargo install diesel_cli --no-default-features --features postgres
+Copy-Item config/development.toml.example config/development.toml
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码
+$env:APP_ENV="development"
+$env:RUST_LOG="debug"
+cargo run --bin migrate
+cargo run
 curl http://localhost:8000/api/health
+```
 
-# 预期响应
-# {"status":"ok","message":"Service is healthy"}
+Windows 后端统一自检：
 
-# 带数据库的健康检查
-curl http://localhost:8000/api/health/db
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1
+```
+
+## 数据库迁移
+
+项目已存在完整迁移目录，日常只需要运行：
+
+```bash
+cargo run --bin migrate
+```
+
+新增迁移时再使用 Diesel CLI：
+
+```bash
+diesel migration generate your_migration_name
 ```
 
 ## 🔧 开发指南
@@ -215,6 +164,15 @@ pub async fn create_user(
 
 ### 开发环境
 
+Linux：
+
+```bash
+export APP_ENV=development
+export RUST_LOG=debug,electricity_monitor_backend=trace
+```
+
+Windows 原生：
+
 ```powershell
 $env:APP_ENV="development"
 $env:RUST_LOG="debug,electricity_monitor_backend=trace"
@@ -236,7 +194,7 @@ export APP__JWT__SECRET_FILE="/run/secrets/app_jwt_secret"
 **原因**: 未运行数据库迁移
 
 **解决**:
-```powershell
+```bash
 cargo run --bin migrate
 ```
 
@@ -253,7 +211,7 @@ cargo run --bin migrate
 **原因**: 首次编译需要下载和编译所有依赖
 
 **优化**:
-```powershell
+```bash
 # 使用更快的链接器（可选）
 cargo install -f cargo-binutils
 rustup component add llvm-tools-preview
@@ -263,13 +221,11 @@ rustup component add llvm-tools-preview
 
 ### 构建发布版本
 
-```powershell
-# Windows构建
+```bash
 cargo build --release
-
-# 交叉编译到Linux（可选）
-cargo build --release --target x86_64-unknown-linux-gnu
 ```
+
+生产发布主线不是从开发机或服务器源码目录直接构建，而是通过 GitHub Actions 生成 release artifact，再在服务器侧执行 release 包中的部署脚本。开发机本地 release 构建只用于调试。
 
 ### 部署检查清单
 
@@ -279,8 +235,8 @@ cargo build --release --target x86_64-unknown-linux-gnu
 - [ ] 准备 `APP__DATABASE__PASSWORD_FILE`
 - [ ] 设置 `RUST_LOG=info` 减少日志输出
 - [ ] 配置反向代理（Nginx/Caddy）
-- [ ] 配置HTTPS证书
-- [ ] 配置系统服务（systemd）
+- [ ] 配置 HTTPS 证书
+- [ ] 使用 release 包内 `deploy.sh` 和 `compose.release.yml` 完成部署
 
 ## 📚 文档链接
 

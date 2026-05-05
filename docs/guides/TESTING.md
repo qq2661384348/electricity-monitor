@@ -10,6 +10,8 @@
 - 前端行为测试：在 `frontend/` 目录执行 `bun run test`
 - 前端质量检查：在 `frontend/` 目录执行 `bun run lint`、`bun run build:prod`、`bun run check:bundle`
 - 架构守护：`powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`
+- Linux 后端统一自检：`bash scripts/backend-checks.sh`
+- Windows 后端统一自检：`powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1`
 - Pull Request / 手动门禁：`.github/workflows/ci.yml`
 
 这份文档只描述当前仓库里已经存在且可执行的测试入口。
@@ -44,9 +46,9 @@
 
 运行后端契约测试前，需要满足：
 
-1. 本地 PostgreSQL 与 Redis 已启动
+1. 本地 PostgreSQL 与 Redis 已启动；它们可以是系统服务，也可以是映射到 `127.0.0.1:5432` / `127.0.0.1:6379` 的 Docker 容器
 2. 已从 `config/development.toml.example` 复制生成 `config/development.toml`
-3. 已将 `config/development.toml` 中的 `database.password` 改成当前local environment PostgreSQL 的真实密码
+3. 已将 `config/development.toml` 中的 `database.password` 改成当前本地 PostgreSQL 的真实密码或非空开发值
 4. `APP_ENV=development`
 5. 已执行迁移：`cargo run --bin migrate`
 
@@ -55,6 +57,20 @@
 ## 推荐命令矩阵
 
 ### 日常快速回归
+
+Linux：
+
+```bash
+cargo test --lib
+cd frontend
+bun run test
+bun run lint
+bun run check:bundle
+bun audit
+cd ..
+```
+
+Windows 原生：
 
 ```powershell
 cargo test --lib
@@ -69,17 +85,37 @@ powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 
 ### 后端关键链路回归
 
+Linux：
+
+```bash
+cp config/development.toml.example config/development.toml
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
+export APP_ENV=development
+cargo run --bin migrate
+cargo clippy --all-targets -- -D warnings
+cargo test --test auth_integration_test
+cargo test --test send_verification_code_integration_test
+cargo test --test release_readiness_test
+```
+
+Windows 原生：
+
 ```powershell
 Copy-Item config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前local environment PostgreSQL 的真实密码
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
 $env:APP_ENV="development"
 cargo run --bin migrate
 cargo clippy --all-targets -- -D warnings
 cargo test --test auth_integration_test
+cargo test --test send_verification_code_integration_test
 cargo test --test release_readiness_test
 ```
 
 如果希望使用统一入口，也可以运行：
+
+```bash
+bash scripts/backend-checks.sh
+```
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1
@@ -87,7 +123,7 @@ powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1
 
 ### 前端构建回归
 
-```powershell
+```bash
 cd frontend
 bun run test
 bun run build:prod
@@ -108,12 +144,27 @@ bun run check:bundle
 
 这些测试目前仍属于“可选 infra 覆盖”，不是默认 PR 门禁。启用示例：
 
-```powershell
-$env:RUN_INTEGRATION_TESTS="1"
+Linux：
+
+```bash
+export RUN_INTEGRATION_TESTS=1
 cargo test --lib
 ```
 
 如果同时需要 Redis 单独覆盖，也可以显式设置：
+
+```bash
+export REDIS_HOST=127.0.0.1
+export REDIS_PORT=6379
+cargo test --lib
+```
+
+Windows 原生：
+
+```powershell
+$env:RUN_INTEGRATION_TESTS="1"
+cargo test --lib
+```
 
 ```powershell
 $env:REDIS_HOST="127.0.0.1"
@@ -136,6 +187,15 @@ cargo test --lib
   - mock：`test_fetch_batch_with_mock_server_filters_failures`
 
 启用方式：
+
+Linux：
+
+```bash
+export RUN_EXTERNAL_INTEGRATION_TESTS=1
+cargo test --lib
+```
+
+Windows 原生：
 
 ```powershell
 $env:RUN_EXTERNAL_INTEGRATION_TESTS="1"

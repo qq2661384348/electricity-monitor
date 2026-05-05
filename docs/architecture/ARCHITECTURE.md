@@ -208,13 +208,14 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 ## 环境分离策略
 
-### 开发环境 (Windows)
+### 开发环境 (Windows / Linux)
 
 **特点**:
 - 监听 `127.0.0.1:8000`
 - 详细调试日志 (`level = "debug"`)
 - 较小的连接池 (5个连接)
-- 数据库: `electricity-dev`
+- 数据库: `electricity_dev`
+- PostgreSQL / Redis 必须是本地依赖；可以是系统服务，也可以是映射到 `127.0.0.1` 的 Docker 容器。
 
 ### 生产环境 (Linux)
 
@@ -222,7 +223,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 - 监听 `0.0.0.0:8000`
 - 精简日志 (`level = "info"`)
 - 大连接池 (20个连接)
-- 数据库: `electricity-pro`
+- 数据库: `electricity_pro`
 
 ## 安全设计
 

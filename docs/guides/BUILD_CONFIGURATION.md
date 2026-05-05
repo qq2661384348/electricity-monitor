@@ -11,31 +11,54 @@
 
 ## 概述
 
-本项目采用**统一配置入口**设计，将复杂的链接配置自动化处理，用户只需配置少量环境变量即可完成构建。
+本项目采用跨平台 Cargo 配置：仓库级 `.cargo/config.toml` 只保存稳定的编译优化项，不保存任何开发机私有路径。PostgreSQL / OpenSSL 的库路径由当前平台的系统包、标准安装路径或用户环境变量提供。
 
 ### 配置架构
 
 ```
-.cargo/config.toml    →  环境变量定义（用户配置入口）
+.cargo/config.toml    →  跨平台稳定编译项（不写宿主机私有路径）
          ↓
-    build.rs          →  自动检测和链接配置
+系统包 / 用户环境变量 →  libpq / OpenSSL 链接信息
+         ↓
+    build.rs          →  Windows 标准路径辅助检测
          ↓
     编译系统           →  最终构建
 ```
 
 **设计原则**:
-1. ✅ **零配置优先**: 标准安装路径自动检测
-2. ✅ **单一入口**: 只需修改 `.cargo/config.toml` 中的环境变量
-3. ✅ **智能回退**: 自动尝试多个标准路径
-4. ✅ **明确反馈**: 构建时显示使用的配置路径
+1. ✅ **仓库配置可迁移**: 不把 `C:\...`、`/home/...` 等机器私有路径写入版本控制
+2. ✅ **Linux 使用系统包**: 通过 `libpq-dev`、`libssl-dev`、`pkg-config` 提供编译依赖
+3. ✅ **Windows 使用local environment环境变量**: 非标准安装路径通过用户环境变量指定
+4. ✅ **Docker 独立静态构建**: 镜像构建走 `static-build` feature，不依赖开发机路径
 
 ---
 
 ## PostgreSQL 配置
 
-### 🎯 推荐方式：自动检测（零配置）
+### Linux 推荐方式：系统包
 
-如果 PostgreSQL 安装在标准路径，**无需任何配置**：
+Linux 开发环境应安装客户端、头文件和编译工具；PostgreSQL / Redis 服务本身可以是系统服务，也可以是映射到本地端口的 Docker 容器：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential libpq-dev libssl-dev pkg-config postgresql-client redis-tools
+cargo install diesel_cli --no-default-features --features postgres
+```
+
+验证：
+
+```bash
+pg_config --version
+psql --version
+redis-cli --version
+cargo check
+```
+
+Linux 下不要在 `.cargo/config.toml` 写入 `PQ_LIB_DIR` 或 `OPENSSL_DIR`。这些变量会被 Cargo 注入到所有平台，一旦写入 Windows 路径，Linux 构建会被错误路径污染。
+
+### Windows 原生推荐方式：标准安装路径
+
+如果 PostgreSQL 安装在标准路径，通常无需额外配置：
 
 #### Windows 支持的路径
 
@@ -43,15 +66,6 @@
 C:\Program Files\PostgreSQL\16\lib
 C:\Program Files\PostgreSQL\15\lib
 C:\Program Files\PostgreSQL\14\lib
-```
-
-#### Linux 支持的路径
-
-```
-/usr/lib/postgresql/16/lib
-/usr/lib/postgresql/15/lib
-/usr/lib/x86_64-linux-gnu
-/usr/lib
 ```
 
 **使用步骤**:
@@ -66,24 +80,22 @@ cargo build
 
 ---
 
-### 🔧 方式2：手动配置（非标准路径）
+### Windows 原生手动配置（非标准路径）
 
-如果 PostgreSQL 安装在自定义位置，编辑 `.cargo/config.toml`：
+如果 PostgreSQL 安装在自定义位置，不要修改仓库级 `.cargo/config.toml`。请设置当前用户或当前 shell 的环境变量，避免把私有路径提交到仓库。
 
 #### 配置选项
 
 **选项1: 直接指定 lib 目录**
 
-```toml
-[env]
-PQ_LIB_DIR = "D:\\PostgreSQL\\lib"
+```powershell
+$env:PQ_LIB_DIR = "D:\PostgreSQL\lib"
 ```
 
 **选项2: 指定安装根目录（推荐）**
 
-```toml
-[env]
-POSTGRES_HOME = "D:\\PostgreSQL"
+```powershell
+$env:POSTGRES_HOME = "D:\PostgreSQL"
 ```
 
 > `build.rs` 会自动在 `POSTGRES_HOME/lib` 查找库文件
@@ -97,18 +109,18 @@ POSTGRES_HOME = "D:\\PostgreSQL"
 where.exe psql
 # 输出: C:\custom\PostgreSQL\bin\psql.exe
 # 则 lib 目录为: C:\custom\PostgreSQL\lib
+```
 
-# Linux: 查找 pg_config
+```bash
+# Linux: 查看系统包提供的 libpq 信息
 which pg_config
 pg_config --libdir
 ```
 
-2. **编辑配置文件** `.cargo/config.toml`:
+2. **设置当前 shell 环境变量**:
 
-```toml
-[env]
-# 取消注释并修改路径
-PQ_LIB_DIR = "C:\\custom\\PostgreSQL\\lib"
+```powershell
+$env:PQ_LIB_DIR = "C:\custom\PostgreSQL\lib"
 ```
 
 3. **验证配置**:
@@ -121,28 +133,25 @@ cargo clean
 cargo build
 
 # 查看构建输出，确认路径正确
-# 应显示: "使用 PQ_LIB_DIR: C:\custom\PostgreSQL\lib"
 ```
 
 ---
 
 ### ⚙️ 配置优先级
 
-`build.rs` 按以下顺序查找 PostgreSQL：
+链接信息按以下顺序进入构建：
 
 ```
-1. PQ_LIB_DIR 环境变量（必须是有效路径）
+1. 显式环境变量 PQ_LIB_DIR / POSTGRES_HOME（主要用于 Windows 非标准路径）
    ↓
-2. POSTGRES_HOME/lib（必须存在）
+2. Windows 标准安装路径辅助检测
    ↓
-3. Windows 默认路径自动检测
+3. Linux 系统包和 pkg-config
    ↓
-4. Linux 默认路径自动检测
-   ↓
-5. 构建失败（提示配置 PQ_LIB_DIR）
+4. Docker static-build feature 的 bundled/vendored 构建
 ```
 
-**路径验证**: `build.rs` 会验证路径是否包含 `libpq.lib` (Windows) 或 `libpq.so` (Linux)，无效路径会自动跳过。
+**边界**: `.cargo/config.toml` 不能承载任何机器私有路径。需要长期记录的只有跨平台稳定项，例如 `target-cpu=native`。
 
 ---
 
@@ -201,14 +210,9 @@ error LNK2019: 无法解析的外部符号 pg_b64_encode
 [System.Environment]::SetEnvironmentVariable('PQ_LIB_DIR', $null, 'Machine')
 ```
 
-2. **使用自动检测**:
+2. **清理仓库级路径污染**:
 
-注释掉 `.cargo/config.toml` 中的 `PQ_LIB_DIR`，让 `build.rs` 自动检测：
-
-```toml
-[env]
-# PQ_LIB_DIR = "..."  # 注释掉
-```
+确认 `.cargo/config.toml` 中没有 `PQ_LIB_DIR`、`OPENSSL_DIR`、`OPENSSL_LIB_DIR` 或 `OPENSSL_INCLUDE_DIR`。这些变量只能存在于开发机用户环境变量或当前 shell。
 
 3. **清理并重新编译**:
 
@@ -232,10 +236,10 @@ warning: 未找到 PostgreSQL 库目录，请设置 PQ_LIB_DIR 或 POSTGRES_HOME
 1. **确认 PostgreSQL 已安装**:
 
 ```powershell
-# Windows
 where.exe psql
+```
 
-# Linux
+```bash
 which psql
 pg_config --version
 ```
@@ -302,5 +306,5 @@ Get-ChildItem 'C:\Program Files\PostgreSQL\16\lib' -Filter *.lib
 
 ---
 
-**最后更新**: 2025-10-21  
+**最后更新**: 2026-05-05
 **维护者**: Electricity Monitor Team

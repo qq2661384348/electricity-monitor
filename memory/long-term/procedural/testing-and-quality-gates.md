@@ -9,6 +9,7 @@ sources:
   - .github/workflows/ci.yml
   - deploy/smoke.targets
   - scripts/backend-checks.ps1
+  - scripts/backend-checks.sh
 summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执行约定
 ---
 
@@ -64,8 +65,8 @@ summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执�
 ## 本地执行约定
 
 - 本地运行前先从 `config/development.toml.example` 复制生成 `config/development.toml`，不要直接编辑仓库模板保存local environment参数。
-- 若local environment PostgreSQL 密码与开发模板不一致，直接修改本地 `config/development.toml` 中的 `database.password`。
-- `scripts/backend-checks.ps1` 会检查 `config/development.toml` 是否仍保留模板占位值，并统一执行迁移与后端关键回归。
+- 若本地 PostgreSQL 密码与开发模板不一致，直接修改本地 `config/development.toml` 中的 `database.password`。
+- `scripts/backend-checks.sh` 与 `scripts/backend-checks.ps1` 会检查 `config/development.toml` 是否仍保留模板占位值，并统一执行迁移与后端关键回归；前者用于 Linux，后者用于 Windows 原生环境。
 
 ## 仍未接入默认阻断门禁的验证
 

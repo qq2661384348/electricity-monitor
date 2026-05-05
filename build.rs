@@ -1,10 +1,16 @@
 //! Cargo 构建脚本
 //!
 //! 说明：
-//! - 使用 `--features static-build` 时启用静态链接（Docker/Linux）
-//! - 默认模式使用系统安装的库（Windows 开发）
+//! - 使用 `--features static-build` 时启用静态链接（Docker/Linux 镜像构建）
+//! - 默认模式使用当前开发机的系统库；Linux 依赖 libpq-dev/libssl-dev/pkg-config，
+//!   Windows 原生开发依赖 PostgreSQL/OpenSSL 的安装目录或对应环境变量。
 //!
-//! Windows 开发环境需要：
+//! Linux 开发环境需要：
+//! 1. libpq-dev
+//! 2. libssl-dev
+//! 3. pkg-config
+//!
+//! Windows 原生开发环境需要：
 //! 1. PostgreSQL 16+ 安装（包含 libpq）
 //! 2. OpenSSL 安装（推荐 https://slproweb.com/products/Win32OpenSSL.html）
 //!
