@@ -3,9 +3,15 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { usePathTree } from '@/hooks/usePathTree';
 import { bindingKeys, roomKeys } from '@/shared/api/queryKeys';
-import type { PathChild, RoomByPathResponse } from '@/types';
+import type { PathChild } from '@/types';
 
 import { bindRoomApi } from '../api/bindRoomApi';
+
+interface SelectedRoomPreview {
+  readonly roomid: number;
+  readonly room_name: string;
+  readonly primary_roompath: string;
+}
 
 interface UseBindRoomModalOptions {
   readonly isOpen: boolean;
@@ -21,7 +27,7 @@ export function useBindRoomModal({
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedPath, setSelectedPath] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [finalRoom, setFinalRoom] = useState<RoomByPathResponse | null>(null);
+  const [finalRoom, setFinalRoom] = useState<SelectedRoomPreview | null>(null);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   const queryClient = useQueryClient();
@@ -59,19 +65,23 @@ export function useBindRoomModal({
     onClose();
   };
 
-  const handleSelectOption = async (option: PathChild) => {
+  const handleSelectOption = (option: PathChild) => {
     const newPath = [...selectedPath, option.name];
     setSelectedPath(newPath);
     setError(null);
 
     if (option.is_leaf) {
-      try {
-        const room = await bindRoomApi.getRoomByPath(newPath.join('/'));
-        setFinalRoom(room);
-        setCurrentStep(5);
-      } catch {
+      if (typeof option.roomid !== 'number') {
         setError('查询房间失败，请稍后重试');
+        return;
       }
+
+      setFinalRoom({
+        roomid: option.roomid,
+        room_name: option.name,
+        primary_roompath: newPath.join('/'),
+      });
+      setCurrentStep(5);
       return;
     }
 

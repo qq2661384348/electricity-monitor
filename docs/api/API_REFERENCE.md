@@ -84,16 +84,18 @@ curl http://localhost:8000/api/health/db
 
 **端点**: `POST /api/auth/send-verification-code`  
 **认证**: 无需认证  
-**描述**: 向指定 QQ 发送一次性验证码
+**描述**: 消费 `/api/captcha/verify` 返回的一次性 `captcha_token` 后，向指定 QQ 发送一次性验证码
 
 #### 请求体
 
 ```json
 {
   "qq_number": "123456789",
-  "captcha_token": "optional-captcha-token"
+  "captcha_token": "captcha-token-from-api-captcha-verify"
 }
 ```
+
+> `captcha_token` 为必填项，且只能使用一次。缺失、过期或重复使用都会被拒绝，服务端不会继续调用 QQ 机器人发送验证码。
 
 #### 响应示例
 
@@ -103,6 +105,37 @@ curl http://localhost:8000/api/health/db
   "qq_number": "123456789"
 }
 ```
+
+---
+
+### 校验图形验证码
+
+**端点**: `POST /api/captcha/verify`
+**认证**: 无需认证
+**描述**: 校验第三方图形验证码答案，成功后返回一个只用于发送 QQ 验证码的一次性 token。
+
+#### 请求体
+
+```json
+{
+  "id": "captcha-id",
+  "key": "42",
+  "type": "math"
+}
+```
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "message": "验证通过",
+  "code": "VERIFY_SUCCESS",
+  "token": "one-time-captcha-token"
+}
+```
+
+> `token` 只用于随后调用 `POST /api/auth/send-verification-code`，有效期短且消费后失效。
 
 ---
 
@@ -274,9 +307,9 @@ curl -H "Authorization: Bearer <access-token>" \
 
 ### 根据roomid查询房间 ⚠️ 破坏性变更
 
-**端点**: `GET /api/rooms/by-roomid/{roomid}`  
-**认证**: 无需认证  
-**描述**: 根据业务ID查询房间信息
+**端点**: `GET /api/rooms/by-roomid/{roomid}`
+**认证**: 需要 access token Bearer 认证
+**描述**: 根据业务ID查询房间信息。管理员可查询所有房间；普通用户只能查询已绑定房间。
 
 **⚠️ 重要变更**: 从v1.1开始，返回**单个对象**而非数组（roomid现为唯一约束）
 
@@ -291,6 +324,51 @@ curl -H "Authorization: Bearer <access-token>" \
   "has_additional_paths": true,
   "threshold": 100.0,
   "electricity_fee": 85.5
+}
+```
+
+---
+
+### 查询房间路径树
+
+**端点**: `GET /api/rooms/path-tree?parent={encoded_path}`
+**认证**: 需要 access token Bearer 认证
+**描述**: 逐层查询可绑定房间路径。叶子节点只返回绑定所需的最小 `roomid`，不会返回电费余额、阈值等房间详情。
+
+#### 响应示例
+
+```json
+{
+  "children": [
+    {
+      "name": "0501",
+      "is_leaf": true,
+      "room_count": 1,
+      "roomid": 123
+    }
+  ],
+  "current_level": 3,
+  "total_count": 1
+}
+```
+
+---
+
+### 根据路径查询房间详情
+
+**端点**: `GET /api/rooms/by-path?path={encoded_path}`
+**认证**: 需要 access token Bearer 认证
+**描述**: 根据完整路径查询房间详情。管理员可查询所有房间；普通用户只能查询已绑定房间。绑定前流程应使用路径树叶子节点中的 `roomid`，不要先读取该详情接口。
+
+#### 响应示例
+
+```json
+{
+  "roomid": 123,
+  "room_name": "0501",
+  "electricity_fee": 85.5,
+  "threshold": 100.0,
+  "primary_roompath": "桂林/雁山/05栋/0501"
 }
 ```
 

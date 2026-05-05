@@ -115,8 +115,8 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
                         <span className="font-black text-sm text-right max-w-[65%] text-black">{finalRoom.primary_roompath}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">剩余电量</span>
-                        <span className="font-black text-base text-brand-primary">{finalRoom.electricity_fee.toFixed(2)} kWh</span>
+                        <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">编号</span>
+                        <span className="font-black text-base text-brand-primary">{finalRoom.roomid}</span>
                       </div>
                     </div>
                   </div>

@@ -466,7 +466,7 @@ impl NotificationService {
         let user_map_arc = Arc::new(user_map.clone());
         let bindings_vec: Vec<_> = bindings.to_vec();
 
-        let results: Vec<Result<()>> = stream::iter(bindings_vec.into_iter())
+        let results: Vec<Result<()>> = stream::iter(bindings_vec)
             .map(|binding| {
                 let qq_client = Arc::clone(qq_client);
                 let message = message.clone();

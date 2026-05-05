@@ -166,7 +166,6 @@ impl CaptchaVerificationService {
 
         tracing::info!(
             captcha_id = %id,
-            token = %token,
             "验证码验证成功，生成一次性token"
         );
 
@@ -197,11 +196,11 @@ impl CaptchaVerificationService {
 
         match exists {
             Some(_) => {
-                tracing::info!(token = %token, "Token验证成功并已消费");
+                tracing::info!("验证码Token验证成功并已消费");
                 Ok(true)
             }
             None => {
-                tracing::warn!(token = %token, "Token不存在或已过期");
+                tracing::warn!("验证码Token不存在或已过期");
                 Ok(false)
             }
         }

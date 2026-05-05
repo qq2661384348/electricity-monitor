@@ -21,9 +21,9 @@
 ### 后端
 
 - `src/**`：单元测试与少量带环境门槛的基础设施测试
-- `tests/contracts/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me`、`/api/auth/refresh`、`/api/bindings` CRUD、越权访问与 admin 限制契约，同时覆盖 refresh cookie 轮换、refresh token 误用为 Bearer、access token 误用为 refresh、logout 清理 cookie
+- `tests/contracts/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me`、`/api/auth/refresh`、`/api/bindings` CRUD、越权访问与 admin 限制契约，同时覆盖 refresh cookie 轮换、refresh token 误用为 Bearer、access token 误用为 refresh、logout 清理 cookie、发送 QQ 验证码必须携带一次性 captcha token、未绑定用户不能读取房间路径详情
 - `tests/runtime/release_readiness_test.rs`：读取 `deploy/smoke.targets`，校验 health / db health / 静态入口、必需文件与统一响应安全头契约
-- `tests/contracts/send_verification_code_integration_test.rs`：通过本地 mock NapCat HTTP API 覆盖 `/api/auth/send-verification-code` 的成功发送与 `USER_NOT_FRIEND` 分支
+- `tests/contracts/send_verification_code_integration_test.rs`：通过本地 mock NapCat HTTP API 覆盖 `/api/auth/send-verification-code` 的成功发送与 `USER_NOT_FRIEND` 分支；测试会直接种入一次性 captcha token，避免依赖第三方验证码服务
 - `tests/support/`：共享 app factory、登录 fixture、seed helper、smoke 契约读取
 - `tests/infra/`：环境型独立 test target 的预留分层；当前目录中记录了仍在源码内的 infra 覆盖位置
 

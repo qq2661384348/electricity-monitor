@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 长期质量风险与安全风险
-updated_at: 2026-04-17
-verified_at: 2026-04-17
+updated_at: 2026-05-05
+verified_at: 2026-05-05
 sources:
   - docs/guides/TECHNICAL_DEBT.md
   - docs/guides/SECRETS_INVENTORY.md
@@ -32,6 +32,9 @@ summary: 已关闭风险、当前质量风险、供应链风险和仓库外部�
 - 前端生产构建不再保留默认 chunk warning 残留；真实 JS chunk 上限由 `frontend/scripts/check-bundle-budgets.ts` 持续校验。
 - 后端统一响应安全头已收敛到应用层与 `deploy/smoke.targets` 共享契约；release smoke 与 readiness test 会同时校验这些头。
 - release 部署脚本已对 secret file 做 owner-only 权限校验，过宽权限会直接阻断部署。
+- `/api/auth/send-verification-code` 已要求先消费一次性 captcha token，不能再在缺失图形验证码校验时直接触达 QQ 机器人。
+- 电费抓取 HTTP 客户端已恢复 HTTPS 证书校验，生产路径不再接受无效证书。
+- `/api/rooms/by-path` 与 `/api/rooms/by-hash` 已恢复为房间详情授权读取，未绑定普通用户不能再通过路径或哈希查询直接读取电费余额和阈值。
 
 ## 当前质量风险
 

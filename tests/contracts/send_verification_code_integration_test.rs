@@ -102,14 +102,31 @@ fn test_mutex() -> &'static Mutex<()> {
     TEST_MUTEX.get_or_init(|| Mutex::new(()))
 }
 
-async fn send_code_request(app: &Router, qq_number: &str) -> axum::response::Response {
+async fn seed_captcha_token(state: &electricity_monitor_backend::state::AppState, token: &str) {
+    let mut conn = state.redis_pool.get().await.expect("获取 Redis 连接失败");
+    conn.set_ex::<_, _, ()>(&format!("captcha:token:{token}"), "valid", 60)
+        .await
+        .expect("写入 captcha token 失败");
+}
+
+async fn send_code_request(
+    app: &Router,
+    state: &electricity_monitor_backend::state::AppState,
+    qq_number: &str,
+) -> axum::response::Response {
+    // 发送 QQ 验证码会触达机器人服务，必须先消费后端签发的一次性 captcha token。
+    // 测试直接种入 token，避免依赖第三方验证码服务，同时保持真实 send-code 契约。
+    let captcha_token = format!("captcha-token-{qq_number}");
+    seed_captcha_token(state, &captcha_token).await;
+
     let request = Request::builder()
         .method("POST")
         .uri("/api/auth/send-verification-code")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(
             serde_json::json!({
-                "qq_number": qq_number
+                "qq_number": qq_number,
+                "captcha_token": captcha_token,
             })
             .to_string(),
         ))
@@ -141,7 +158,7 @@ async fn send_verification_code_mocked_qq_api_covers_success_and_user_not_friend
     let test_app = create_test_app().await;
     let success_qq_number = "1888888888888";
 
-    let response = send_code_request(&test_app.app, success_qq_number).await;
+    let response = send_code_request(&test_app.app, &test_app.state, success_qq_number).await;
     assert_eq!(response.status(), StatusCode::OK);
 
     let body = response_json(response).await;
@@ -155,7 +172,7 @@ async fn send_verification_code_mocked_qq_api_covers_success_and_user_not_friend
     assert!(stored_code.chars().all(|c| c.is_ascii_digit()));
     let error_qq_number = "1999999999999";
 
-    let response = send_code_request(&test_app.app, error_qq_number).await;
+    let response = send_code_request(&test_app.app, &test_app.state, error_qq_number).await;
     let status = response.status();
     let body = response_json(response).await;
     assert_eq!(

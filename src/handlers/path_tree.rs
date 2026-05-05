@@ -4,12 +4,13 @@
 
 use axum::{
     extract::{Query, State},
-    Json,
+    Extension, Json,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::errors::Result;
-use crate::modules::room::application::RoomAccessUseCase;
+use crate::middleware::auth::UserContext;
+use crate::modules::room::{application::RoomAccessUseCase, domain::RoomActor};
 use crate::state::AppState;
 use crate::utils::hash::calculate_roompath_hash;
 
@@ -45,6 +46,10 @@ pub struct PathChild {
 
     /// 该节点下的房间总数
     pub room_count: usize,
+
+    /// 叶子节点绑定用的最小房间标识；非叶子节点不返回。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub roomid: Option<i32>,
 }
 
 /// 查询路径的子节点
@@ -80,6 +85,7 @@ pub async fn query_path_tree(
             name: child.name,
             is_leaf: child.is_leaf,
             room_count: child.room_count,
+            roomid: child.roomid,
         })
         .collect();
 
@@ -128,12 +134,14 @@ pub struct RoomByPathResponse {
 /// - 404: 路径不存在
 pub async fn get_room_by_path(
     State(state): State<AppState>,
+    Extension(user_ctx): Extension<UserContext>,
     Query(params): Query<QueryByPathRequest>,
 ) -> Result<Json<RoomByPathResponse>> {
     tracing::debug!("根据路径查询房间: path={}", params.path);
 
+    let actor = RoomActor::from_user_context(&user_ctx)?;
     let use_case = RoomAccessUseCase::from_state(&state);
-    let room = use_case.get_room_by_path(&params.path).await?;
+    let room = use_case.get_room_by_path(&actor, &params.path).await?;
 
     Ok(Json(RoomByPathResponse {
         roomid: room.roomid,
@@ -166,6 +174,7 @@ pub struct QueryByHashRequest {
 /// - 404: 哈希或路径不匹配
 pub async fn get_room_by_hash(
     State(state): State<AppState>,
+    Extension(user_ctx): Extension<UserContext>,
     Query(params): Query<QueryByHashRequest>,
 ) -> Result<Json<RoomByPathResponse>> {
     tracing::debug!(
@@ -174,8 +183,11 @@ pub async fn get_room_by_hash(
         params.path
     );
 
+    let actor = RoomActor::from_user_context(&user_ctx)?;
     let use_case = RoomAccessUseCase::from_state(&state);
-    let room = use_case.get_room_by_hash(params.hash, &params.path).await?;
+    let room = use_case
+        .get_room_by_hash(&actor, params.hash, &params.path)
+        .await?;
 
     Ok(Json(RoomByPathResponse {
         roomid: room.roomid,

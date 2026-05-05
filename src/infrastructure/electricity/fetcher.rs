@@ -43,7 +43,7 @@ impl RoomBatchFetcher {
             ));
         }
 
-        let http_client = ReqwestAsyncClient::new(true)?;
+        let http_client = ReqwestAsyncClient::new()?;
         let parser = ElectricityParser::new()?;
 
         Ok(Self {

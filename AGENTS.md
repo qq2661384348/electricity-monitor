@@ -56,6 +56,7 @@
 - 不要启用全局 `try_parsing(true)`；当前配置链路依赖保留前导零字符串。
 - 生产敏感配置必须走 `APP__...__..._FILE` 链路，例如 `APP__DATABASE__PASSWORD_FILE`、`APP__JWT__SECRET_FILE`、`APP__QQ_BOT__BEARER_TOKEN_FILE`。
 - `cors.allowed_origins` 是浏览器访问白名单真源；生产环境不能保留 `localhost` 或模板占位值。
+- `/api/auth/send-verification-code` 必须先消费 `/api/captcha/verify` 返回的一次性 `captcha_token`，缺失、过期或重复使用时不能继续调用 QQ 机器人。
 - refresh token 只允许通过 `Set-Cookie` / `Cookie` 往返；JSON 响应只返回 access token。
 - `admin.default_qq_number` 只有在显式真实值时才会授予管理员权限；生产环境不能保留占位值。
 - 生产发布主线是 `.github/workflows/docker-build.yml` + `deploy/`；`deploy/build.sh` 与 `deploy/docker-compose.local.yml` 只用于本地 Docker 调试。

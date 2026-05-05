@@ -10,7 +10,7 @@ use std::time::Duration;
 /// 异步 HTTP 客户端
 ///
 /// # 特性
-/// - 禁用 SSL 验证（测试环境）
+/// - 使用系统根证书校验 HTTPS，避免生产电费数据被中间人篡改
 /// - 超时 30 秒
 /// - 连接池优化（100 连接/host）
 pub struct ReqwestAsyncClient {
@@ -20,17 +20,14 @@ pub struct ReqwestAsyncClient {
 impl ReqwestAsyncClient {
     /// 创建 HTTP 客户端
     ///
-    /// # 参数
-    /// * `disable_ssl_verify` - 是否禁用 SSL 证书验证
-    ///
     /// # 连接池配置
     /// - 100 空闲连接/host
     /// - 超时 90 秒
     /// - TCP keepalive 60 秒
-    pub fn new(disable_ssl_verify: bool) -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let client = build_reqwest_client(&HttpClientConfig {
             timeout: Some(Duration::from_secs(30)),
-            danger_accept_invalid_certs: disable_ssl_verify,
+            danger_accept_invalid_certs: false,
             pool_max_idle_per_host: Some(100),
             pool_idle_timeout: Some(Duration::from_secs(90)),
             tcp_keepalive: Some(Duration::from_secs(60)),
@@ -72,7 +69,7 @@ mod tests {
 
     #[test]
     fn test_client_creation() {
-        let client = ReqwestAsyncClient::new(true);
+        let client = ReqwestAsyncClient::new();
         assert!(client.is_ok());
     }
 }

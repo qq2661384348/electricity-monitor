@@ -164,8 +164,8 @@ impl RoomAccessUseCase {
             .await
     }
 
-    #[instrument(skip(self), fields(module = "room", use_case = "get_room_by_path", path = path))]
-    pub async fn get_room_by_path(&self, path: &str) -> Result<Room> {
+    #[instrument(skip(self, actor), fields(module = "room", use_case = "get_room_by_path", path = path))]
+    pub async fn get_room_by_path(&self, actor: &RoomActor, path: &str) -> Result<Room> {
         let roomid = {
             let tree = self.path_tree.read().await;
             tree.find_roomid_by_path(path)
@@ -173,14 +173,19 @@ impl RoomAccessUseCase {
                 .ok_or(AppError::NotFound)?
         };
 
-        self.cache_manager
+        let room = self
+            .cache_manager
             .get_room(roomid)
             .await?
-            .ok_or(AppError::NotFound)
+            .ok_or(AppError::NotFound)?;
+
+        // 绑定前路径树只暴露最小 roomid；完整电费/阈值详情仍必须走房间访问控制。
+        self.ensure_room_access(actor, room.roomid).await?;
+        Ok(room)
     }
 
-    #[instrument(skip(self), fields(module = "room", use_case = "get_room_by_hash", path_hash = hash))]
-    pub async fn get_room_by_hash(&self, hash: i64, path: &str) -> Result<Room> {
+    #[instrument(skip(self, actor), fields(module = "room", use_case = "get_room_by_hash", path_hash = hash))]
+    pub async fn get_room_by_hash(&self, actor: &RoomActor, hash: i64, path: &str) -> Result<Room> {
         let roomid = {
             let tree = self.path_tree.read().await;
             tree.find_roomid_by_hash(hash, path)
@@ -188,10 +193,14 @@ impl RoomAccessUseCase {
                 .ok_or(AppError::NotFound)?
         };
 
-        self.cache_manager
+        let room = self
+            .cache_manager
             .get_room(roomid)
             .await?
-            .ok_or(AppError::NotFound)
+            .ok_or(AppError::NotFound)?;
+
+        self.ensure_room_access(actor, room.roomid).await?;
+        Ok(room)
     }
 
     async fn ensure_room_access(&self, actor: &RoomActor, roomid: i32) -> Result<()> {

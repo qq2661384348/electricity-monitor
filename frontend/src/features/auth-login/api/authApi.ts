@@ -2,7 +2,7 @@ import httpClient from '@/shared/api/http-client';
 import type { LoginResponse, User } from '@/types';
 
 export const authApi = {
-  async sendVerificationCode(qqNumber: string, captchaToken?: string): Promise<void> {
+  async sendVerificationCode(qqNumber: string, captchaToken: string): Promise<void> {
     await httpClient.post('/auth/send-verification-code', {
       qq_number: qqNumber,
       captcha_token: captchaToken,

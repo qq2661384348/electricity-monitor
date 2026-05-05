@@ -2,8 +2,8 @@
 type: procedural
 status: verified
 scope: 测试与质量门禁
-updated_at: 2026-04-17
-verified_at: 2026-04-17
+updated_at: 2026-05-05
+verified_at: 2026-05-05
 sources:
   - docs/guides/TESTING.md
   - .github/workflows/ci.yml
@@ -41,10 +41,12 @@ summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执�
 ## 后端测试约束
 
 - 认证集成测试必须走真实 `/api/auth/verify-and-login` 链路；不要回退到本地签发 JWT 伪造登录成功。
+- 认证集成测试覆盖 `/api/auth/send-verification-code` 必须携带一次性 captcha token；缺失 token 应在调用 QQ 机器人前被拒绝。
+- 认证集成测试覆盖未绑定用户不能通过 `/api/rooms/by-path` 或 `/api/rooms/by-hash` 读取房间电费详情；路径树叶子节点只能提供绑定所需的最小 `roomid`。
 - `tests/support/app_factory.rs` 负责统一装配 `AppState` 与 Router，避免顶层集成测试重复拼装依赖。
 - `tests/support/auth_fixture.rs` 通过写入 Redis 验证码来驱动真实登录链，再访问受保护接口。
 - `tests/support/seed.rs` 负责测试房间 seed，避免 auth / binding 契约测试重复造数。
-- `/api/auth/send-verification-code` 的契约测试通过本地 mock NapCat HTTP API 覆盖成功发送与错误映射。
+- `/api/auth/send-verification-code` 的契约测试通过本地 mock NapCat HTTP API 覆盖成功发送与错误映射；测试直接种入一次性 captcha token，不依赖第三方验证码服务。
 
 ## readiness / smoke 契约
 

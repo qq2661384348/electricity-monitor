@@ -264,6 +264,7 @@ impl RoomPathTree {
                     name: node.name.clone(),
                     is_leaf: node.is_leaf,
                     room_count: node.count_rooms(),
+                    roomid: node.roomids.first().copied(),
                 })
                 .collect();
 
@@ -292,6 +293,7 @@ impl RoomPathTree {
                 name: node.name.clone(),
                 is_leaf: node.is_leaf,
                 room_count: node.count_rooms(),
+                roomid: node.roomids.first().copied(),
             })
             .collect();
 
@@ -384,6 +386,9 @@ pub struct PathChildNode {
 
     /// 该节点下的房间总数
     pub room_count: usize,
+
+    /// 叶子节点对应的 roomid；绑定流程只需要这个最小标识，不应先读取完整房间详情。
+    pub roomid: Option<i32>,
 }
 
 #[cfg(test)]

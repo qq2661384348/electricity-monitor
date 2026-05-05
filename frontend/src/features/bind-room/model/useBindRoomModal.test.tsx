@@ -1,11 +1,8 @@
 import { act, waitFor } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 
 import { bindingKeys, roomKeys } from '@/shared/api/queryKeys';
 import { renderHookWithProviders } from '@/test/render';
-import { server } from '@/test/msw/server';
-
 import { useBindRoomModal } from './useBindRoomModal';
 
 describe('useBindRoomModal', () => {
@@ -43,6 +40,7 @@ describe('useBindRoomModal', () => {
         name: '101',
         is_leaf: true,
         room_count: 1,
+        roomid: 1001,
       });
     });
 
@@ -62,13 +60,7 @@ describe('useBindRoomModal', () => {
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: bindingKeys.all });
   });
 
-  it('shows an error when room lookup fails', async () => {
-    server.use(
-      http.get('*/api/rooms/by-path', () =>
-        HttpResponse.json({ message: 'lookup failed' }, { status: 500 }),
-      ),
-    );
-
+  it('shows an error when a leaf node is missing roomid', async () => {
     const { result } = renderHookWithProviders(() =>
       useBindRoomModal({
         isOpen: true,

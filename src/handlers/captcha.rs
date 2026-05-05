@@ -95,7 +95,6 @@ pub async fn verify_captcha(
         Ok(token) => {
             tracing::info!(
                 captcha_id = %req.id,
-                token = %token,
                 "验证码校验成功"
             );
 

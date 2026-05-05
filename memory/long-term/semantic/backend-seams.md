@@ -2,14 +2,15 @@
 type: semantic
 status: verified
 scope: 后端可维护性接缝
-updated_at: 2026-04-17
-verified_at: 2026-04-17
+updated_at: 2026-05-05
+verified_at: 2026-05-05
 sources:
   - src/modules/auth/api/middleware.rs
+  - src/modules/room/application/mod.rs
   - src/infrastructure/cache/cache_manager.rs
   - src/domain/services/notification_gate.rs
   - src/domain/services/notification_service.rs
-summary: 后端鉴权、缓存、通知域和模块化迁移接缝
+summary: 后端鉴权、房间授权、缓存、通知域和模块化迁移接缝
 ---
 
 # Electricity Monitor 后端可维护性接缝
@@ -38,10 +39,12 @@ summary: 后端鉴权、缓存、通知域和模块化迁移接缝
 ## Handler 与模块化接缝
 
 - `room`、`path_tree`、`room_sync` 的复杂编排已经开始下沉到 `src/modules/*/application`。
+- 房间详情读取（包括 id、roomid、path、hash 入口）统一由 `RoomAccessUseCase` 做访问控制；handler 不应直接绕过 use case 读取完整房间电费和阈值。
 - 旧 handler 热点主要集中在 `binding` 与 `auth`，后续应继续往模块应用层收敛。
 
 ## 外部 HTTP 接缝
 
 - `src/infrastructure/external/` 提供统一 `reqwest` 客户端构造与 HTTP 状态错误映射。
 - `electricity`、`room_sync crawler`、`qq_client` 已接入这条统一入口。
+- `electricity` 电费抓取客户端必须保留 HTTPS 证书校验；测试或开发调试不得把 `danger_accept_invalid_certs=true` 带回生产路径。
 - 新增外部 HTTP 依赖时，应优先复用这条接缝，而不是各模块自行创建 `reqwest::Client`。

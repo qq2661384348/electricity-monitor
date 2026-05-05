@@ -48,7 +48,7 @@ const rootPathTree: PathChildrenResponse = {
 };
 
 const buildingPathTree: PathChildrenResponse = {
-  children: [{ name: '101', is_leaf: true, room_count: 1 }],
+  children: [{ name: '101', is_leaf: true, room_count: 1, roomid: defaultRoom.roomid }],
   current_level: 1,
   total_count: 1,
 };

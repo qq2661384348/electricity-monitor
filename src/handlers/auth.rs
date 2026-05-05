@@ -35,7 +35,7 @@ pub struct SendVerificationCodeRequest {
     #[validate(length(min = 5, max = 20, message = "QQ号长度必须在5-20字符之间"))]
     pub qq_number: String,
 
-    /// 验证码Token（可选，暂时兼容不传）
+    /// 验证码Token（必须先通过 /api/captcha/verify 获取）
     pub captcha_token: Option<String>,
 }
 
@@ -218,30 +218,36 @@ pub async fn send_verification_code(
         "收到发送验证码请求"
     );
 
-    // 如果提供了captcha_token，则验证它
-    if let Some(token) = &req.captcha_token {
-        let captcha_service =
-            crate::domain::services::captcha_verification::CaptchaVerificationService::new(
-                state.redis_pool.clone(),
-            );
+    let captcha_token = req
+        .captcha_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .ok_or_else(|| AppError::Unauthorized("验证码token缺失".to_string()))?;
 
-        let token_valid = captcha_service.verify_and_consume_token(token).await?;
-
-        if !token_valid {
-            tracing::warn!(
-                qq_number = %req.qq_number,
-                "验证码token无效或已过期"
-            );
-            return Err(AppError::Unauthorized(
-                "验证码token无效或已过期".to_string(),
-            ));
-        }
-
-        tracing::info!(
-            qq_number = %req.qq_number,
-            "验证码token验证成功"
+    let captcha_service =
+        crate::domain::services::captcha_verification::CaptchaVerificationService::new(
+            state.redis_pool.clone(),
         );
+
+    let token_valid = captcha_service
+        .verify_and_consume_token(captcha_token)
+        .await?;
+
+    if !token_valid {
+        tracing::warn!(
+            qq_number = %req.qq_number,
+            "验证码token无效或已过期"
+        );
+        return Err(AppError::Unauthorized(
+            "验证码token无效或已过期".to_string(),
+        ));
     }
+
+    tracing::info!(
+        qq_number = %req.qq_number,
+        "验证码token验证成功"
+    );
 
     // 创建QQ客户端
     let qq_client = crate::infrastructure::QQClient::new(AppConfig::global().qq_bot.clone())

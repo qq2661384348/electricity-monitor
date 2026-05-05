@@ -51,6 +51,7 @@ export interface PathChild {
   name: string;
   is_leaf: boolean;
   room_count: number;
+  roomid?: number;
 }
 
 export interface PathChildrenResponse {
