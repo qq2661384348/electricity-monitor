@@ -70,16 +70,6 @@ impl VerificationScene {
         }
     }
 
-    fn accent_color(self) -> &'static str {
-        match self {
-            VerificationScene::Register => "#2e7d32",
-            VerificationScene::Login => "#1565c0",
-            VerificationScene::Reset => "#ef6c00",
-            VerificationScene::Bind => "#6a1b9a",
-            VerificationScene::Unbind => "#c62828",
-        }
-    }
-
     fn warning(self) -> &'static str {
         match self {
             VerificationScene::Register => {
@@ -167,32 +157,45 @@ pub fn render_verification_code(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{title}</title>
 </head>
-<body style="margin:0;padding:24px;background:#f6f7f9;color:#222;font-family:Arial,'Microsoft YaHei',sans-serif;">
-  <main style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;padding:28px;border:1px solid #e6e8eb;">
-    <header style="border-bottom:2px solid {color};padding-bottom:18px;margin-bottom:24px;text-align:center;">
-      <div style="font-size:24px;font-weight:700;color:{color};">{app_name}</div>
-      <h1 style="font-size:20px;line-height:1.4;margin:8px 0 0;">{headline}</h1>
+<body style="margin:0;padding:24px;background:#f6f7f9;color:#111827;font-family:Arial,'Microsoft YaHei',sans-serif;">
+  <main style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+    <header style="background:#111827;color:#fff;padding:22px 28px;">
+      <div style="font-size:14px;letter-spacing:1px;text-transform:uppercase;color:#facc15;">{app_name}</div>
+      <h1 style="font-size:24px;line-height:1.35;margin:8px 0 0;">{headline}</h1>
     </header>
-    <p style="font-size:16px;line-height:1.7;margin:0 0 18px;">您好！</p>
-    <p style="font-size:15px;line-height:1.8;margin:0 0 20px;">{description}</p>
-    <section style="background:#f8f9fa;border:2px dashed {color};border-radius:8px;padding:20px;text-align:center;margin:22px 0;">
-      <div style="font-size:14px;color:#666;margin-bottom:8px;">验证码</div>
-      <div style="font-size:32px;font-weight:700;color:{color};letter-spacing:8px;font-family:'Courier New',monospace;">{code}</div>
+    <section style="padding:26px 28px;">
+      <p style="font-size:15px;line-height:1.8;margin:0 0 18px;">您好！</p>
+      <p style="font-size:15px;line-height:1.8;margin:0 0 18px;">{description}</p>
+      <div style="border:2px solid #111827;border-radius:8px;overflow:hidden;margin:20px 0;">
+        <div style="padding:14px 16px;background:#facc15;font-weight:700;">验证码</div>
+        <div style="padding:20px 16px;text-align:center;font-size:32px;font-weight:800;color:#111827;letter-spacing:8px;font-family:'Courier New',monospace;">{code}</div>
+      </div>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:20px 0;">
+        <tr>
+          <td style="width:50%;padding:14px;border:1px solid #e5e7eb;background:#f9fafb;">
+            <div style="font-size:13px;color:#6b7280;margin-bottom:6px;">有效期</div>
+            <div style="font-size:26px;font-weight:800;color:#111827;">{valid_minutes} 分钟</div>
+          </td>
+          <td style="width:50%;padding:14px;border:1px solid #e5e7eb;background:#f9fafb;">
+            <div style="font-size:13px;color:#6b7280;margin-bottom:6px;">使用次数</div>
+            <div style="font-size:26px;font-weight:800;color:#111827;">1 次</div>
+          </td>
+        </tr>
+      </table>
+      <p style="font-size:13px;line-height:1.7;color:#6b7280;margin:0 0 18px;">
+        请在页面中输入上述验证码，验证码仅可使用一次。
+      </p>
+      <aside style="border:1px solid #e5e7eb;background:#f9fafb;padding:14px;font-size:14px;line-height:1.7;color:#111827;">
+        {warning}
+      </aside>
     </section>
-    <p style="font-size:14px;line-height:1.8;color:#555;margin:0 0 18px;">
-      请在页面中输入上述验证码。验证码有效期为 {valid_minutes} 分钟，且仅可使用一次。
-    </p>
-    <aside style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:14px;font-size:14px;line-height:1.7;color:#5d4037;">
-      {warning}
-    </aside>
-    <footer style="font-size:12px;color:#888;border-top:1px solid #edf0f2;margin-top:24px;padding-top:16px;text-align:center;">
+    <footer style="font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb;padding:16px 28px;text-align:center;">
       此邮件由系统自动发送，请勿回复。
     </footer>
   </main>
 </body>
 </html>"#,
         title = scene.title(),
-        color = scene.accent_color(),
         app_name = escaped_app_name,
         headline = scene.headline(),
         description = scene.description(),
@@ -334,6 +337,22 @@ mod tests {
         assert!(rendered.text_body.contains("123456"));
         assert!(rendered.html_body.contains("123456"));
         assert!(rendered.html_body.contains("CogniAegis"));
+    }
+
+    #[test]
+    fn test_verification_email_uses_alert_visual_frame() {
+        let rendered =
+            render_verification_code("123456", VerificationScene::Login, "CogniAegis").unwrap();
+
+        assert!(rendered.html_body.contains("max-width:640px"));
+        assert!(rendered.html_body.contains("background:#111827"));
+        assert!(rendered.html_body.contains("color:#facc15"));
+        assert!(rendered.html_body.contains("border:2px solid #111827"));
+        assert!(rendered.html_body.contains("background:#f9fafb"));
+        assert!(rendered.html_body.contains("有效期"));
+        assert!(rendered.html_body.contains("使用次数"));
+        assert!(!rendered.html_body.contains("border:2px dashed"));
+        assert!(!rendered.html_body.contains("#1565c0"));
     }
 
     #[test]
