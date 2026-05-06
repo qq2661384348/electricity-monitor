@@ -1,6 +1,7 @@
 use std::sync::{Arc, Once};
 
 use axum::Router;
+use electricity_monitor_backend::infrastructure::email::EmailDelivery;
 use electricity_monitor_backend::{
     bootstrap::router::create_app,
     config::AppConfig,
@@ -31,6 +32,12 @@ pub fn test_config() -> &'static AppConfig {
 }
 
 pub async fn create_test_app() -> TestApp {
+    create_test_app_with_email_sender(None).await
+}
+
+pub async fn create_test_app_with_email_sender(
+    email_sender: Option<Arc<dyn EmailDelivery>>,
+) -> TestApp {
     let config = test_config();
 
     let db_pool = create_pool(&config.database)
@@ -49,7 +56,8 @@ pub async fn create_test_app() -> TestApp {
         Some(redis_pool.clone()),
     ));
 
-    let state = AppState::new(db_pool, redis_pool, rate_limiter, None, cache_manager);
+    let state = AppState::new(db_pool, redis_pool, rate_limiter, None, cache_manager)
+        .with_email_sender(email_sender);
     let app = create_app(state.clone());
 
     TestApp { app, state }

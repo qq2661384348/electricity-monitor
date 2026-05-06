@@ -9,7 +9,7 @@
 - `src/routes.tsx`：页面级路由装配与 lazy load 真源。
 - `src/shared/api/http-client.ts`：真实 HTTP client 真源，统一处理 `/api` 前缀、`withCredentials`、Bearer token 注入和单次 401 刷新重试。
 - `src/stores/authStore.ts`：认证状态真源，只在内存里保存 access token，不做本地持久化。
-- `src/entities/public-config/`：`/api/public-config` 的非敏感运行时配置 API 出口，供前端读取机器人 QQ、管理员 QQ 和验证码参数。
+- `src/entities/public-config/`：`/api/public-config` 的非敏感运行时配置 API 出口，供前端读取可用登录模式、机器人 QQ、管理员 QQ 和验证码参数。
 - `src/features/public-config/`：公开配置 React Query hook，登录、公告、教程和验证码弹窗应复用这里的状态。
 - `src/features/`：页面流程与交互编排层。
 - `src/entities/`：单领域 API 与稳定公共出口。
@@ -43,7 +43,7 @@ bun audit
 
 - 真实接口访问统一走 `src/shared/api/http-client.ts`，不要把 `src/services/api.ts` 再演化成新的接口真源。
 - refresh token 只存在于 HTTPOnly Cookie；浏览器端只在内存保存 access token，页面刷新后的会话恢复统一走 `/api/auth/refresh`。
-- 机器人 QQ、管理员 QQ、第三方验证码参数和 QQ 验证码长度统一读取 `/api/public-config`；不要在页面或组件里硬编码这些运行时值。
+- 登录模式可用性、机器人 QQ、管理员 QQ、第三方验证码参数和登录验证码长度统一读取 `/api/public-config`；不要在页面或组件里硬编码这些运行时值。
 - `vite.config.ts` 中的 `chunkSizeWarningLimit=192` 只是粗粒度 warning 阈值；真正的 chunk 预算约束以 `bun run check:bundle` 为准。
 - 页面应尽量保持薄层，复杂交互优先下沉到 `src/features/`。
 - 单领域访问和稳定公共出口优先收敛到 `src/entities/`。

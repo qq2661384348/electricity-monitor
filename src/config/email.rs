@@ -98,6 +98,12 @@ impl EmailConfig {
         let password = self.smtp_password.trim();
         !password.is_empty() && !password.starts_with(SMTP_PASSWORD_PLACEHOLDER_PREFIX)
     }
+
+    pub fn is_delivery_configured(&self) -> bool {
+        !self.smtp_host.trim().is_empty()
+            && !self.smtp_user.trim().is_empty()
+            && self.has_valid_resolved_password()
+    }
 }
 
 impl Default for EmailConfig {
@@ -150,5 +156,18 @@ mod tests {
         };
 
         assert!(!config.has_valid_resolved_password());
+        assert!(!config.is_delivery_configured());
+    }
+
+    #[test]
+    fn test_delivery_configured_requires_password() {
+        let config = EmailConfig {
+            smtp_host: "smtp.qq.com".to_string(),
+            smtp_user: "cogniaegis@qq.com".to_string(),
+            smtp_password: "secret".to_string(),
+            ..EmailConfig::default()
+        };
+
+        assert!(config.is_delivery_configured());
     }
 }

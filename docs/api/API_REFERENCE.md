@@ -79,7 +79,7 @@ curl http://localhost:8000/api/health/db
 
 - **端点**: `GET /api/public-config`
 - **认证**: 无需认证
-- **描述**: 返回前端需要展示或复用的非敏感运行时配置，包括机器人 QQ、管理员 QQ、第三方图形验证码参数和 QQ 验证码参数。该接口不会暴露 NapCat Bearer token、JWT secret、数据库密码等敏感字段。
+- **描述**: 返回前端需要展示或复用的非敏感运行时配置，包括可用登录模式、机器人 QQ、管理员 QQ、第三方图形验证码参数和登录验证码参数。该接口不会暴露 NapCat Bearer token、SMTP 授权码、JWT secret、数据库密码等敏感字段。
 
 #### 请求示例
 
@@ -107,6 +107,10 @@ curl http://localhost:8000/api/public-config
   "verification": {
     "code_length": 6,
     "expire_seconds": 300
+  },
+  "auth": {
+    "login_modes": ["qq", "email"],
+    "email_login_enabled": true
   }
 }
 ```
@@ -124,8 +128,10 @@ curl http://localhost:8000/api/public-config
 | captcha.width | number | 前端生成验证码图片时传给第三方的宽度 |
 | captcha.height | number | 前端生成验证码图片时传给第三方的高度 |
 | captcha.options | number | 前端生成验证码图片时传给第三方的难度等级，支持 `1`、`2`、`3` |
-| verification.code_length | number | QQ 登录验证码长度 |
-| verification.expire_seconds | number | QQ 登录验证码在 Redis 中的有效期，单位秒 |
+| verification.code_length | number | 登录验证码长度 |
+| verification.expire_seconds | number | 登录验证码在 Redis 中的有效期，单位秒 |
+| auth.login_modes | string[] | 当前可选登录模式；始终包含 `qq`，SMTP 邮件发送完整配置后包含 `email` |
+| auth.email_login_enabled | boolean | 邮箱登录是否可用，由 SMTP host、user 和有效授权码是否完整决定 |
 
 > `qq_bot_public_qq_number` 必须由部署者手动填写，不能从 NapCat 登录信息自动推断。
 
@@ -142,25 +148,57 @@ curl http://localhost:8000/api/public-config
 
 **端点**: `POST /api/auth/send-verification-code`  
 **认证**: 无需认证  
-**描述**: 消费 `/api/captcha/verify` 返回的一次性 `captcha_token` 后，向指定 QQ 发送一次性验证码
+**描述**: 消费 `/api/captcha/verify` 返回的一次性 `captcha_token` 后，按 `login_mode` 向 QQ 机器人或邮箱发送一次性登录验证码。缺省 `login_mode` 时按 `qq` 处理，用于兼容旧前端。
 
 #### 请求体
 
+QQ 登录：
+
 ```json
 {
+  "login_mode": "qq",
+  "identifier": "123456789",
   "qq_number": "123456789",
   "captcha_token": "captcha-token-from-api-captcha-verify"
 }
 ```
 
-> `captcha_token` 为必填项，且只能使用一次。缺失、过期或重复使用都会被拒绝，服务端不会继续调用 QQ 机器人发送验证码。
+邮箱登录：
+
+```json
+{
+  "login_mode": "email",
+  "identifier": "student@example.com",
+  "email": "student@example.com",
+  "captcha_token": "captcha-token-from-api-captcha-verify"
+}
+```
+
+> `identifier` 是统一登录标识。QQ 登录会兼容旧字段 `qq_number`，邮箱登录会兼容字段 `email`。`captcha_token` 为必填项，且只能使用一次。缺失、过期或重复使用都会被拒绝，服务端不会继续调用 QQ 机器人或 SMTP 邮件发送器。
 
 #### 响应示例
+
+QQ 登录：
 
 ```json
 {
   "message": "验证码已发送",
-  "qq_number": "123456789"
+  "login_mode": "qq",
+  "identifier": "123456789",
+  "qq_number": "123456789",
+  "email": null
+}
+```
+
+邮箱登录：
+
+```json
+{
+  "message": "验证码已发送",
+  "login_mode": "email",
+  "identifier": "student@example.com",
+  "qq_number": null,
+  "email": "student@example.com"
 }
 ```
 
@@ -170,7 +208,7 @@ curl http://localhost:8000/api/public-config
 
 **端点**: `POST /api/captcha/verify`
 **认证**: 无需认证
-**描述**: 校验第三方图形验证码答案，成功后返回一个只用于发送 QQ 验证码的一次性 token。
+**描述**: 校验第三方图形验证码答案，成功后返回一个只用于发送登录验证码的一次性 token。
 
 #### 请求体
 
@@ -203,13 +241,28 @@ curl http://localhost:8000/api/public-config
 
 **端点**: `POST /api/auth/verify-and-login`  
 **认证**: 无需认证  
-**描述**: 校验 QQ 验证码，创建或查找用户，并签发 access token 与 refresh cookie
+**描述**: 校验登录验证码，按 `login_mode` 创建或查找用户，并签发 access token 与 refresh cookie。QQ 登录仍可按 `admin.default_qq_number` 提升管理员；邮箱登录本轮始终为普通用户，不启用管理员提升。
 
 #### 请求体
 
+QQ 登录：
+
 ```json
 {
+  "login_mode": "qq",
+  "identifier": "123456789",
   "qq_number": "123456789",
+  "code": "123456"
+}
+```
+
+邮箱登录：
+
+```json
+{
+  "login_mode": "email",
+  "identifier": "student@example.com",
+  "email": "student@example.com",
   "code": "123456"
 }
 ```
@@ -231,7 +284,10 @@ Set-Cookie: refresh_token=<jwt>; HttpOnly; Path=/api/auth; SameSite=Lax
   "expires_in": 86400,
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
+    "login_mode": "qq",
+    "identifier": "123456789",
     "qq_number": "123456789",
+    "email": null,
     "role": "user",
     "is_active": true
   }
@@ -239,6 +295,16 @@ Set-Cookie: refresh_token=<jwt>; HttpOnly; Path=/api/auth; SameSite=Lax
 ```
 
 > 注意：`refresh_token` 不会出现在 JSON 响应里。
+
+#### 用户字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| user.login_mode | string | 登录渠道，`qq` 或 `email` |
+| user.identifier | string | 当前登录渠道下的稳定标识，QQ 号或邮箱地址 |
+| user.qq_number | string \| null | QQ 登录账号的 QQ 号；邮箱登录时为 `null` |
+| user.email | string \| null | 邮箱登录账号的邮箱地址；QQ 登录时为 `null` |
+| user.role | string | 用户角色；邮箱登录本轮固定为 `user` |
 
 ---
 
@@ -275,7 +341,10 @@ Set-Cookie: refresh_token=<new-jwt>; HttpOnly; Path=/api/auth; SameSite=Lax
   "expires_in": 86400,
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
+    "login_mode": "qq",
+    "identifier": "123456789",
     "qq_number": "123456789",
+    "email": null,
     "role": "user",
     "is_active": true
   }
@@ -315,7 +384,10 @@ curl -H "Authorization: Bearer <access-token>" \
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
+  "login_mode": "qq",
+  "identifier": "123456789",
   "qq_number": "123456789",
+  "email": null,
   "role": "user",
   "is_active": true
 }

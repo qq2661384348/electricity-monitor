@@ -26,9 +26,17 @@ impl Default for VerificationConfig {
 }
 
 impl VerificationConfig {
-    /// 生成Redis键
+    /// 生成 QQ 登录验证码 Redis 键，保留给旧调用点兼容使用。
     pub fn redis_key(&self, qq_number: &str) -> String {
-        format!("{}:{}", self.redis_key_prefix, qq_number)
+        self.redis_key_for("qq", qq_number)
+    }
+
+    /// 生成按登录渠道隔离的验证码 Redis 键。
+    pub fn redis_key_for(&self, login_provider: &str, identifier: &str) -> String {
+        format!(
+            "{}:{}:{}",
+            self.redis_key_prefix, login_provider, identifier
+        )
     }
 }
 
@@ -47,6 +55,6 @@ mod tests {
     fn test_redis_key() {
         let config = VerificationConfig::default();
         let key = config.redis_key("123456");
-        assert_eq!(key, "verify:123456");
+        assert_eq!(key, "verify:qq:123456");
     }
 }

@@ -1,8 +1,13 @@
 // 后端API响应类型定义
 
+export type LoginMode = 'qq' | 'email';
+
 export interface User {
   id: string;
-  qq_number: string;
+  login_mode: LoginMode;
+  identifier: string;
+  qq_number?: string | null;
+  email?: string | null;
   role: 'admin' | 'user';
   is_active: boolean;
 }

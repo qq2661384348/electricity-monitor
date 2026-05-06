@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 前端可维护性接缝
-updated_at: 2026-05-05
-verified_at: 2026-05-05
+updated_at: 2026-05-06
+verified_at: 2026-05-06
 sources:
   - frontend/src/App.tsx
   - frontend/src/shared/api/http-client.ts
@@ -33,8 +33,13 @@ summary: 前端启动、会话、HTTP、page/feature/entity 和可复用 UI 接�
 ## 公开运行时配置接缝
 
 - `/api/public-config` 的前端访问收敛在 `frontend/src/entities/public-config/api/publicConfigApi.ts`，React Query hook 收敛在 `frontend/src/features/public-config/model/usePublicConfig.ts`。
-- 登录页、登录弹窗、验证码弹窗、首页教程和公告中的机器人 QQ、管理员 QQ、第三方验证码参数与 QQ 验证码长度都应读取公开配置；不要在 UI 中硬编码机器人号、管理员号或 6 位验证码长度。
+- 登录页、登录弹窗、验证码弹窗、首页教程和公告中的登录模式可用性、机器人 QQ、管理员 QQ、第三方验证码参数与登录验证码长度都应读取公开配置；不要在 UI 中硬编码机器人号、管理员号或 6 位验证码长度。
 - `frontend/src/entities/public-config/api/publicConfigApi.ts` 中的 fallback 只用于接口短暂不可用时维持旧默认体验；真实运行时仍依赖后端配置校验保证机器人 QQ 与管理员 QQ 非空。
+
+## 认证登录接缝
+
+- QQ / 邮箱登录的标识规范化、校验和展示文案收敛在 `frontend/src/features/auth-login/model/loginIdentity.ts`。
+- 登录 API 调用统一走 `frontend/src/features/auth-login/api/authApi.ts`，请求体同时发送 `login_mode`、`identifier` 与当前渠道兼容字段，保持新旧后端调用方兼容。
 
 ## 页面 / feature / entity 接缝
 

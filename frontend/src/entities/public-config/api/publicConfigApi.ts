@@ -1,6 +1,12 @@
 import httpClient from '@/shared/api/http-client';
+import type { LoginMode } from '@/types';
 
 export type PublicCaptchaType = 'string' | 'math' | 'digit';
+
+export interface PublicAuthConfig {
+  login_modes: LoginMode[];
+  email_login_enabled: boolean;
+}
 
 export interface PublicNotificationConfig {
   qq_bot_public_qq_number: string;
@@ -23,12 +29,17 @@ export interface PublicVerificationConfig {
 }
 
 export interface PublicConfig {
+  auth: PublicAuthConfig;
   notification: PublicNotificationConfig;
   captcha: PublicCaptchaConfig;
   verification: PublicVerificationConfig;
 }
 
 export const fallbackPublicConfig: PublicConfig = {
+  auth: {
+    login_modes: ['qq'],
+    email_login_enabled: false,
+  },
   notification: {
     qq_bot_public_qq_number: '',
     admin_qq_number: '',

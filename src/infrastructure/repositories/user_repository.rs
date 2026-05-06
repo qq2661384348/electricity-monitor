@@ -6,7 +6,9 @@ use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use uuid::Uuid;
 
-use crate::domain::models::{NewUser, UpdateUserRole, User};
+use crate::domain::models::{
+    NewUser, UpdateUserRole, User, LOGIN_PROVIDER_EMAIL, LOGIN_PROVIDER_QQ,
+};
 use crate::errors::{AppError, Result};
 use crate::infrastructure::database::schema::users;
 use crate::infrastructure::DbPool;
@@ -52,7 +54,22 @@ impl UserRepository {
         let mut conn = self.get_conn().await?;
 
         users::table
-            .filter(users::qq_number.eq(qq_number))
+            .filter(users::login_provider.eq(LOGIN_PROVIDER_QQ))
+            .filter(users::qq_number.eq(Some(qq_number.to_string())))
+            .select(User::as_select())
+            .first(&mut conn)
+            .await
+            .optional()
+            .map_err(AppError::Database)
+    }
+
+    /// 根据邮箱查找邮箱登录用户。
+    pub async fn find_by_email(&self, email: &str) -> Result<Option<User>> {
+        let mut conn = self.get_conn().await?;
+
+        users::table
+            .filter(users::login_provider.eq(LOGIN_PROVIDER_EMAIL))
+            .filter(users::email.eq(Some(email.to_string())))
             .select(User::as_select())
             .first(&mut conn)
             .await
@@ -93,18 +110,25 @@ impl UserRepository {
     /// 使用INSERT ... ON CONFLICT DO NOTHING避免竞态条件
     /// 如果插入失败（用户已存在），则查询返回
     pub async fn create_or_find(&self, qq_number: &str, role: &str) -> Result<User> {
+        self.create_or_find_qq(qq_number, role).await
+    }
+
+    /// 创建或查找 QQ 登录用户。
+    pub async fn create_or_find_qq(&self, qq_number: &str, role: &str) -> Result<User> {
         let mut conn = self.get_conn().await?;
 
         let new_user = NewUser {
-            qq_number: qq_number.to_string(),
+            qq_number: Some(qq_number.to_string()),
             role: role.to_string(),
             is_active: true,
+            login_provider: LOGIN_PROVIDER_QQ.to_string(),
+            email: None,
         };
 
         // 尝试插入，如果冲突则忽略
         let insert_result = diesel::insert_into(users::table)
             .values(&new_user)
-            .on_conflict(users::qq_number)
+            .on_conflict((users::login_provider, users::qq_number))
             .do_nothing()
             .execute(&mut conn)
             .await
@@ -113,7 +137,8 @@ impl UserRepository {
         // 如果插入成功（affected_rows > 0），查询刚插入的用户
         // 如果插入失败（冲突），查询已存在的用户
         let user = users::table
-            .filter(users::qq_number.eq(qq_number))
+            .filter(users::login_provider.eq(LOGIN_PROVIDER_QQ))
+            .filter(users::qq_number.eq(Some(qq_number.to_string())))
             .select(User::as_select())
             .first(&mut conn)
             .await
@@ -131,6 +156,52 @@ impl UserRepository {
                 qq_number = qq_number,
                 user_id = %user.id,
                 "用户已存在"
+            );
+        }
+
+        Ok(user)
+    }
+
+    /// 创建或查找邮箱登录用户。
+    pub async fn create_or_find_email(&self, email: &str, role: &str) -> Result<User> {
+        let mut conn = self.get_conn().await?;
+
+        let new_user = NewUser {
+            qq_number: None,
+            role: role.to_string(),
+            is_active: true,
+            login_provider: LOGIN_PROVIDER_EMAIL.to_string(),
+            email: Some(email.to_string()),
+        };
+
+        let insert_result = diesel::insert_into(users::table)
+            .values(&new_user)
+            .on_conflict((users::login_provider, users::email))
+            .do_nothing()
+            .execute(&mut conn)
+            .await
+            .map_err(AppError::Database)?;
+
+        let user = users::table
+            .filter(users::login_provider.eq(LOGIN_PROVIDER_EMAIL))
+            .filter(users::email.eq(Some(email.to_string())))
+            .select(User::as_select())
+            .first(&mut conn)
+            .await
+            .map_err(AppError::Database)?;
+
+        if insert_result > 0 {
+            tracing::info!(
+                email = email,
+                user_id = %user.id,
+                role = role,
+                "创建邮箱登录用户成功"
+            );
+        } else {
+            tracing::debug!(
+                email = email,
+                user_id = %user.id,
+                "邮箱登录用户已存在"
             );
         }
 

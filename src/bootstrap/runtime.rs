@@ -4,9 +4,11 @@ use crate::{
     config::AppConfig,
     domain::services::{
         spawn_recovery_monitor_persistent, ElectricityFetcherService, ElectricityService,
-        NotificationGate, NotificationService, RoomPathTree, RoomSyncCache, RoomSyncService,
+        NotificationChannels, NotificationGate, NotificationService, RoomPathTree, RoomSyncCache,
+        RoomSyncService,
     },
     infrastructure::{
+        email::{EmailDelivery, EmailSender},
         repositories::{RoomRepository, UserRepository, UserRoomBindingRepository},
         DbPool, QQClient, RedisPool,
     },
@@ -149,6 +151,20 @@ pub async fn initialize_electricity_fetcher_service(
     Ok(Some(service))
 }
 
+pub fn initialize_email_sender(
+    config: &AppConfig,
+) -> anyhow::Result<Option<Arc<dyn EmailDelivery>>> {
+    if !config.email.is_delivery_configured() {
+        tracing::info!("Email sender disabled: SMTP delivery is not fully configured");
+        return Ok(None);
+    }
+
+    let sender = EmailSender::new(config.email.clone())
+        .map_err(|error| anyhow::anyhow!("邮件发送器初始化失败: {}", error))?;
+    tracing::info!("Email sender initialized");
+    Ok(Some(Arc::new(sender)))
+}
+
 pub async fn initialize_path_tree(state: &AppState, db_pool: &DbPool) {
     tracing::info!("正在初始化房间路径树...");
 
@@ -198,6 +214,7 @@ pub fn spawn_background_services(state: AppState) {
     tracing::info!("Electricity insertion service started");
 
     let config = AppConfig::global();
+    let email_sender = state.email_sender.clone();
     match QQClient::new(config.qq_bot.clone()) {
         Ok(qq_client) => {
             let qq_client = Arc::new(qq_client);
@@ -251,7 +268,7 @@ pub fn spawn_background_services(state: AppState) {
                 room_repository.clone(),
                 user_repository,
                 binding_repository,
-                qq_client,
+                NotificationChannels::new(qq_client, email_sender),
                 rate_limiter.clone(),
                 notification_gate,
                 &config.notification,

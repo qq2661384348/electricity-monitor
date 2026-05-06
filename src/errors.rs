@@ -122,3 +122,10 @@ impl From<crate::infrastructure::notification::error::NotificationError> for App
         }
     }
 }
+
+/// 从 EmailError 转换为 AppError。
+impl From<crate::infrastructure::email::EmailError> for AppError {
+    fn from(err: crate::infrastructure::email::EmailError) -> Self {
+        AppError::Internal(format!("邮件服务错误: {}", err))
+    }
+}

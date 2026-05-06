@@ -4,7 +4,10 @@ import type { Binding, LoginResponse, PathChildrenResponse, Room, RoomByPathResp
 
 const defaultUser: User = {
   id: 'user-1',
+  login_mode: 'qq',
+  identifier: '123456789',
   qq_number: '123456789',
+  email: null,
   role: 'user',
   is_active: true,
 };
@@ -68,6 +71,10 @@ export const handlers = [
         qq_bot_public_qq_number: '3776431946',
         admin_qq_number: '2661384348',
       },
+      auth: {
+        login_modes: ['qq', 'email'],
+        email_login_enabled: true,
+      },
       captcha: {
         api_url: 'https://v2.xxapi.cn/api/captcha',
         request_timeout_seconds: 5,
@@ -84,21 +91,49 @@ export const handlers = [
     }),
   ),
 
-  http.post('*/api/auth/send-verification-code', () =>
-    HttpResponse.json({
+  http.post('*/api/auth/send-verification-code', async ({ request }) => {
+    const body = (await request.json()) as {
+      login_mode?: 'qq' | 'email';
+      identifier?: string;
+      qq_number?: string;
+      email?: string;
+    };
+    const loginMode = body.login_mode ?? 'qq';
+    const identifier =
+      body.identifier ??
+      (loginMode === 'email' ? body.email : body.qq_number) ??
+      defaultUser.identifier;
+
+    return HttpResponse.json({
       message: '验证码已发送',
-      qq_number: defaultUser.qq_number,
-    }),
-  ),
+      login_mode: loginMode,
+      identifier,
+      qq_number: loginMode === 'qq' ? identifier : null,
+      email: loginMode === 'email' ? identifier : null,
+    });
+  }),
 
   http.post('*/api/auth/verify-and-login', async ({ request }) => {
-    const body = (await request.json()) as { qq_number?: string };
+    const body = (await request.json()) as {
+      login_mode?: 'qq' | 'email';
+      identifier?: string;
+      qq_number?: string;
+      email?: string;
+    };
+    const loginMode = body.login_mode ?? 'qq';
+    const identifier =
+      body.identifier ??
+      (loginMode === 'email' ? body.email : body.qq_number) ??
+      defaultLoginResponse.user.identifier;
 
     return HttpResponse.json({
       ...defaultLoginResponse,
       user: {
         ...defaultLoginResponse.user,
-        qq_number: body.qq_number ?? defaultLoginResponse.user.qq_number,
+        login_mode: loginMode,
+        identifier,
+        qq_number: loginMode === 'qq' ? identifier : null,
+        email: loginMode === 'email' ? identifier : null,
       },
     });
   }),

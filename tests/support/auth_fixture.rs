@@ -34,7 +34,10 @@ pub struct LoginResponse {
 #[derive(Debug, Deserialize)]
 pub struct UserInfo {
     pub id: String,
-    pub qq_number: String,
+    pub login_mode: String,
+    pub identifier: String,
+    pub qq_number: Option<String>,
+    pub email: Option<String>,
     pub role: String,
     pub is_active: bool,
 }
@@ -53,6 +56,16 @@ pub fn unique_qq_number() -> String {
     format!("9{:013}", (now + counter) % 10_000_000_000_000)
 }
 
+pub fn unique_email() -> String {
+    let counter = QQ_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("系统时间异常")
+        .as_millis() as u64;
+
+    format!("student-{}-{}@example.com", now, counter)
+}
+
 pub async fn login_with_seeded_code(
     app: &Router,
     state: &AppState,
@@ -65,6 +78,45 @@ pub async fn login_with_seeded_code(
     }
 
     login_with_seeded_code_inner(app, state, qq_number, code).await
+}
+
+pub async fn login_with_seeded_email_code(
+    app: &Router,
+    state: &AppState,
+    email: &str,
+    code: &str,
+) -> LoginResponse {
+    let normalized_email = email.trim().to_ascii_lowercase();
+    seed_verification_code_for(state, "email", &normalized_email, code).await;
+
+    let response = post_json(
+        app,
+        "/api/auth/verify-and-login",
+        serde_json::json!({
+            "login_mode": "email",
+            "identifier": normalized_email,
+            "code": code,
+        }),
+    )
+    .await;
+
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "真实邮箱登录链路应该返回 200"
+    );
+
+    let refresh_cookie = response
+        .headers()
+        .get(header::SET_COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(cookie_header_value)
+        .expect("邮箱登录响应必须返回 refresh cookie")
+        .to_string();
+
+    let mut login: LoginResponse = read_json(response).await;
+    login.refresh_cookie = refresh_cookie;
+    login
 }
 
 async fn login_with_seeded_code_inner(
@@ -205,8 +257,19 @@ pub async fn read_json<T: DeserializeOwned>(response: Response) -> T {
 }
 
 async fn seed_verification_code(state: &AppState, qq_number: &str, code: &str) {
+    seed_verification_code_for(state, "qq", qq_number, code).await;
+}
+
+async fn seed_verification_code_for(
+    state: &AppState,
+    login_provider: &str,
+    identifier: &str,
+    code: &str,
+) {
     let config = test_config();
-    let key = config.verification.redis_key(qq_number);
+    let key = config
+        .verification
+        .redis_key_for(login_provider, identifier);
     let mut conn = state.redis_pool.get().await.expect("获取 Redis 连接失败");
 
     conn.set_ex::<_, _, ()>(&key, code, config.verification.expire_seconds)

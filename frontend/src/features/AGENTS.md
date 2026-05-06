@@ -14,7 +14,7 @@
 ## 边界与禁止项
 
 - feature 可以协调 entity API、store、query invalidation 和页面流程，是页面容器和实体层之间的主装配层。
-- `dashboard` 代表页面装配层接缝，`bind-room` 代表完整的 `api + model + ui` 样板，`auth-login` 代表认证流程 API 出口，`public-config` 代表跨页面共享的公开运行时配置 hook。
+- `dashboard` 代表页面装配层接缝，`bind-room` 代表完整的 `api + model + ui` 样板，`auth-login` 代表认证流程 API 与登录标识规则出口，`public-config` 代表跨页面共享的公开运行时配置 hook。
 - 页面应尽量通过 feature 的公共出口消费能力，保持 `pages/` 薄而稳定。
 - 不要把 route/provider 级启动逻辑塞进 feature。
 - 不要在 feature 内重新造一套领域 API；已有 `entities/` 能承接的单域访问不要重复定义。

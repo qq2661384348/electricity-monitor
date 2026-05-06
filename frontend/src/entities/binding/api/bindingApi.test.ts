@@ -59,7 +59,10 @@ describe('bindingApi auth refresh flow', () => {
           expires_in: 3600,
           user: {
             id: 'user-1',
+            login_mode: 'qq',
+            identifier: '123456789',
             qq_number: '123456789',
+            email: null,
             role: 'user',
             is_active: true,
           },
@@ -70,7 +73,10 @@ describe('bindingApi auth refresh flow', () => {
     useAuthStore.setState({
       user: {
         id: 'user-1',
+        login_mode: 'qq',
+        identifier: '123456789',
         qq_number: '123456789',
+        email: null,
         role: 'user',
         is_active: true,
       },

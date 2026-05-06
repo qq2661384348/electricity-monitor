@@ -17,7 +17,7 @@ pub use room::{
 pub use room_aggregate::RoomAggregate;
 pub use room_path::{NewRoomPath, RoomPath};
 pub use room_sync_log::*;
-pub use user::{NewUser, UpdateUserRole, User};
+pub use user::{NewUser, UpdateUserRole, User, LOGIN_PROVIDER_EMAIL, LOGIN_PROVIDER_QQ};
 pub use user_room_binding::{
     NewUserRoomBinding, UpdateLastNotified, UpdateNotificationEnabled, UserRoomBinding,
     UserRoomBindingWithRoomInfo,

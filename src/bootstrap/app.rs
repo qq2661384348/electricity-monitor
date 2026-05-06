@@ -44,6 +44,7 @@ pub async fn run() -> anyhow::Result<()> {
 
     let electricity_fetcher_service =
         runtime::initialize_electricity_fetcher_service(&config, &db_pool, &redis_pool).await?;
+    let email_sender = runtime::initialize_email_sender(&config)?;
 
     let state = AppState::new(
         db_pool.clone(),
@@ -51,7 +52,8 @@ pub async fn run() -> anyhow::Result<()> {
         rate_limiter,
         electricity_fetcher_service,
         cache_manager.clone(),
-    );
+    )
+    .with_email_sender(email_sender);
 
     runtime::initialize_path_tree(&state, &db_pool).await;
     if let Ok(active_rooms) = RoomRepository::new(db_pool.clone()).find_all_active().await {

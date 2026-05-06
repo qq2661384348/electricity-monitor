@@ -2,8 +2,8 @@
 type: procedural
 status: verified
 scope: 测试与质量门禁
-updated_at: 2026-05-05
-verified_at: 2026-05-05
+updated_at: 2026-05-06
+verified_at: 2026-05-06
 sources:
   - docs/guides/TESTING.md
   - .github/workflows/ci.yml
@@ -41,19 +41,20 @@ summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执�
 ## 后端测试约束
 
 - 认证集成测试必须走真实 `/api/auth/verify-and-login` 链路；不要回退到本地签发 JWT 伪造登录成功。
-- 认证集成测试覆盖 `/api/auth/send-verification-code` 必须携带一次性 captcha token；缺失 token 应在调用 QQ 机器人前被拒绝。
+- 认证集成测试覆盖 `/api/auth/send-verification-code` 必须携带一次性 captcha token；缺失 token 应在调用 QQ 机器人或 SMTP 邮件发送器前被拒绝。
+- 认证集成测试覆盖 QQ 与邮箱账号隔离、邮箱登录固定普通用户角色，以及邮箱验证码通过 mock EmailDelivery 发送并写入 provider-aware Redis key。
 - 认证集成测试覆盖管理员可以创建并列出自己的 `/api/bindings` 个人绑定；不要把管理员绑定列表固定为空数组。
 - 认证集成测试覆盖未绑定用户不能通过 `/api/rooms/by-path` 或 `/api/rooms/by-hash` 读取房间电费详情；路径树叶子节点只能提供绑定所需的最小 `roomid`。
 - `tests/support/app_factory.rs` 负责统一装配 `AppState` 与 Router，避免顶层集成测试重复拼装依赖。
 - `tests/support/auth_fixture.rs` 通过写入 Redis 验证码来驱动真实登录链，再访问受保护接口。
 - `tests/support/seed.rs` 负责测试房间 seed，避免 auth / binding 契约测试重复造数。
-- `/api/auth/send-verification-code` 的契约测试通过本地 mock NapCat HTTP API 覆盖成功发送与错误映射；测试直接种入一次性 captcha token，不依赖第三方验证码服务。
+- `/api/auth/send-verification-code` 的契约测试通过本地 mock NapCat HTTP API 覆盖 QQ 成功发送与错误映射，通过 mock EmailDelivery 覆盖邮箱验证码发送；测试直接种入一次性 captcha token，不依赖第三方验证码服务。
 
 ## readiness / smoke 契约
 
 - `deploy/smoke.targets` 是本地 readiness test 与 release smoke 共用的检查目标真源。
 - 共享检查目标包含 `/api/health`、`/api/health/db`、`/`、`release-manifest.json`、`deploy-result.json` 与一组统一响应安全头。
-- `tests/runtime/release_readiness_test.rs` 额外覆盖 `/api/public-config`，确保公开运行时配置响应带统一安全头且不暴露完整 `qq_bot` 配置或 bearer token。
+- `tests/runtime/release_readiness_test.rs` 额外覆盖 `/api/public-config`，确保公开运行时配置响应带统一安全头，暴露登录模式可用性，且不暴露完整 `qq_bot` 配置、bearer token 或 SMTP 授权码。
 - 如果修改健康检查路径、静态入口或 release 产物文件名，必须先更新 `deploy/smoke.targets`，再同步测试、脚本与文档。
 
 ## CI 门禁结构

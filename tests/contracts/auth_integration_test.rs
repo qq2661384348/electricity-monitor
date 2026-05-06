@@ -24,9 +24,10 @@ use electricity_monitor_backend::{
 use support::{
     app_factory::create_test_app,
     auth_fixture::{
-        admin_qq_number, delete_with_bearer, get_with_bearer, login_with_seeded_code, post_json,
-        post_json_with_bearer, post_with_cookie, put_json_with_bearer, raw_refresh_token,
-        read_json, unique_qq_number, UserInfo,
+        admin_qq_number, delete_with_bearer, get_with_bearer, login_with_seeded_code,
+        login_with_seeded_email_code, post_json, post_json_with_bearer, post_with_cookie,
+        put_json_with_bearer, raw_refresh_token, read_json, unique_email, unique_qq_number,
+        UserInfo,
     },
     seed::{delete_room, seed_room},
 };
@@ -45,8 +46,8 @@ async fn rebuild_path_tree_for_room(state: &AppState, room: &Room) {
 #[tokio::test]
 async fn admin_login_flow_returns_admin_profile() {
     let test_app = create_test_app().await;
-    let login =
-        login_with_seeded_code(&test_app.app, &test_app.state, &admin_qq_number(), "123456").await;
+    let admin_qq = admin_qq_number();
+    let login = login_with_seeded_code(&test_app.app, &test_app.state, &admin_qq, "123456").await;
 
     assert_eq!(login.token_type, "Bearer");
     assert!(!login.access_token.is_empty());
@@ -54,7 +55,10 @@ async fn admin_login_flow_returns_admin_profile() {
     assert!(login.expires_in > 0);
     assert_eq!(login.user.role, "admin");
     assert!(login.user.is_active);
-    assert_eq!(login.user.qq_number, admin_qq_number());
+    assert_eq!(login.user.login_mode, "qq");
+    assert_eq!(login.user.identifier, admin_qq);
+    assert_eq!(login.user.qq_number.as_deref(), Some(admin_qq.as_str()));
+    assert_eq!(login.user.email, None);
 
     let response = get_with_bearer(&test_app.app, "/api/auth/me", &login.access_token).await;
     assert_eq!(response.status(), StatusCode::OK);
@@ -62,6 +66,7 @@ async fn admin_login_flow_returns_admin_profile() {
     let current_user: UserInfo = read_json(response).await;
     assert_eq!(current_user.id, login.user.id);
     assert_eq!(current_user.qq_number, login.user.qq_number);
+    assert_eq!(current_user.identifier, login.user.identifier);
     assert_eq!(current_user.role, "admin");
 }
 
@@ -166,7 +171,10 @@ async fn user_login_can_access_me_and_bindings() {
     let login = login_with_seeded_code(&test_app.app, &test_app.state, &qq_number, "654321").await;
 
     assert_eq!(login.user.role, "user");
-    assert_eq!(login.user.qq_number, qq_number);
+    assert_eq!(login.user.login_mode, "qq");
+    assert_eq!(login.user.identifier, qq_number);
+    assert_eq!(login.user.qq_number.as_deref(), Some(qq_number.as_str()));
+    assert_eq!(login.user.email, None);
 
     let profile_response =
         get_with_bearer(&test_app.app, "/api/auth/me", &login.access_token).await;
@@ -175,7 +183,9 @@ async fn user_login_can_access_me_and_bindings() {
     let current_user: UserInfo = read_json(profile_response).await;
     assert_eq!(current_user.id, login.user.id);
     assert_eq!(current_user.role, "user");
-    assert_eq!(current_user.qq_number, qq_number);
+    assert_eq!(current_user.login_mode, "qq");
+    assert_eq!(current_user.identifier, qq_number);
+    assert_eq!(current_user.qq_number.as_deref(), Some(qq_number.as_str()));
 
     let bindings_response =
         get_with_bearer(&test_app.app, "/api/bindings", &login.access_token).await;
@@ -186,6 +196,80 @@ async fn user_login_can_access_me_and_bindings() {
         bindings.is_empty(),
         "新创建的普通用户在未绑定房间时应返回空数组"
     );
+}
+
+#[tokio::test]
+async fn email_login_returns_user_profile_without_admin_role() {
+    let test_app = create_test_app().await;
+    let email = unique_email();
+    let login =
+        login_with_seeded_email_code(&test_app.app, &test_app.state, &email, "654321").await;
+
+    assert_eq!(login.user.role, "user");
+    assert_eq!(login.user.login_mode, "email");
+    assert_eq!(login.user.identifier, email);
+    assert_eq!(login.user.email.as_deref(), Some(email.as_str()));
+    assert_eq!(login.user.qq_number, None);
+
+    let profile_response =
+        get_with_bearer(&test_app.app, "/api/auth/me", &login.access_token).await;
+    assert_eq!(profile_response.status(), StatusCode::OK);
+
+    let current_user: UserInfo = read_json(profile_response).await;
+    assert_eq!(current_user.id, login.user.id);
+    assert_eq!(current_user.role, "user");
+    assert_eq!(current_user.login_mode, "email");
+    assert_eq!(current_user.identifier, email);
+    assert_eq!(current_user.email.as_deref(), Some(email.as_str()));
+    assert_eq!(current_user.qq_number, None);
+}
+
+#[tokio::test]
+async fn qq_and_email_accounts_keep_bindings_isolated() {
+    let test_app = create_test_app().await;
+    let room = seed_room(&test_app.state).await;
+
+    let qq_login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "654321",
+    )
+    .await;
+    let email = unique_email();
+    let email_login =
+        login_with_seeded_email_code(&test_app.app, &test_app.state, &email, "654321").await;
+
+    assert_ne!(qq_login.user.id, email_login.user.id);
+
+    let create_response = post_json_with_bearer(
+        &test_app.app,
+        "/api/bindings",
+        &qq_login.access_token,
+        serde_json::json!({
+            "roomid": room.roomid,
+            "notification_enabled": true,
+        }),
+    )
+    .await;
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+
+    let qq_bindings_response =
+        get_with_bearer(&test_app.app, "/api/bindings", &qq_login.access_token).await;
+    assert_eq!(qq_bindings_response.status(), StatusCode::OK);
+    let qq_bindings: Vec<Value> = read_json(qq_bindings_response).await;
+    assert_eq!(qq_bindings.len(), 1);
+
+    let email_bindings_response =
+        get_with_bearer(&test_app.app, "/api/bindings", &email_login.access_token).await;
+    assert_eq!(email_bindings_response.status(), StatusCode::OK);
+    let email_bindings: Vec<Value> = read_json(email_bindings_response).await;
+    assert!(
+        email_bindings.is_empty(),
+        "邮箱账号不应看到同一用户体系下 QQ 账号创建的绑定"
+    );
+
+    delete_room(&test_app.state, room.id).await;
 }
 
 #[tokio::test]

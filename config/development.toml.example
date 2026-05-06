@@ -83,7 +83,7 @@ bearer_token = ""
 timeout_seconds = 10
 
 [email]
-# SMTP 邮件发送链路；当前仅提供后端可复用邮件模块，不会替换 QQ 验证码发送。
+# SMTP 邮件发送链路；填写完整 host、user 和授权码后会启用邮箱登录与邮箱电量通知。
 smtp_host = "smtp.qq.com"
 smtp_port = 465
 smtp_user = "cogniaegis@qq.com"

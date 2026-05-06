@@ -92,7 +92,7 @@ cargo install diesel_cli --no-default-features --features postgres
 cp config/development.toml.example config/development.toml
 
 # 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
-# 同时填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port
+# 同时填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port；如需启用邮箱登录和邮箱通知，再填写 email.smtp_password 或 APP__EMAIL__SMTP_PASSWORD(_FILE)
 
 # 设置环境变量
 export APP_ENV=development
@@ -113,7 +113,7 @@ cargo run
 # 准备运行时配置
 Copy-Item config/development.toml.example config/development.toml
 
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port；如需启用邮箱登录和邮箱通知，再填写 email.smtp_password 或 APP__EMAIL__SMTP_PASSWORD(_FILE)
 
 # 设置环境变量
 $env:APP_ENV="development"
@@ -174,7 +174,7 @@ export APP__JWT__SECRET_FILE="/run/secrets/app_jwt_secret"
 
 ### 当前配置
 
-- **开发环境**: 从 `config/development.toml.example` 复制到 `config/development.toml`，再直接修改 `database.password`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`qq_bot.bearer_token`、`public_site.domain` 和 `public_site.port`；如需调试邮件发送，再通过运行时配置或 `APP__EMAIL__SMTP_PASSWORD(_FILE)` 注入 SMTP 授权码
+- **开发环境**: 从 `config/development.toml.example` 复制到 `config/development.toml`，再直接修改 `database.password`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`qq_bot.bearer_token`、`public_site.domain` 和 `public_site.port`；如需启用邮箱登录和邮箱通知，再通过运行时配置或 `APP__EMAIL__SMTP_PASSWORD(_FILE)` 注入 SMTP 授权码
 - **生产环境**: 通过 Compose secrets 注入数据库密码、JWT secret、QQ token 与 SMTP 授权码
 
 开发环境运行时会校验数据库和 Redis 主机，拒绝非本地地址，防止误连远端环境。

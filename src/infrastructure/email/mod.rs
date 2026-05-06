@@ -7,5 +7,7 @@ pub mod sender;
 pub mod templates;
 
 pub use error::{EmailError, Result};
-pub use sender::EmailSender;
-pub use templates::{render_verification_code, RenderedEmail, VerificationScene};
+pub use sender::{EmailDelivery, EmailSender};
+pub use templates::{
+    render_electricity_alert, render_verification_code, RenderedEmail, VerificationScene,
+};

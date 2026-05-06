@@ -3,7 +3,7 @@ type: index
 status: active
 scope: 全项目
 created_at: 2026-04-17
-updated_at: 2026-04-17
+updated_at: 2026-05-06
 summary: Electricity Monitor 项目记忆系统总入口
 ---
 
@@ -44,6 +44,7 @@ summary: Electricity Monitor 项目记忆系统总入口
 
 ## 最近重要变化
 
+- 2026-05-06：登录与通知链路扩展为 QQ / 邮箱双模式；账号数据按 `login_provider` 隔离，邮箱登录本轮固定普通用户，邮箱通知复用 SMTP 邮件模块。
 - 2026-04-17：`memory/` 从自定义主题编号结构切换到 `project-memory` 默认主干。
 - 2026-04-17：全局索引入口统一为 `memory/README.md`，短期工作态固定入口统一为 `short-term/working/current.md`。
 - 2026-04-17：Bun 包管理、环境命名配置文件和浏览器会话模型三项协作边界被单独提升为决策记录。

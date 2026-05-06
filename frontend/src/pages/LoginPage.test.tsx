@@ -24,8 +24,33 @@ describe('LoginPage', () => {
     });
 
     expect(useAuthStore.getState().token).toBe('access-token');
+    expect(useAuthStore.getState().user?.identifier).toBe('123456789');
     expect(useAuthStore.getState().user?.qq_number).toBe('123456789');
     expect(localStorage.length).toBe(0);
+  });
+
+  it('supports email login mode', async () => {
+    const user = userEvent.setup();
+    useAuthStore.setState({ isSessionReady: true });
+    renderWithProviders(<LoginPage />, { route: '/login' });
+
+    const emailTab = screen.getByRole('tab', { name: '邮箱登录' });
+    await waitFor(() => {
+      expect(emailTab).not.toBeDisabled();
+    });
+    await user.click(emailTab);
+    await user.type(screen.getByLabelText('邮箱地址'), 'student@example.com');
+    await user.type(screen.getByLabelText('验证码'), '123456');
+    await user.click(screen.getByRole('button', { name: '确认进入' }));
+
+    await waitFor(() => {
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    });
+
+    expect(useAuthStore.getState().user?.login_mode).toBe('email');
+    expect(useAuthStore.getState().user?.identifier).toBe('student@example.com');
+    expect(useAuthStore.getState().user?.email).toBe('student@example.com');
+    expect(useAuthStore.getState().user?.qq_number).toBeNull();
   });
 
   it('shows backend error detail when login fails', async () => {

@@ -83,7 +83,7 @@ bearer_token_file = "/run/secrets/app_qq_bot_bearer_token"
 timeout_seconds = 10
 
 [email]
-# SMTP 邮件发送链路；生产 SMTP 授权码必须通过 secret file 注入。
+# SMTP 邮件发送链路；生产 SMTP 授权码必须通过 secret file 注入，启用后承接邮箱登录与邮箱电量通知。
 smtp_host = "smtp.qq.com"
 smtp_port = 465
 smtp_user = "cogniaegis@qq.com"

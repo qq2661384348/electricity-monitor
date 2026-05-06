@@ -1,17 +1,29 @@
 import httpClient from '@/shared/api/http-client';
-import type { LoginResponse, User } from '@/types';
+import type { LoginMode, LoginResponse, User } from '@/types';
 
 export const authApi = {
-  async sendVerificationCode(qqNumber: string, captchaToken: string): Promise<void> {
+  async sendVerificationCode(
+    loginMode: LoginMode,
+    identifier: string,
+    captchaToken: string,
+  ): Promise<void> {
     await httpClient.post('/auth/send-verification-code', {
-      qq_number: qqNumber,
+      login_mode: loginMode,
+      identifier,
+      ...(loginMode === 'qq' ? { qq_number: identifier } : { email: identifier }),
       captcha_token: captchaToken,
     });
   },
 
-  async verifyAndLogin(qqNumber: string, code: string): Promise<LoginResponse> {
+  async verifyAndLogin(
+    loginMode: LoginMode,
+    identifier: string,
+    code: string,
+  ): Promise<LoginResponse> {
     const { data } = await httpClient.post<LoginResponse>('/auth/verify-and-login', {
-      qq_number: qqNumber,
+      login_mode: loginMode,
+      identifier,
+      ...(loginMode === 'qq' ? { qq_number: identifier } : { email: identifier }),
       code,
     });
     return data;

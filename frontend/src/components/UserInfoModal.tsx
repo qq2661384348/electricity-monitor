@@ -1,11 +1,13 @@
 import { User } from 'lucide-react';
 import { ComicModal } from '@/components/ui/comic-modal';
 import { STROKE_TEXT_SHADOW_WHITE } from '@/components/ui/comic-modal/constants';
+import type { LoginMode } from '@/types';
 
 interface UserInfoModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  readonly qqNumber: string;
+  readonly identifier: string;
+  readonly loginMode: LoginMode;
   readonly role: 'admin' | 'user';
 }
 
@@ -15,10 +17,11 @@ const roleLabelMap: Record<'admin' | 'user', string> = {
 };
 
 /**
- * UserInfoModal - 使用 ComicModal 组件库重构
- * 代码量从 98 行减少到 ~50 行（减少 49%）
+ * UserInfoModal - 展示当前登录主体，避免把邮箱账号误标成 QQ 号码。
  */
-export function UserInfoModal({ isOpen, onClose, qqNumber, role }: UserInfoModalProps) {
+export function UserInfoModal({ isOpen, onClose, identifier, loginMode, role }: UserInfoModalProps) {
+  const identityLabel = loginMode === 'email' ? '邮箱地址' : 'QQ 号码';
+
   return (
     <ComicModal
       isOpen={isOpen}
@@ -48,9 +51,9 @@ export function UserInfoModal({ isOpen, onClose, qqNumber, role }: UserInfoModal
         <div className="w-full bg-white/80 border-2 border-black shadow-[4px_4px_0_0_#000] p-3 sm:p-5 text-left space-y-3 sm:space-y-4">
           <div className="flex justify-between items-center">
             <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">
-              QQ 号码
+              {identityLabel}
             </span>
-            <span className="font-black text-lg text-gray-900" style={{ textShadow: STROKE_TEXT_SHADOW_WHITE }}>{qqNumber}</span>
+            <span className="font-black text-lg text-gray-900 break-all" style={{ textShadow: STROKE_TEXT_SHADOW_WHITE }}>{identifier}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">

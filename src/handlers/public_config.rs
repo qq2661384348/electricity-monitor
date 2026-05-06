@@ -29,7 +29,14 @@ pub struct PublicVerificationConfig {
 }
 
 #[derive(Debug, Serialize)]
+pub struct PublicAuthConfig {
+    pub login_modes: Vec<String>,
+    pub email_login_enabled: bool,
+}
+
+#[derive(Debug, Serialize)]
 pub struct PublicConfigResponse {
+    pub auth: PublicAuthConfig,
     pub notification: PublicNotificationConfig,
     pub captcha: PublicCaptchaConfig,
     pub verification: PublicVerificationConfig,
@@ -37,7 +44,17 @@ pub struct PublicConfigResponse {
 
 impl From<&AppConfig> for PublicConfigResponse {
     fn from(config: &AppConfig) -> Self {
+        let email_login_enabled = config.email.is_delivery_configured();
+        let mut login_modes = vec!["qq".to_string()];
+        if email_login_enabled {
+            login_modes.push("email".to_string());
+        }
+
         Self {
+            auth: PublicAuthConfig {
+                login_modes,
+                email_login_enabled,
+            },
             notification: PublicNotificationConfig {
                 qq_bot_public_qq_number: config.qq_bot.public_qq_number.trim().to_string(),
                 admin_qq_number: config.admin.default_qq_number.trim().to_string(),

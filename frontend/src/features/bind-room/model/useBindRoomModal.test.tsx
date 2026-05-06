@@ -108,7 +108,10 @@ describe('useBindRoomModal', () => {
     useAuthStore.setState({
       user: {
         id: 'admin-1',
+        login_mode: 'qq',
+        identifier: '2661384348',
         qq_number: '2661384348',
+        email: null,
         role: 'admin',
         is_active: true,
       },

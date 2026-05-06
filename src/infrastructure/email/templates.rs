@@ -1,6 +1,7 @@
 //! 验证码邮件模板
 
 use super::error::{EmailError, Result};
+use crate::domain::models::Room;
 
 /// 验证码邮件渲染结果
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -206,6 +207,99 @@ pub fn render_verification_code(
     })
 }
 
+/// 渲染电费预警邮件。
+///
+/// QQ 机器人通知是纯文本，邮件通知在保留相同核心信息的基础上提供 HTML 版式，
+/// 便于用户在邮箱客户端中快速识别房间、剩余电量、阈值和访问入口。
+pub fn render_electricity_alert(
+    room: &Room,
+    public_url: &str,
+    from_name: &str,
+) -> Result<RenderedEmail> {
+    let app_name = if from_name.trim().is_empty() {
+        "Electricity Monitor"
+    } else {
+        from_name.trim()
+    };
+    let public_url = public_url.trim();
+    if public_url.is_empty() {
+        return Err(EmailError::Validation(
+            "电费预警邮件需要公开访问地址".to_string(),
+        ));
+    }
+
+    let escaped_app_name = escape_html(app_name);
+    let escaped_room_path = escape_html(&room.primary_roompath);
+    let escaped_public_url = escape_html(public_url);
+    let subject = format!("【{app_name}】电量预警提醒");
+    let current = format!("{:.2}", room.electricity_fee);
+    let threshold = format!("{:.2}", room.threshold);
+
+    let text_body = format!(
+        "{app_name} - 电量预警提醒\n\
+         ================================\n\n\
+         房间位置：{room_path}\n\
+         当前剩余：{current} kWh\n\
+         预警阈值：{threshold} kWh\n\n\
+         您的电量已低于预警阈值，请及时充值。\n\n\
+         访问 {public_url} 以更新你的数据。\n\n\
+         此邮件由系统自动发送，请勿回复。",
+        room_path = room.primary_roompath,
+    );
+
+    let html_body = format!(
+        r#"<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>电量预警提醒</title>
+</head>
+<body style="margin:0;padding:24px;background:#f6f7f9;color:#111827;font-family:Arial,'Microsoft YaHei',sans-serif;">
+  <main style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+    <header style="background:#111827;color:#fff;padding:22px 28px;">
+      <div style="font-size:14px;letter-spacing:1px;text-transform:uppercase;color:#facc15;">{app_name}</div>
+      <h1 style="font-size:24px;line-height:1.35;margin:8px 0 0;">电量预警提醒</h1>
+    </header>
+    <section style="padding:26px 28px;">
+      <p style="font-size:15px;line-height:1.8;margin:0 0 18px;">您的电量已低于预警阈值，请及时充值。</p>
+      <div style="border:2px solid #111827;border-radius:8px;overflow:hidden;margin:20px 0;">
+        <div style="padding:14px 16px;background:#facc15;font-weight:700;">房间位置</div>
+        <div style="padding:16px;font-size:16px;line-height:1.6;">{room_path}</div>
+      </div>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:20px 0;">
+        <tr>
+          <td style="width:50%;padding:14px;border:1px solid #e5e7eb;background:#f9fafb;">
+            <div style="font-size:13px;color:#6b7280;margin-bottom:6px;">当前剩余</div>
+            <div style="font-size:26px;font-weight:800;color:#dc2626;">{current} kWh</div>
+          </td>
+          <td style="width:50%;padding:14px;border:1px solid #e5e7eb;background:#f9fafb;">
+            <div style="font-size:13px;color:#6b7280;margin-bottom:6px;">预警阈值</div>
+            <div style="font-size:26px;font-weight:800;color:#111827;">{threshold} kWh</div>
+          </td>
+        </tr>
+      </table>
+      <a href="{public_url}" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:6px;">访问系统更新数据</a>
+      <p style="font-size:13px;line-height:1.7;color:#6b7280;margin:18px 0 0;">如果按钮无法打开，请复制此链接访问：{public_url}</p>
+    </section>
+    <footer style="font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb;padding:16px 28px;text-align:center;">
+      此邮件由系统自动发送，请勿回复。
+    </footer>
+  </main>
+</body>
+</html>"#,
+        app_name = escaped_app_name,
+        room_path = escaped_room_path,
+        public_url = escaped_public_url,
+    );
+
+    Ok(RenderedEmail {
+        subject,
+        text_body,
+        html_body,
+    })
+}
+
 fn escape_html(input: &str) -> String {
     input
         .replace('&', "&amp;")
@@ -247,5 +341,37 @@ mod tests {
         let error =
             render_verification_code("abc123", VerificationScene::Login, "CogniAegis").unwrap_err();
         assert!(error.to_string().contains("验证码"));
+    }
+
+    #[test]
+    fn test_render_electricity_alert_email_contains_room_data() {
+        let room = Room {
+            id: uuid::Uuid::new_v4(),
+            roomid: 101,
+            electricity_fee: 5.5,
+            send_flag: true,
+            threshold: 10.0,
+            room_name: "测试房间".to_string(),
+            primary_roompath: "南校区/1号楼/101".to_string(),
+            primary_roompath_hash: 12345678,
+            has_additional_paths: false,
+            is_active: true,
+            source_type: "manual".to_string(),
+            external_id: None,
+            last_synced_at: None,
+            last_recovered_at: None,
+            created_at: chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc(),
+            updated_at: chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc(),
+        };
+
+        let rendered =
+            render_electricity_alert(&room, "https://example.com", "CogniAegis").unwrap();
+
+        assert!(rendered.subject.contains("电量预警"));
+        assert!(rendered.text_body.contains("南校区/1号楼/101"));
+        assert!(rendered.html_body.contains("5.50 kWh"));
+        assert!(rendered.html_body.contains("10.00 kWh"));
+        assert!(rendered.html_body.contains("https://example.com"));
+        assert!(!rendered.text_body.contains("roomid"));
     }
 }

@@ -82,12 +82,16 @@ diesel::table! {
     users (id) {
         id -> Uuid,
         #[max_length = 20]
-        qq_number -> Varchar,
+        qq_number -> Nullable<Varchar>,
         #[max_length = 20]
         role -> Varchar,
         is_active -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        #[max_length = 20]
+        login_provider -> Varchar,
+        #[max_length = 254]
+        email -> Nullable<Varchar>,
     }
 }
 

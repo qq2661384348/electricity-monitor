@@ -7,7 +7,7 @@ use tokio::sync::RwLock;
 
 use crate::domain::models::Room;
 use crate::domain::services::{ElectricityFetcherService, RateLimiter, RoomPathTree};
-use crate::infrastructure::{CacheManager, DbPool, RedisPool};
+use crate::infrastructure::{email::EmailDelivery, CacheManager, DbPool, RedisPool};
 
 /// 应用程序状态
 #[derive(Clone)]
@@ -32,6 +32,9 @@ pub struct AppState {
 
     /// 统一缓存管理器
     pub cache_manager: Arc<CacheManager>,
+
+    /// 邮件发送器。未配置 SMTP 时为 None，邮箱登录和邮箱通知会明确拒绝发送。
+    pub email_sender: Option<Arc<dyn EmailDelivery>>,
 }
 
 impl AppState {
@@ -51,7 +54,13 @@ impl AppState {
             flagged_rooms_cache: Arc::new(RwLock::new(Vec::new())),
             room_path_tree: Arc::new(RwLock::new(RoomPathTree::new())),
             cache_manager,
+            email_sender: None,
         }
+    }
+
+    pub fn with_email_sender(mut self, email_sender: Option<Arc<dyn EmailDelivery>>) -> Self {
+        self.email_sender = email_sender;
+        self
     }
 
     /// 更新路径树（由同步服务调用）

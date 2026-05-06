@@ -32,7 +32,10 @@ describe('Navbar', () => {
       token: 'access-token',
       user: {
         id: 'user-1',
+        login_mode: 'qq',
+        identifier: '123456789',
         qq_number: '123456789',
+        email: null,
         role: 'user',
         is_active: true,
       },

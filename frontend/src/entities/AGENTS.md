@@ -11,7 +11,7 @@
 - 每个实体目录都应通过 `index.ts` 暴露公共 API，避免业务层长期直接依赖深层文件路径。
 - HTTP 访问统一复用 `shared/api/http-client.ts`。
 - query key 统一复用 `shared/api/queryKeys.ts`，不要在实体层散落重复字符串 key。
-- `entities/public-config/` 只承接 `/api/public-config` 的非敏感运行时配置，供页面层和 feature 层读取机器人 QQ、管理员 QQ、验证码参数和 QQ 验证码长度。
+- `entities/public-config/` 只承接 `/api/public-config` 的非敏感运行时配置，供页面层和 feature 层读取可用登录模式、机器人 QQ、管理员 QQ、验证码参数和登录验证码长度。
 
 ## 边界与禁止项
 

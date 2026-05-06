@@ -5,7 +5,7 @@ import { AnnouncementModal } from '@/components/AnnouncementModal';
 import { UserInfoModal } from '@/components/UserInfoModal';
 import { Button } from '@/components/ui/Button';
 import { ComicModal } from '@/components/ui/comic-modal';
-import { authApi } from '@/features/auth-login';
+import { authApi, getUserDisplayIdentifier } from '@/features/auth-login';
 import { useAuthStore } from '@/stores/authStore';
 
 interface NavbarProps {
@@ -14,6 +14,7 @@ interface NavbarProps {
 
 export function Navbar({ onLoginClick }: NavbarProps) {
   const { user, isAuthenticated, logout } = useAuthStore();
+  const userIdentifier = user ? getUserDisplayIdentifier(user) : '';
   const [isAnnouncementOpen, setIsAnnouncementOpen] = useState(false);
   const [isUserInfoOpen, setIsUserInfoOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
@@ -75,7 +76,7 @@ export function Navbar({ onLoginClick }: NavbarProps) {
             <div className="flex items-center gap-4">
               {/* 用户信息 - 移动端简化显示 */}
               <div className="text-right">
-                <div className="text-xs sm:text-sm font-black text-black uppercase tracking-wider">{user.qq_number}</div>
+                <div className="text-xs sm:text-sm font-black text-black uppercase tracking-wider">{userIdentifier}</div>
                 <div className="hidden sm:inline-block text-xs font-bold text-white bg-brand-primary px-2 py-1 border-2 border-black shadow-[2px_2px_0_0_#000]">
                   {user.role === 'admin' ? 'ADMIN' : 'USER'}
                 </div>
@@ -119,7 +120,8 @@ export function Navbar({ onLoginClick }: NavbarProps) {
         <UserInfoModal
           isOpen={isUserInfoOpen}
           onClose={() => setIsUserInfoOpen(false)}
-          qqNumber={user.qq_number}
+          identifier={userIdentifier}
+          loginMode={user.login_mode}
           role={user.role}
         />
       )}

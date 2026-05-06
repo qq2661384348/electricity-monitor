@@ -83,6 +83,16 @@ async fn public_config_exposes_only_non_sensitive_runtime_values() {
         Some(config.verification.code_length as u64)
     );
     assert_eq!(
+        body["auth"]["email_login_enabled"].as_bool(),
+        Some(config.email.is_delivery_configured())
+    );
+    assert!(
+        body["auth"]["login_modes"]
+            .as_array()
+            .is_some_and(|modes| modes.iter().any(|mode| mode.as_str() == Some("qq"))),
+        "公开配置必须至少声明 QQ 登录模式"
+    );
+    assert_eq!(
         body["captcha"]["captcha_type"].as_str(),
         Some(config.captcha.captcha_type.as_str())
     );
@@ -90,6 +100,7 @@ async fn public_config_exposes_only_non_sensitive_runtime_values() {
         body.get("qq_bot").is_none(),
         "公开配置不能暴露完整 qq_bot 配置或 bearer token"
     );
+    assert!(body.get("email").is_none(), "公开配置不能暴露 SMTP 配置");
 }
 
 #[tokio::test]

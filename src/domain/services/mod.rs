@@ -21,7 +21,7 @@ pub use notification_cache::{CacheStats, NotificationCache};
 pub use notification_gate::{
     spawn_recovery_monitor, spawn_recovery_monitor_persistent, NotificationGate,
 };
-pub use notification_service::{NotificationService, NotificationStats};
+pub use notification_service::{NotificationChannels, NotificationService, NotificationStats};
 pub use rate_limiter::{RateLimitOperation, RateLimiter};
 pub use room_path_tree::{PathChildNode, RoomPathTree};
 pub use room_sync::{

@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap } from 'lucide-react';
+import { Mail, MessageCircle, Zap } from 'lucide-react';
 import { AxiosError } from 'axios';
 import { useAuthStore } from '@/stores/authStore';
-import { authApi } from '@/features/auth-login';
+import {
+  authApi,
+  isValidLoginIdentifier,
+  loginModeLabel,
+  normalizeLoginIdentifier,
+  sanitizeLoginIdentifier,
+} from '@/features/auth-login';
 import { fallbackPublicConfig } from '@/entities/public-config';
 import { usePublicConfig } from '@/features/public-config';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { CaptchaModal } from '@/components/CaptchaModal';
+import type { LoginMode } from '@/types';
 import { motion } from 'framer-motion';
 
 // 随机漫威名言
@@ -27,8 +34,13 @@ export default function LoginPage() {
   const resolvedPublicConfig = publicConfig ?? fallbackPublicConfig;
   const codeLength = resolvedPublicConfig.verification.code_length;
   const codePlaceholder = `${codeLength}位验证码`;
+  const emailLoginAvailable =
+    resolvedPublicConfig.auth.email_login_enabled &&
+    resolvedPublicConfig.auth.login_modes.includes('email');
 
+  const [loginMode, setLoginMode] = useState<LoginMode>('qq');
   const [qqNumber, setQqNumber] = useState('');
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -63,10 +75,29 @@ export default function LoginPage() {
     return `请先添加机器人QQ号：${botText}。遇到问题请联系管理员：${adminText}。`;
   };
 
+  const currentIdentifier = loginMode === 'qq' ? qqNumber : email;
+  const currentIdentifierLabel = loginModeLabel(loginMode);
+  const normalizedIdentifier = normalizeLoginIdentifier(loginMode, currentIdentifier);
+  const identifierValid =
+    loginMode === 'email' && !emailLoginAvailable
+      ? false
+      : isValidLoginIdentifier(loginMode, currentIdentifier);
+
+  const switchLoginMode = (mode: LoginMode) => {
+    if (mode === 'email' && !emailLoginAvailable) {
+      setError('邮箱登录暂未启用');
+      return;
+    }
+
+    setLoginMode(mode);
+    setCode('');
+    setError(null);
+  };
+
   // 点击发送验证码，先弹出算数验证码
   const handleSendCode = () => {
-    if (!qqNumber) {
-      setError('请输入QQ号');
+    if (!identifierValid) {
+      setError(`请输入有效的${currentIdentifierLabel}`);
       return;
     }
     setShowCaptcha(true);
@@ -79,7 +110,7 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
     try {
-      await authApi.sendVerificationCode(qqNumber, token);
+      await authApi.sendVerificationCode(loginMode, normalizedIdentifier, token);
       setCountdown(60);
     } catch (err: unknown) {
       let errorMessage = '发送失败，请稍后重试';
@@ -101,15 +132,15 @@ export default function LoginPage() {
   };
 
   const handleLogin = async () => {
-    if (!qqNumber || code.length !== codeLength) {
-      setError(`请输入QQ号和${codeLength}位验证码`);
+    if (!identifierValid || code.length !== codeLength) {
+      setError(`请输入有效的${currentIdentifierLabel}和${codeLength}位验证码`);
       return;
     }
 
     setIsLoading(true);
     setError(null);
     try {
-      const response = await authApi.verifyAndLogin(qqNumber, code);
+      const response = await authApi.verifyAndLogin(loginMode, normalizedIdentifier, code);
       login(response.access_token, response.user);
       // 导航将由 useEffect 自动处理
     } catch (err: unknown) {
@@ -151,23 +182,68 @@ export default function LoginPage() {
 
           {/* 表单 - 响应式间距 */}
           <div className="relative z-10 space-y-4 sm:space-y-6">
+            <div
+              role="tablist"
+              aria-label="选择登录方式"
+              className="grid grid-cols-2 gap-2"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={loginMode === 'qq'}
+                onClick={() => switchLoginMode('qq')}
+                className={`flex items-center justify-center gap-2 border-2 border-black px-3 py-2 text-xs sm:text-sm font-black shadow-[2px_2px_0_0_#000] transition-all ${
+                  loginMode === 'qq'
+                    ? 'bg-brand-primary text-white'
+                    : 'bg-white text-black hover:bg-yellow-100'
+                }`}
+              >
+                <MessageCircle className="h-4 w-4" />
+                QQ机器人
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={loginMode === 'email'}
+                aria-disabled={!emailLoginAvailable}
+                disabled={!emailLoginAvailable}
+                title={emailLoginAvailable ? '邮箱登录' : '邮件服务未配置'}
+                onClick={() => switchLoginMode('email')}
+                className={`flex items-center justify-center gap-2 border-2 border-black px-3 py-2 text-xs sm:text-sm font-black shadow-[2px_2px_0_0_#000] transition-all ${
+                  loginMode === 'email'
+                    ? 'bg-brand-primary text-white'
+                    : 'bg-white text-black hover:bg-yellow-100'
+                } disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500`}
+              >
+                <Mail className="h-4 w-4" />
+                邮箱登录
+              </button>
+            </div>
+
             <div>
-              <label htmlFor="qq-number" className="comic-label">
-                QQ号码
+              <label htmlFor="login-identifier" className="comic-label">
+                {currentIdentifierLabel}
               </label>
               <Input
-                id="qq-number"
-                type="text"
-                value={qqNumber}
-                onChange={(e) => setQqNumber(e.target.value.replaceAll(/\D/g, ''))}
-                placeholder="输入QQ号..."
+                id="login-identifier"
+                type={loginMode === 'email' ? 'email' : 'text'}
+                value={currentIdentifier}
+                onChange={(e) => {
+                  const value = sanitizeLoginIdentifier(loginMode, e.target.value);
+                  if (loginMode === 'qq') {
+                    setQqNumber(value);
+                  } else {
+                    setEmail(value);
+                  }
+                }}
+                placeholder={loginMode === 'qq' ? '输入QQ号...' : '输入邮箱地址...'}
                 disabled={isLoading}
               />
             </div>
 
             <Button
               onClick={handleSendCode}
-              disabled={isLoading || countdown > 0 || !qqNumber}
+              disabled={isLoading || countdown > 0 || !identifierValid}
               fullWidth
               variant="accent"
               size="sm"
@@ -203,7 +279,7 @@ export default function LoginPage() {
 
             <Button
               onClick={handleLogin}
-              disabled={isLoading || code.length !== codeLength}
+              disabled={isLoading || !identifierValid || code.length !== codeLength}
               fullWidth
               size="lg"
               isLoading={isLoading}

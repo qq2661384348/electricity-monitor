@@ -1,7 +1,7 @@
 #[path = "../support/mod.rs"]
 mod support;
 
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use axum::{
     body::{to_bytes, Body},
@@ -18,7 +18,11 @@ use tokio::{
 };
 use tower::ServiceExt;
 
-use support::app_factory::{create_test_app, test_config};
+use electricity_monitor_backend::infrastructure::email::{
+    EmailDelivery, EmailError, RenderedEmail, Result as EmailResult,
+};
+
+use support::app_factory::{create_test_app, create_test_app_with_email_sender, test_config};
 
 struct MockQqServer {
     base_url: String,
@@ -27,6 +31,45 @@ struct MockQqServer {
 static QQ_SERVER: tokio::sync::OnceCell<MockQqServer> = tokio::sync::OnceCell::const_new();
 static QQ_ENV_INIT: OnceLock<()> = OnceLock::new();
 static TEST_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+
+#[derive(Default)]
+struct MockEmailSender {
+    verification_codes: Mutex<Vec<(String, String, String)>>,
+    rendered_emails: Mutex<Vec<(String, RenderedEmail)>>,
+}
+
+#[async_trait::async_trait]
+impl EmailDelivery for MockEmailSender {
+    async fn send_verification_code(
+        &self,
+        to_email: &str,
+        code: &str,
+        scene: &str,
+    ) -> EmailResult<()> {
+        self.verification_codes.lock().await.push((
+            to_email.to_string(),
+            code.to_string(),
+            scene.to_string(),
+        ));
+        Ok(())
+    }
+
+    async fn send_rendered_email(
+        &self,
+        to_email: &str,
+        rendered: &RenderedEmail,
+    ) -> EmailResult<()> {
+        if to_email.trim().is_empty() {
+            return Err(EmailError::Address(to_email.to_string()));
+        }
+
+        self.rendered_emails
+            .lock()
+            .await
+            .push((to_email.to_string(), rendered.clone()));
+        Ok(())
+    }
+}
 
 #[derive(Clone)]
 struct MockState;
@@ -146,7 +189,17 @@ async fn redis_code_for(
     qq_number: &str,
     state: &electricity_monitor_backend::state::AppState,
 ) -> Option<String> {
-    let key = test_config().verification.redis_key(qq_number);
+    redis_code_for_identity("qq", qq_number, state).await
+}
+
+async fn redis_code_for_identity(
+    login_provider: &str,
+    identifier: &str,
+    state: &electricity_monitor_backend::state::AppState,
+) -> Option<String> {
+    let key = test_config()
+        .verification
+        .redis_key_for(login_provider, identifier);
     let mut conn = state.redis_pool.get().await.expect("获取 Redis 连接失败");
     conn.get(&key).await.expect("读取 Redis 验证码失败")
 }
@@ -189,4 +242,60 @@ async fn send_verification_code_mocked_qq_api_covers_success_and_user_not_friend
         stored_code.is_none(),
         "用户未加好友时不应把验证码写入 Redis"
     );
+}
+
+#[tokio::test]
+async fn send_email_verification_code_uses_captcha_and_mocked_mail_sender() {
+    let email_sender = Arc::new(MockEmailSender::default());
+    let test_app =
+        create_test_app_with_email_sender(Some(email_sender.clone() as Arc<dyn EmailDelivery>))
+            .await;
+    let email = "Student.Login@Example.COM";
+    let normalized_email = "student.login@example.com";
+    let captcha_token = "captcha-token-email-login";
+    seed_captcha_token(&test_app.state, captcha_token).await;
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/auth/send-verification-code")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            serde_json::json!({
+                "login_mode": "email",
+                "identifier": email,
+                "captcha_token": captcha_token,
+            })
+            .to_string(),
+        ))
+        .expect("构造邮箱发送验证码请求失败");
+
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("请求执行失败");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response_json(response).await;
+    assert_eq!(body["message"], "验证码已发送");
+    assert_eq!(body["login_mode"], "email");
+    assert_eq!(body["identifier"], normalized_email);
+    assert_eq!(body["email"], normalized_email);
+
+    let sent_codes = email_sender.verification_codes.lock().await;
+    assert_eq!(sent_codes.len(), 1);
+    assert_eq!(sent_codes[0].0, normalized_email);
+    assert_eq!(sent_codes[0].2, "login");
+    assert_eq!(
+        sent_codes[0].1.len(),
+        test_config().verification.code_length
+    );
+    drop(sent_codes);
+
+    let stored_code = redis_code_for_identity("email", normalized_email, &test_app.state)
+        .await
+        .expect("邮箱验证码发送成功后应写入 Redis");
+    let sent_codes = email_sender.verification_codes.lock().await;
+    assert_eq!(stored_code, sent_codes[0].1);
 }

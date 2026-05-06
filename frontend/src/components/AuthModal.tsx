@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Loader2, Zap } from 'lucide-react';
+import { Mail, MessageCircle, X, Loader2, Zap } from 'lucide-react';
 import { AxiosError } from 'axios';
-import { authApi } from '@/features/auth-login';
+import {
+  authApi,
+  isValidLoginIdentifier,
+  loginModeLabel,
+  normalizeLoginIdentifier,
+  sanitizeLoginIdentifier,
+} from '@/features/auth-login';
 import { fallbackPublicConfig } from '@/entities/public-config';
 import { usePublicConfig } from '@/features/public-config';
 import { useAuthStore } from '@/stores/authStore';
 import { getMarvelQuote } from '@/lib/utils';
 import { CaptchaModal } from '@/components/CaptchaModal';
+import type { LoginMode } from '@/types';
 
 interface AuthModalProps {
   readonly isOpen: boolean;
@@ -16,7 +23,9 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
+  const [loginMode, setLoginMode] = useState<LoginMode>('qq');
   const [qqNumber, setQqNumber] = useState('');
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [countdown, setCountdown] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,6 +36,9 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
   const resolvedPublicConfig = publicConfig ?? fallbackPublicConfig;
   const codeLength = resolvedPublicConfig.verification.code_length;
   const codePlaceholder = `${codeLength}位验证码`;
+  const emailLoginAvailable =
+    resolvedPublicConfig.auth.email_login_enabled &&
+    resolvedPublicConfig.auth.login_modes.includes('email');
 
   const { login } = useAuthStore();
 
@@ -36,6 +48,25 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     const botText = botQQ || '请联系管理员获取机器人QQ号';
     const adminText = adminQQ || '请联系管理员';
     return `请先添加机器人QQ号：${botText}。遇到问题请联系管理员：${adminText}。`;
+  };
+
+  const currentIdentifier = loginMode === 'qq' ? qqNumber : email;
+  const currentIdentifierLabel = loginModeLabel(loginMode);
+  const normalizedIdentifier = normalizeLoginIdentifier(loginMode, currentIdentifier);
+  const identifierValid =
+    loginMode === 'email' && !emailLoginAvailable
+      ? false
+      : isValidLoginIdentifier(loginMode, currentIdentifier);
+
+  const switchLoginMode = (mode: LoginMode) => {
+    if (mode === 'email' && !emailLoginAvailable) {
+      setError('邮箱登录暂未启用');
+      return;
+    }
+
+    setLoginMode(mode);
+    setCode('');
+    setError('');
   };
 
   // 倒计时
@@ -51,8 +82,8 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
 
   // 点击发送验证码，先弹出算数验证码
   const handleSendCode = () => {
-    if (!qqNumber || qqNumber.length < 5) {
-      setError('请输入有效的QQ号');
+    if (!identifierValid) {
+      setError(`请输入有效的${currentIdentifierLabel}`);
       return;
     }
     setShowCaptcha(true);
@@ -92,7 +123,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     setIsLoading(true);
 
     try {
-      await authApi.sendVerificationCode(qqNumber, token);
+      await authApi.sendVerificationCode(loginMode, normalizedIdentifier, token);
       // 只有成功时才关闭验证码模态框并清空错误
       setShowCaptcha(false);
       setCountdown(60);
@@ -113,8 +144,8 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
 
   // 验证登录
   const handleLogin = async () => {
-    if (!qqNumber || code.length !== codeLength) {
-      setError(`请输入QQ号和${codeLength}位验证码`);
+    if (!identifierValid || code.length !== codeLength) {
+      setError(`请输入有效的${currentIdentifierLabel}和${codeLength}位验证码`);
       return;
     }
 
@@ -122,7 +153,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     setError('');
 
     try {
-      const response = await authApi.verifyAndLogin(qqNumber, code);
+      const response = await authApi.verifyAndLogin(loginMode, normalizedIdentifier, code);
       login(response.access_token, response.user);
       onSuccess?.();
       onClose();
@@ -138,7 +169,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     if (e.key === 'Enter' && !isLoading) {
       if (code.length === codeLength) {
         handleLogin();
-      } else if (qqNumber && countdown === 0) {
+      } else if (identifierValid && countdown === 0) {
         handleSendCode();
       }
     }
@@ -200,18 +231,63 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
 
                 {/* 表单 - 响应式间距 */}
                 <div className="relative z-10 space-y-4 sm:space-y-6">
-                  {/* QQ号输入 */}
+                  <div
+                    role="tablist"
+                    aria-label="选择登录方式"
+                    className="grid grid-cols-2 gap-2"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={loginMode === 'qq'}
+                      onClick={() => switchLoginMode('qq')}
+                      className={`flex items-center justify-center gap-2 border-2 border-black px-3 py-2 text-xs sm:text-sm font-black shadow-[2px_2px_0_0_#000] transition-all ${
+                        loginMode === 'qq'
+                          ? 'bg-brand-primary text-white'
+                          : 'bg-white text-black hover:bg-yellow-100'
+                      }`}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      QQ机器人
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={loginMode === 'email'}
+                      aria-disabled={!emailLoginAvailable}
+                      disabled={!emailLoginAvailable}
+                      title={emailLoginAvailable ? '邮箱登录' : '邮件服务未配置'}
+                      onClick={() => switchLoginMode('email')}
+                      className={`flex items-center justify-center gap-2 border-2 border-black px-3 py-2 text-xs sm:text-sm font-black shadow-[2px_2px_0_0_#000] transition-all ${
+                        loginMode === 'email'
+                          ? 'bg-brand-primary text-white'
+                          : 'bg-white text-black hover:bg-yellow-100'
+                      } disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500`}
+                    >
+                      <Mail className="h-4 w-4" />
+                      邮箱登录
+                    </button>
+                  </div>
+
+                  {/* 登录标识输入 */}
                   <div>
-                    <label htmlFor="auth-qq" className="comic-label">
-                      QQ号码
+                    <label htmlFor="auth-identifier" className="comic-label">
+                      {currentIdentifierLabel}
                     </label>
                     <input
-                      id="auth-qq"
-                      type="text"
-                      value={qqNumber}
-                      onChange={(e) => setQqNumber(e.target.value.replaceAll(/\D/g, ''))}
+                      id="auth-identifier"
+                      type={loginMode === 'email' ? 'email' : 'text'}
+                      value={currentIdentifier}
+                      onChange={(e) => {
+                        const value = sanitizeLoginIdentifier(loginMode, e.target.value);
+                        if (loginMode === 'qq') {
+                          setQqNumber(value);
+                        } else {
+                          setEmail(value);
+                        }
+                      }}
                       onKeyDown={handleKeyDown}
-                      placeholder="输入QQ号..."
+                      placeholder={loginMode === 'qq' ? '输入QQ号...' : '输入邮箱地址...'}
                       className="comic-input focus:ring-brand-primary"
                       disabled={isLoading}
                     />
@@ -220,7 +296,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                   {/* 发送验证码按钮 */}
                   <button
                     onClick={handleSendCode}
-                    disabled={isLoading || countdown > 0 || !qqNumber}
+                    disabled={isLoading || countdown > 0 || !identifierValid}
                     className="comic-button w-full bg-brand-accent text-white text-sm py-2 shadow-[3px_3px_0_0_#000]"
                   >
                     {countdown > 0 ? `${countdown}秒后重试` : '发送验证码'}
@@ -258,7 +334,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                   {/* 登录按钮 */}
                   <button
                     onClick={handleLogin}
-                    disabled={isLoading || code.length !== codeLength}
+                    disabled={isLoading || !identifierValid || code.length !== codeLength}
                     className="comic-button w-full text-xl py-4 mt-4 bg-brand-primary hover:bg-sky-400"
                   >
                     <span className="flex items-center justify-center gap-2">

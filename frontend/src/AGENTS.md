@@ -10,7 +10,8 @@
 - React Query 默认策略真源在 `lib/queryClient.ts`；query key 真源在 `shared/api/queryKeys.ts`。
 - 真实 HTTP client 真源是 `shared/api/http-client.ts`；`services/api.ts` 只是兼容 facade，不应重新演化成新的 API 真源。
 - 认证状态真源在 `stores/authStore.ts`，其中 access token 只保存在内存，`isSessionReady` 用于控制首屏会话恢复。
-- 公开运行时配置真源是 `entities/public-config/api/publicConfigApi.ts` 与 `features/public-config/model/usePublicConfig.ts`，用于读取机器人 QQ、管理员 QQ、第三方验证码参数和 QQ 验证码长度。
+- 公开运行时配置真源是 `entities/public-config/api/publicConfigApi.ts` 与 `features/public-config/model/usePublicConfig.ts`，用于读取可用登录模式、机器人 QQ、管理员 QQ、第三方验证码参数和登录验证码长度。
+- 登录模式、登录标识规范化和登录标识展示工具真源是 `features/auth-login/model/loginIdentity.ts`，不要在页面或通用组件里重复散落 QQ / 邮箱校验规则。
 
 ## 首选接缝
 
@@ -18,7 +19,7 @@
 - 新的接口访问优先复用 `shared/api/http-client.ts`、现有 query key 和 feature / entity 公共出口。
 - 如果某个页面需要多个 mutation、query invalidation 和权限门禁，优先抽到 feature model，而不是继续把 `pages/*.tsx` 做胖。
 - 认证相关请求必须复用 `shared/api/http-client.ts` 的 `withCredentials`、单次 refresh 和 401 重放机制。
-- 登录、公告、教程或验证码弹窗需要展示机器人 QQ、管理员 QQ 或验证码参数时，复用 `usePublicConfig`，不要在 UI 中硬编码运行时值。
+- 登录、公告、教程或验证码弹窗需要展示登录模式、机器人 QQ、管理员 QQ 或验证码参数时，复用 `usePublicConfig`，不要在 UI 中硬编码运行时值。
 
 ## 边界与禁止项
 

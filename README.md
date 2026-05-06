@@ -29,6 +29,7 @@ cp config/development.toml.example config/development.toml
 
 # 4. 将 config/development.toml 中的 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
 #    同时填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token，以及 public_site.domain / public_site.port
+#    如需启用邮箱登录和邮箱通知，再填写 email.smtp_password 或 APP__EMAIL__SMTP_PASSWORD(_FILE)
 
 # 5. 配置环境
 export APP_ENV=development
@@ -51,7 +52,7 @@ Windows 原生：
 ```powershell
 cargo install diesel_cli --no-default-features --features postgres
 Copy-Item config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port；如需启用邮箱登录和邮箱通知，再填写 email.smtp_password 或 APP__EMAIL__SMTP_PASSWORD(_FILE)
 $env:APP_ENV="development"
 cargo run --bin migrate
 cargo run
@@ -119,7 +120,7 @@ deploy/
 
 ```bash
 cp config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port；如需启用邮箱登录和邮箱通知，再填写 email.smtp_password 或 APP__EMAIL__SMTP_PASSWORD(_FILE)
 export APP_ENV=development
 export RUST_LOG=debug
 # development 环境只允许连接本地 PostgreSQL / Redis；
@@ -130,7 +131,7 @@ export RUST_LOG=debug
 
 ```powershell
 Copy-Item config/development.toml.example config/development.toml
-# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port
+# 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port；如需启用邮箱登录和邮箱通知，再填写 email.smtp_password 或 APP__EMAIL__SMTP_PASSWORD(_FILE)
 $env:APP_ENV="development"
 $env:RUST_LOG="debug"
 # development 环境只允许连接本地 PostgreSQL / Redis
@@ -153,7 +154,8 @@ export RUST_LOG=info
 - `qq_bot.api_url`、`qq_bot.public_qq_number` 与 `qq_bot.bearer_token` 必须由部署者手动填写或通过 secret file 注入；模板不内置本地 mock 地址或任何线上环境值，机器人 QQ 也不能从管理员 QQ 或 NapCat 登录信息自动推断。
 - `public_site.domain` 与 `public_site.port` 是 QQ 通知消息中公开访问链接的唯一配置真源，模板默认留空，运行时必须填写真实域名和端口。
 - `admin.default_qq_number` 在生产环境不能留空，也不能保留模板占位值；只有显式配置的真实管理员 QQ 才会授予 `admin`。
-- `[captcha]` 和 `[verification]` 控制第三方图形验证码参数、一次性 captcha token 有效期以及 QQ 登录验证码长度。
+- `[captcha]` 和 `[verification]` 控制第三方图形验证码参数、一次性 captcha token 有效期以及登录验证码长度；验证码 Redis key 会按 `qq` / `email` 渠道隔离。
+- `[email]` 填写完整 SMTP host、user 和授权码后启用邮箱登录与邮箱电量通知；邮箱登录本轮始终授予普通用户，不走管理员提升。
 - 登录成功后，refresh token 只通过 HTTPOnly Cookie 下发；前端只接收和持有 access token。
 
 ## 开发工具

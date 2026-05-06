@@ -16,10 +16,12 @@ use tokio::time::{interval, Duration, Instant};
 use uuid::Uuid;
 
 use crate::domain::models::Room;
+use crate::domain::models::{LOGIN_PROVIDER_EMAIL, LOGIN_PROVIDER_QQ};
 use crate::domain::services::{
     NotificationCache, NotificationGate, RateLimitOperation, RateLimiter,
 };
 use crate::errors::{AppError, Result};
+use crate::infrastructure::email::{render_electricity_alert, EmailDelivery};
 use crate::infrastructure::notification::MessageBuilder;
 use crate::infrastructure::repositories::{
     RoomRepository, UserRepository, UserRoomBindingRepository,
@@ -62,6 +64,25 @@ impl NotificationStats {
     }
 }
 
+/// 通知发送通道依赖。
+///
+/// QQ 与邮箱通知必须按登录渠道分发，但它们同属“发送通道”这一职责。
+/// 收敛成单个依赖对象可以避免通知服务构造器随着渠道增加继续膨胀。
+#[derive(Clone)]
+pub struct NotificationChannels {
+    qq_client: Arc<QQClient>,
+    email_sender: Option<Arc<dyn EmailDelivery>>,
+}
+
+impl NotificationChannels {
+    pub fn new(qq_client: Arc<QQClient>, email_sender: Option<Arc<dyn EmailDelivery>>) -> Self {
+        Self {
+            qq_client,
+            email_sender,
+        }
+    }
+}
+
 /// 通知服务
 pub struct NotificationService {
     /// Room仓储
@@ -73,8 +94,8 @@ pub struct NotificationService {
     /// 绑定仓储
     binding_repository: UserRoomBindingRepository,
 
-    /// QQ客户端
-    qq_client: Arc<QQClient>,
+    /// 通知发送通道
+    channels: NotificationChannels,
 
     /// 限流器
     rate_limiter: Arc<RateLimiter>,
@@ -99,7 +120,7 @@ impl NotificationService {
     /// - `room_repository`: Room仓储
     /// - `user_repository`: 用户仓储
     /// - `binding_repository`: 绑定仓储
-    /// - `qq_client`: QQ客户端
+    /// - `channels`: 通知发送通道
     /// - `rate_limiter`: 限流器
     /// - `gate`: 通知门控器（防抖+去重）
     /// - `config`: 通知配置（包含查询间隔、并发限制等）
@@ -110,7 +131,7 @@ impl NotificationService {
         room_repository: RoomRepository,
         user_repository: UserRepository,
         binding_repository: UserRoomBindingRepository,
-        qq_client: Arc<QQClient>,
+        channels: NotificationChannels,
         rate_limiter: Arc<RateLimiter>,
         gate: Arc<NotificationGate>,
         config: &crate::config::NotificationConfig,
@@ -122,7 +143,7 @@ impl NotificationService {
             room_repository,
             user_repository,
             binding_repository,
-            qq_client,
+            channels,
             rate_limiter,
             cache,
             gate,
@@ -144,7 +165,7 @@ impl NotificationService {
         let room_repository = self.room_repository;
         let user_repository = self.user_repository;
         let binding_repository = self.binding_repository;
-        let qq_client = self.qq_client;
+        let channels = self.channels;
         let rate_limiter = self.rate_limiter;
         let cache = self.cache;
         let gate = self.gate;
@@ -174,7 +195,7 @@ impl NotificationService {
                 let room_repo = room_repository.clone();
                 let user_repo = user_repository.clone();
                 let binding_repo = binding_repository.clone();
-                let client = Arc::clone(&qq_client);
+                let channels = channels.clone();
                 let cache_clone = Arc::clone(&cache);
                 let gate_clone = Arc::clone(&gate);
 
@@ -183,7 +204,7 @@ impl NotificationService {
                         room_repo,
                         user_repo,
                         binding_repo,
-                        client,
+                        channels,
                         cache_clone,
                         gate_clone,
                         concurrent_limit,
@@ -215,7 +236,7 @@ impl NotificationService {
     /// - `rooms`: 需要处理的房间列表
     /// - `user_repository`: 用户仓储
     /// - `binding_repository`: 绑定仓储
-    /// - `qq_client`: QQ客户端
+    /// - `channels`: 通知发送通道
     /// - `cache`: 通知缓存
     /// - `concurrent_limit`: 并发限制
     ///
@@ -231,7 +252,7 @@ impl NotificationService {
         rooms: Vec<Room>,
         user_repository: &UserRepository,
         binding_repository: &UserRoomBindingRepository,
-        qq_client: &Arc<QQClient>,
+        channels: &NotificationChannels,
         cache: &Arc<NotificationCache>,
         gate: &Arc<NotificationGate>,
         concurrent_limit: usize,
@@ -310,7 +331,7 @@ impl NotificationService {
             .map(|room| {
                 let bindings_by_room = Arc::clone(&bindings_by_room);
                 let user_map = Arc::clone(&user_map);
-                let qq_client = Arc::clone(qq_client);
+                let channels = channels.clone();
                 let gate_clone = Arc::clone(gate);
                 let binding_repo = binding_repository.clone();
                 async move {
@@ -318,7 +339,7 @@ impl NotificationService {
                         &room,
                         bindings_by_room.get(&room.roomid),
                         &user_map,
-                        &qq_client,
+                        &channels,
                         &gate_clone,
                         &binding_repo,
                     )
@@ -377,7 +398,7 @@ impl NotificationService {
         room_repository: RoomRepository,
         user_repository: UserRepository,
         binding_repository: UserRoomBindingRepository,
-        qq_client: Arc<QQClient>,
+        channels: NotificationChannels,
         cache: Arc<NotificationCache>,
         gate: Arc<NotificationGate>,
         concurrent_limit: usize,
@@ -399,7 +420,7 @@ impl NotificationService {
             rooms,
             &user_repository,
             &binding_repository,
-            &qq_client,
+            &channels,
             &cache,
             &gate,
             concurrent_limit,
@@ -430,7 +451,7 @@ impl NotificationService {
         room: &Room,
         bindings_opt: Option<&Vec<crate::domain::models::UserRoomBinding>>,
         user_map: &HashMap<Uuid, crate::domain::models::User>,
-        qq_client: &Arc<QQClient>,
+        channels: &NotificationChannels,
         gate: &Arc<NotificationGate>,
         binding_repository: &UserRoomBindingRepository,
     ) -> Result<usize> {
@@ -463,14 +484,20 @@ impl NotificationService {
         // 并发发送通知给所有用户（使用内存中的用户数据，带持久化）
         // 工程化设计：克隆所有数据以完全避免生命周期问题
         let public_url = crate::config::AppConfig::global().public_site.public_url();
-        let message = MessageBuilder::build_electricity_alert_message(room, &public_url);
+        let qq_message = MessageBuilder::build_electricity_alert_message(room, &public_url);
+        let email_message = render_electricity_alert(
+            room,
+            &public_url,
+            &crate::config::AppConfig::global().email.from_name,
+        )?;
         let user_map_arc = Arc::new(user_map.clone());
         let bindings_vec: Vec<_> = bindings.to_vec();
 
         let results: Vec<Result<()>> = stream::iter(bindings_vec)
             .map(|binding| {
-                let qq_client = Arc::clone(qq_client);
-                let message = message.clone();
+                let channels = channels.clone();
+                let qq_message = qq_message.clone();
+                let email_message = email_message.clone();
                 let user_map = Arc::clone(&user_map_arc);
                 let gate_clone = Arc::clone(gate);
                 let room_clone = room.clone();
@@ -492,9 +519,10 @@ impl NotificationService {
                     // 检查用户激活状态
                     if !user.is_active {
                         tracing::debug!(
-                            "用户已停用，跳过通知: user_id={}, qq_number={}",
+                            "用户已停用，跳过通知: user_id={}, login_provider={}, identifier={}",
                             user.id,
-                            user.qq_number
+                            user.login_provider,
+                            user.identifier()
                         );
                         return Ok(());
                     }
@@ -509,13 +537,45 @@ impl NotificationService {
                         return Ok(());
                     }
 
-                    // 发送通知
-                    if let Err(e) = qq_client
-                        .send_private_message(&user.qq_number, &message)
-                        .await
-                    {
-                        tracing::error!("发送通知失败: qq_number={}, error={}", user.qq_number, e);
-                        return Err(AppError::Internal(format!("发送通知失败: {}", e)));
+                    match user.login_provider.as_str() {
+                        LOGIN_PROVIDER_QQ => {
+                            let qq_number = user.qq_number.as_deref().ok_or_else(|| {
+                                AppError::Internal(
+                                    "QQ 登录用户缺少 QQ 号，无法发送机器人通知".to_string(),
+                                )
+                            })?;
+                            if let Err(e) = channels
+                                .qq_client
+                                .send_private_message(qq_number, &qq_message)
+                                .await
+                            {
+                                tracing::error!(
+                                    qq_number = qq_number,
+                                    error = %e,
+                                    "发送机器人通知失败"
+                                );
+                                return Err(AppError::Internal(format!("发送通知失败: {}", e)));
+                            }
+                        }
+                        LOGIN_PROVIDER_EMAIL => {
+                            let email = user.email.as_deref().ok_or_else(|| {
+                                AppError::Internal(
+                                    "邮箱登录用户缺少邮箱地址，无法发送邮件通知".to_string(),
+                                )
+                            })?;
+                            let email_sender =
+                                channels.email_sender.as_deref().ok_or_else(|| {
+                                    AppError::Config("邮件发送未配置，无法发送邮箱通知".to_string())
+                                })?;
+                            email_sender
+                                .send_rendered_email(email, &email_message)
+                                .await?;
+                        }
+                        other => {
+                            return Err(AppError::Internal(format!(
+                                "未知登录渠道，无法发送通知: {other}"
+                            )));
+                        }
                     }
 
                     // ⭐ 标记已发送（持久化到数据库）
@@ -535,7 +595,8 @@ impl NotificationService {
                     tracing::info!(
                         user_id = %user.id,
                         roomid = room_clone.roomid,
-                        qq_number = &user.qq_number,
+                        login_provider = %user.login_provider,
+                        identifier = %user.identifier(),
                         "通知发送成功（已持久化）"
                     );
                     Ok(())
@@ -589,7 +650,7 @@ impl NotificationService {
             rooms,
             &self.user_repository,
             &self.binding_repository,
-            &self.qq_client,
+            &self.channels,
             &self.cache,
             &self.gate,
             self.concurrent_limit,

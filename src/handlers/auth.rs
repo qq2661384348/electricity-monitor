@@ -14,9 +14,9 @@ use axum::{
 use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
-use validator::Validate;
 
 use crate::config::AppConfig;
+use crate::domain::models::{LOGIN_PROVIDER_EMAIL, LOGIN_PROVIDER_QQ};
 use crate::domain::services::VerificationCodeService;
 use crate::errors::{AppError, Result};
 use crate::infrastructure::repositories::UserRepository;
@@ -25,29 +25,45 @@ use crate::modules::auth::{
     Claims, TokenKind,
 };
 use crate::state::AppState;
+use crate::utils::validation::{normalize_email_address, QQ_NUMBER_REGEX};
 
 const REFRESH_COOKIE_NAME: &str = "refresh_token";
 
 /// 发送验证码请求
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize)]
 pub struct SendVerificationCodeRequest {
-    /// QQ号（5-20位数字）
-    #[validate(length(min = 5, max = 20, message = "QQ号长度必须在5-20字符之间"))]
-    pub qq_number: String,
+    /// 登录模式。缺省为 qq，用于兼容旧前端和旧调用方。
+    pub login_mode: Option<LoginMode>,
+
+    /// 统一登录标识：QQ 号或邮箱地址。
+    pub identifier: Option<String>,
+
+    /// 兼容字段：QQ号（5-20位数字）
+    pub qq_number: Option<String>,
+
+    /// 兼容字段：邮箱地址
+    pub email: Option<String>,
 
     /// 验证码Token（必须先通过 /api/captcha/verify 获取）
     pub captcha_token: Option<String>,
 }
 
 /// 验证并登录请求
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize)]
 pub struct VerifyAndLoginRequest {
-    /// QQ号
-    #[validate(length(min = 5, max = 20, message = "QQ号长度必须在5-20字符之间"))]
-    pub qq_number: String,
+    /// 登录模式。缺省为 qq，用于兼容旧前端和旧调用方。
+    pub login_mode: Option<LoginMode>,
+
+    /// 统一登录标识：QQ 号或邮箱地址。
+    pub identifier: Option<String>,
+
+    /// 兼容字段：QQ号
+    pub qq_number: Option<String>,
+
+    /// 兼容字段：邮箱地址
+    pub email: Option<String>,
 
     /// 验证码（长度由 verification.code_length 配置控制）
-    #[validate(length(min = 1, max = 20, message = "验证码长度必须在1-20字符之间"))]
     pub code: String,
 }
 
@@ -71,9 +87,107 @@ pub struct LoginResponse {
 #[derive(Debug, Serialize)]
 pub struct UserInfo {
     pub id: String,
-    pub qq_number: String,
+    pub login_mode: String,
+    pub identifier: String,
+    pub qq_number: Option<String>,
+    pub email: Option<String>,
     pub role: String,
     pub is_active: bool,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum LoginMode {
+    Qq,
+    Email,
+}
+
+impl LoginMode {
+    fn as_provider(self) -> &'static str {
+        match self {
+            Self::Qq => LOGIN_PROVIDER_QQ,
+            Self::Email => LOGIN_PROVIDER_EMAIL,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct LoginIdentity {
+    mode: LoginMode,
+    identifier: String,
+    qq_number: Option<String>,
+    email: Option<String>,
+}
+
+impl LoginIdentity {
+    fn provider(&self) -> &'static str {
+        self.mode.as_provider()
+    }
+
+    fn from_parts(
+        login_mode: Option<LoginMode>,
+        identifier: Option<&str>,
+        qq_number: Option<&str>,
+        email: Option<&str>,
+    ) -> Result<Self> {
+        let mode = login_mode.unwrap_or(LoginMode::Qq);
+
+        match mode {
+            LoginMode::Qq => {
+                let qq_number = identifier
+                    .or(qq_number)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| AppError::Unauthorized("请输入QQ号".to_string()))?;
+
+                if !QQ_NUMBER_REGEX.is_match(qq_number) {
+                    return Err(AppError::Unauthorized("QQ号必须为5-20位数字".to_string()));
+                }
+
+                Ok(Self {
+                    mode,
+                    identifier: qq_number.to_string(),
+                    qq_number: Some(qq_number.to_string()),
+                    email: None,
+                })
+            }
+            LoginMode::Email => {
+                let email = identifier
+                    .or(email)
+                    .and_then(normalize_email_address)
+                    .ok_or_else(|| AppError::Unauthorized("请输入有效邮箱地址".to_string()))?;
+
+                Ok(Self {
+                    mode,
+                    identifier: email.clone(),
+                    qq_number: None,
+                    email: Some(email),
+                })
+            }
+        }
+    }
+}
+
+impl SendVerificationCodeRequest {
+    fn identity(&self) -> Result<LoginIdentity> {
+        LoginIdentity::from_parts(
+            self.login_mode,
+            self.identifier.as_deref(),
+            self.qq_number.as_deref(),
+            self.email.as_deref(),
+        )
+    }
+}
+
+impl VerifyAndLoginRequest {
+    fn identity(&self) -> Result<LoginIdentity> {
+        LoginIdentity::from_parts(
+            self.login_mode,
+            self.identifier.as_deref(),
+            self.qq_number.as_deref(),
+            self.email.as_deref(),
+        )
+    }
 }
 
 fn has_admin_override(config: &AppConfig, qq_number: &str) -> bool {
@@ -149,7 +263,7 @@ fn issue_tokens(
     let refresh_expiration = (config.auth.refresh_expiration_hours * 3600) as usize;
 
     let access_claims = Claims {
-        sub: user.qq_number.clone(),
+        sub: user.identity_subject(),
         user_id: user.id.to_string(),
         role: user.role.clone(),
         token_kind: TokenKind::Access,
@@ -158,7 +272,7 @@ fn issue_tokens(
     };
 
     let refresh_claims = Claims {
-        sub: user.qq_number.clone(),
+        sub: user.identity_subject(),
         user_id: user.id.to_string(),
         role: user.role.clone(),
         token_kind: TokenKind::Refresh,
@@ -192,12 +306,20 @@ fn build_login_response(
         access_token,
         token_type: "Bearer".to_string(),
         expires_in,
-        user: UserInfo {
-            id: user.id.to_string(),
-            qq_number: user.qq_number,
-            role: user.role,
-            is_active: user.is_active,
-        },
+        user: build_user_info(user),
+    }
+}
+
+fn build_user_info(user: crate::domain::models::User) -> UserInfo {
+    let identifier = user.identifier();
+    UserInfo {
+        id: user.id.to_string(),
+        login_mode: user.login_provider,
+        identifier,
+        qq_number: user.qq_number,
+        email: user.email,
+        role: user.role,
+        is_active: user.is_active,
     }
 }
 
@@ -208,12 +330,11 @@ pub async fn send_verification_code(
     State(state): State<AppState>,
     Json(req): Json<SendVerificationCodeRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>)> {
-    // 验证请求
-    req.validate()
-        .map_err(|e| AppError::Internal(format!("验证失败: {}", e)))?;
+    let identity = req.identity()?;
 
     tracing::info!(
-        qq_number = %req.qq_number,
+        login_provider = identity.provider(),
+        identifier = %identity.identifier,
         has_captcha_token = req.captcha_token.is_some(),
         "收到发送验证码请求"
     );
@@ -236,7 +357,8 @@ pub async fn send_verification_code(
 
     if !token_valid {
         tracing::warn!(
-            qq_number = %req.qq_number,
+            login_provider = identity.provider(),
+            identifier = %identity.identifier,
             "验证码token无效或已过期"
         );
         return Err(AppError::Unauthorized(
@@ -245,26 +367,47 @@ pub async fn send_verification_code(
     }
 
     tracing::info!(
-        qq_number = %req.qq_number,
+        login_provider = identity.provider(),
+        identifier = %identity.identifier,
         "验证码token验证成功"
     );
 
-    // 创建QQ客户端
-    let qq_client = crate::infrastructure::QQClient::new(AppConfig::global().qq_bot.clone())
-        .map_err(|e| AppError::Internal(format!("QQ客户端初始化失败: {}", e)))?;
-
-    // 创建验证码服务
     let verification_service = VerificationCodeService::new(
         state.redis_pool.clone(),
-        qq_client,
         AppConfig::global().verification.clone(),
     );
 
-    // 发送验证码
-    let _code = verification_service.send_and_store(&req.qq_number).await?;
+    match identity.mode {
+        LoginMode::Qq => {
+            let qq_number = identity
+                .qq_number
+                .as_deref()
+                .ok_or_else(|| AppError::Internal("QQ 登录标识缺失".to_string()))?;
+            let qq_client =
+                crate::infrastructure::QQClient::new(AppConfig::global().qq_bot.clone())
+                    .map_err(|e| AppError::Internal(format!("QQ客户端初始化失败: {}", e)))?;
+            let _code = verification_service
+                .send_and_store_qq(&qq_client, qq_number)
+                .await?;
+        }
+        LoginMode::Email => {
+            let email = identity
+                .email
+                .as_deref()
+                .ok_or_else(|| AppError::Internal("邮箱登录标识缺失".to_string()))?;
+            let email_sender = state
+                .email_sender
+                .as_deref()
+                .ok_or_else(|| AppError::Config("邮件发送未配置，无法使用邮箱登录".to_string()))?;
+            let _code = verification_service
+                .send_and_store_email(email_sender, email)
+                .await?;
+        }
+    }
 
     tracing::info!(
-        qq_number = %req.qq_number,
+        login_provider = identity.provider(),
+        identifier = %identity.identifier,
         "验证码发送成功"
     );
 
@@ -272,7 +415,10 @@ pub async fn send_verification_code(
         StatusCode::OK,
         Json(serde_json::json!({
             "message": "验证码已发送",
-            "qq_number": req.qq_number
+            "login_mode": identity.provider(),
+            "identifier": identity.identifier,
+            "qq_number": identity.qq_number,
+            "email": identity.email
         })),
     ))
 }
@@ -284,9 +430,7 @@ pub async fn verify_and_login(
     State(state): State<AppState>,
     Json(req): Json<VerifyAndLoginRequest>,
 ) -> Result<impl IntoResponse> {
-    // 验证请求
-    req.validate()
-        .map_err(|e| AppError::Internal(format!("验证失败: {}", e)))?;
+    let identity = req.identity()?;
 
     let config = AppConfig::global();
     if req.code.len() != config.verification.code_length
@@ -299,29 +443,24 @@ pub async fn verify_and_login(
     }
 
     tracing::info!(
-        qq_number = %req.qq_number,
+        login_provider = identity.provider(),
+        identifier = %identity.identifier,
         "收到登录请求"
     );
 
-    // 创建QQ客户端
-    let qq_client = crate::infrastructure::QQClient::new(AppConfig::global().qq_bot.clone())
-        .map_err(|e| AppError::Internal(format!("QQ客户端初始化失败: {}", e)))?;
-
-    // 创建验证码服务
     let verification_service = VerificationCodeService::new(
         state.redis_pool.clone(),
-        qq_client,
         AppConfig::global().verification.clone(),
     );
 
-    // 验证验证码
     let is_valid = verification_service
-        .verify_code(&req.qq_number, &req.code)
+        .verify_code_for(identity.provider(), &identity.identifier, &req.code)
         .await?;
 
     if !is_valid {
         tracing::warn!(
-            qq_number = %req.qq_number,
+            login_provider = identity.provider(),
+            identifier = %identity.identifier,
             "验证码验证失败"
         );
         return Err(AppError::Unauthorized("验证码无效或已过期".to_string()));
@@ -330,25 +469,43 @@ pub async fn verify_and_login(
     // 创建用户仓储
     let user_repo = UserRepository::new(state.db_pool.clone());
 
-    let desired_role = if has_admin_override(config, &req.qq_number) {
-        "admin"
-    } else {
-        "user"
-    };
+    let user = match identity.mode {
+        LoginMode::Qq => {
+            let qq_number = identity
+                .qq_number
+                .as_deref()
+                .ok_or_else(|| AppError::Internal("QQ 登录标识缺失".to_string()))?;
+            let desired_role = if has_admin_override(config, qq_number) {
+                "admin"
+            } else {
+                "user"
+            };
 
-    let user = user_repo
-        .ensure_role(
             user_repo
-                .create_or_find(&req.qq_number, desired_role)
-                .await?,
-            desired_role,
-        )
-        .await?;
+                .ensure_role(
+                    user_repo.create_or_find_qq(qq_number, desired_role).await?,
+                    desired_role,
+                )
+                .await?
+        }
+        LoginMode::Email => {
+            let email = identity
+                .email
+                .as_deref()
+                .ok_or_else(|| AppError::Internal("邮箱登录标识缺失".to_string()))?;
+
+            // 本轮明确不启用邮箱管理员提升；即使未来预留配置入口，当前邮箱登录也只能落 user。
+            user_repo
+                .ensure_role(user_repo.create_or_find_email(email, "user").await?, "user")
+                .await?
+        }
+    };
 
     // 检查用户是否激活
     if !user.is_active {
         tracing::warn!(
-            qq_number = %req.qq_number,
+            login_provider = identity.provider(),
+            identifier = %identity.identifier,
             user_id = %user.id,
             "用户已被停用"
         );
@@ -363,7 +520,8 @@ pub async fn verify_and_login(
     );
 
     tracing::info!(
-        qq_number = %req.qq_number,
+        login_provider = identity.provider(),
+        identifier = %identity.identifier,
         user_id = %user.id,
         role = %user.role,
         "用户登录成功"
@@ -459,10 +617,5 @@ pub async fn get_current_user(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    Ok(Json(UserInfo {
-        id: user.id.to_string(),
-        qq_number: user.qq_number,
-        role: user.role,
-        is_active: user.is_active,
-    }))
+    Ok(Json(build_user_info(user)))
 }

@@ -13,7 +13,14 @@ use tracing::instrument;
 use crate::config::EmailConfig;
 
 use super::error::{EmailError, Result};
-use super::templates::{render_verification_code, VerificationScene};
+use super::templates::{render_verification_code, RenderedEmail, VerificationScene};
+
+#[async_trait::async_trait]
+pub trait EmailDelivery: Send + Sync {
+    async fn send_verification_code(&self, to_email: &str, code: &str, scene: &str) -> Result<()>;
+
+    async fn send_rendered_email(&self, to_email: &str, rendered: &RenderedEmail) -> Result<()>;
+}
 
 static EMAIL_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
@@ -70,6 +77,22 @@ impl EmailSender {
     ) -> Result<()> {
         let scene = VerificationScene::try_from(scene)?;
         let rendered = render_verification_code(code, scene, &self.config.from_name)?;
+        let message = self.build_alternative_message(
+            to_email,
+            &rendered.subject,
+            &rendered.text_body,
+            &rendered.html_body,
+        )?;
+
+        self.send_with_retry(message, to_email).await
+    }
+
+    /// 发送已经渲染好的 multipart 邮件。
+    pub async fn send_rendered_email(
+        &self,
+        to_email: &str,
+        rendered: &RenderedEmail,
+    ) -> Result<()> {
         let message = self.build_alternative_message(
             to_email,
             &rendered.subject,
@@ -215,6 +238,17 @@ impl EmailSender {
         parse_email_address(&config.smtp_user)
             .map(|_| ())
             .map_err(|error| EmailError::Config(error.to_string()))
+    }
+}
+
+#[async_trait::async_trait]
+impl EmailDelivery for EmailSender {
+    async fn send_verification_code(&self, to_email: &str, code: &str, scene: &str) -> Result<()> {
+        EmailSender::send_verification_code(self, to_email, code, scene).await
+    }
+
+    async fn send_rendered_email(&self, to_email: &str, rendered: &RenderedEmail) -> Result<()> {
+        EmailSender::send_rendered_email(self, to_email, rendered).await
     }
 }
 

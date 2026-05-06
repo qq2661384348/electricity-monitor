@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 前端架构与工作区真源
-updated_at: 2026-05-05
-verified_at: 2026-05-05
+updated_at: 2026-05-06
+verified_at: 2026-05-06
 sources:
   - frontend/package.json
   - frontend/vite.config.ts
@@ -43,8 +43,9 @@ summary: 前端技术基线、工作区真源、目录职责和验证入口
 - `frontend/src/shared/api/http-client.ts`：统一 `/api` 前缀、Bearer token 注入、`withCredentials`、单次 refresh 和 401 重放。
 - `frontend/src/shared/api/queryKeys.ts`：React Query key 真源。
 - `frontend/src/stores/authStore.ts`：认证 token / user 的内存态状态，额外维护 `isSessionReady`。
+- `frontend/src/features/auth-login/model/loginIdentity.ts`：登录模式、登录标识规范化、校验和展示标识工具真源；QQ 与邮箱登录 UI 不应在页面里重复硬编码校验细节。
 - `frontend/src/features/auth-login/api/authApi.ts`：登录与验证码流程 API 真源。
-- `frontend/src/entities/public-config/api/publicConfigApi.ts`：`/api/public-config` 的非敏感运行时配置 API 真源，承接机器人 QQ、管理员 QQ、验证码和 QQ 验证码参数。
+- `frontend/src/entities/public-config/api/publicConfigApi.ts`：`/api/public-config` 的非敏感运行时配置 API 真源，承接可用登录模式、机器人 QQ、管理员 QQ、验证码和登录验证码参数。
 - `frontend/src/features/public-config/model/usePublicConfig.ts`：公开配置 React Query hook 真源；登录、公告、教程和验证码弹窗应复用它，避免硬编码机器人号或验证码长度。
 - `frontend/src/features/bind-room/`：bind-room feature 样板，包含 `api / model / ui / index`。
 - `frontend/src/entities/room/api/roomApi.ts` 与 `frontend/src/entities/binding/api/bindingApi.ts`：单领域 API 出口。
