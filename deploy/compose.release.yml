@@ -1,14 +1,108 @@
+x-app-environment: &app-environment
+  APP_ENV: ${APP_ENV:-production}
+  APP__SERVER__HOST: ${APP__SERVER__HOST:-0.0.0.0}
+  APP__SERVER__PORT: ${APP_CONTAINER_PORT:-8000}
+  APP__DATABASE__HOST: ${APP__DATABASE__HOST:-postgres}
+  APP__DATABASE__PORT: ${APP__DATABASE__PORT:-5432}
+  APP__DATABASE__USERNAME: ${APP__DATABASE__USERNAME:-postgres}
+  APP__DATABASE__PASSWORD_FILE: /run/secrets/app_database_password
+  APP__DATABASE__DATABASE: ${APP__DATABASE__DATABASE:-electricity_pro}
+  APP__DATABASE__MAX_CONNECTIONS: ${APP__DATABASE__MAX_CONNECTIONS:-20}
+  APP__DATABASE__MIN_CONNECTIONS: ${APP__DATABASE__MIN_CONNECTIONS:-5}
+  APP__DATABASE__CONNECTION_TIMEOUT: ${APP__DATABASE__CONNECTION_TIMEOUT:-30}
+  APP__REDIS__HOST: ${APP__REDIS__HOST:-redis}
+  APP__REDIS__PORT: ${APP__REDIS__PORT:-6379}
+  APP__LOGGING__LEVEL: ${APP__LOGGING__LEVEL:-info}
+  APP__JWT__SECRET_FILE: /run/secrets/app_jwt_secret
+  APP__CORS__ALLOWED_ORIGINS: ${APP__CORS__ALLOWED_ORIGINS:?APP__CORS__ALLOWED_ORIGINS is required}
+  APP__QQ_BOT__API_URL: ${APP__QQ_BOT__API_URL:?APP__QQ_BOT__API_URL is required}
+  APP__QQ_BOT__PUBLIC_QQ_NUMBER: ${APP__QQ_BOT__PUBLIC_QQ_NUMBER:?APP__QQ_BOT__PUBLIC_QQ_NUMBER is required}
+  APP__QQ_BOT__BEARER_TOKEN_FILE: /run/secrets/app_qq_bot_bearer_token
+  APP__QQ_BOT__TIMEOUT_SECONDS: ${APP__QQ_BOT__TIMEOUT_SECONDS:-10}
+  APP__EMAIL__SMTP_HOST: ${APP__EMAIL__SMTP_HOST:-smtp.qq.com}
+  APP__EMAIL__SMTP_PORT: ${APP__EMAIL__SMTP_PORT:-465}
+  APP__EMAIL__SMTP_USER: ${APP__EMAIL__SMTP_USER:-cogniaegis@qq.com}
+  APP__EMAIL__SMTP_PASSWORD_FILE: /run/secrets/app_email_smtp_password
+  APP__EMAIL__SMTP_USE_TLS: ${APP__EMAIL__SMTP_USE_TLS:-true}
+  APP__EMAIL__FROM_NAME: ${APP__EMAIL__FROM_NAME:-CogniAegis}
+  APP__EMAIL__TIMEOUT_SECONDS: ${APP__EMAIL__TIMEOUT_SECONDS:-30}
+  APP__EMAIL__MAX_RETRIES: ${APP__EMAIL__MAX_RETRIES:-3}
+  APP__EMAIL__RETRY_DELAY_SECONDS: ${APP__EMAIL__RETRY_DELAY_SECONDS:-2}
+  APP__PUBLIC_SITE__DOMAIN: ${APP__PUBLIC_SITE__DOMAIN:?APP__PUBLIC_SITE__DOMAIN is required}
+  APP__PUBLIC_SITE__PORT: ${APP__PUBLIC_SITE__PORT:?APP__PUBLIC_SITE__PORT is required}
+  APP__ADMIN__DEFAULT_QQ_NUMBER: ${APP__ADMIN__DEFAULT_QQ_NUMBER:?APP__ADMIN__DEFAULT_QQ_NUMBER is required}
+  APP__CAPTCHA__API_URL: ${APP__CAPTCHA__API_URL:-https://v2.xxapi.cn/api/captcha}
+  APP__CAPTCHA__REQUEST_TIMEOUT_SECONDS: ${APP__CAPTCHA__REQUEST_TIMEOUT_SECONDS:-5}
+  APP__CAPTCHA__TOKEN_EXPIRE_SECONDS: ${APP__CAPTCHA__TOKEN_EXPIRE_SECONDS:-60}
+  APP__CAPTCHA__CAPTCHA_TYPE: ${APP__CAPTCHA__CAPTCHA_TYPE:-math}
+  APP__CAPTCHA__WIDTH: ${APP__CAPTCHA__WIDTH:-300}
+  APP__CAPTCHA__HEIGHT: ${APP__CAPTCHA__HEIGHT:-100}
+  APP__CAPTCHA__OPTIONS: ${APP__CAPTCHA__OPTIONS:-2}
+  APP__VERIFICATION__CODE_LENGTH: ${APP__VERIFICATION__CODE_LENGTH:-6}
+  APP__VERIFICATION__EXPIRE_SECONDS: ${APP__VERIFICATION__EXPIRE_SECONDS:-300}
+  APP__VERIFICATION__REDIS_KEY_PREFIX: ${APP__VERIFICATION__REDIS_KEY_PREFIX:-verify}
+  APP__NOTIFICATION__CONCURRENT_SEND_LIMIT: ${APP__NOTIFICATION__CONCURRENT_SEND_LIMIT:-10}
+  APP__NOTIFICATION__QUERY_INTERVAL_SECS: ${APP__NOTIFICATION__QUERY_INTERVAL_SECS:-60}
+  APP__NOTIFICATION__DEBOUNCE_PERIOD_SECS: ${APP__NOTIFICATION__DEBOUNCE_PERIOD_SECS:-3600}
+  APP__NOTIFICATION__RECOVERY_MONITOR_INTERVAL_SECS: ${APP__NOTIFICATION__RECOVERY_MONITOR_INTERVAL_SECS:-300}
+
+x-app-secrets: &app-secrets
+  - source: app_database_password
+    target: app_database_password
+  - source: app_jwt_secret
+    target: app_jwt_secret
+  - source: app_qq_bot_bearer_token
+    target: app_qq_bot_bearer_token
+  - source: app_email_smtp_password
+    target: app_email_smtp_password
+
 services:
+  postgres:
+    image: ${POSTGRES_IMAGE_REF:-postgres:16-alpine}
+    container_name: ${POSTGRES_CONTAINER_NAME:-electricity-postgres}
+    restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-electricity_pro}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ${POSTGRES_DATA_DIR:-./data/postgres}:/var/lib/postgresql/data
+    secrets:
+      - source: app_database_password
+        target: postgres_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
   redis:
     image: ${REDIS_IMAGE_REF:-redis:8-alpine}
     container_name: ${REDIS_CONTAINER_NAME:-electricity-redis}
     restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
-    command: redis-server --save "" --appendonly no --maxmemory ${REDIS_MAX_MEMORY:-128mb} --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --appendfsync everysec --maxmemory ${REDIS_MAX_MEMORY:-128mb} --maxmemory-policy allkeys-lru
+    volumes:
+      - ${REDIS_DATA_DIR:-./data/redis}:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+    networks:
+      - internal
+
+  migrate:
+    image: ${APP_IMAGE_REF:?APP_IMAGE_REF is required}
+    restart: "no"
+    command: ["./migrate", "production"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: *app-environment
+    secrets: *app-secrets
     networks:
       - internal
 
@@ -17,38 +111,14 @@ services:
     container_name: ${APP_CONTAINER_NAME:-electricity-app}
     restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     ports:
       - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_HOST_PORT:-11450}:${APP_CONTAINER_PORT:-8000}"
-    environment:
-      APP_ENV: ${APP_ENV:-production}
-      APP__REDIS__HOST: ${APP__REDIS__HOST:-redis}
-      APP__REDIS__PORT: ${APP__REDIS__PORT:-6379}
-      APP__LOGGING__LEVEL: ${APP__LOGGING__LEVEL:-info}
-      APP__DATABASE__HOST: ${APP__DATABASE__HOST:-db.example.internal}
-      APP__DATABASE__PORT: ${APP__DATABASE__PORT:-5432}
-      APP__DATABASE__USERNAME: ${APP__DATABASE__USERNAME:-postgres}
-      APP__DATABASE__PASSWORD_FILE: /run/secrets/app_database_password
-      APP__DATABASE__DATABASE: ${APP__DATABASE__DATABASE:-electricity_pro}
-      APP__JWT__SECRET_FILE: /run/secrets/app_jwt_secret
-      APP__CORS__ALLOWED_ORIGINS: ${APP__CORS__ALLOWED_ORIGINS:?APP__CORS__ALLOWED_ORIGINS is required}
-      APP__QQ_BOT__API_URL: ${APP__QQ_BOT__API_URL:?APP__QQ_BOT__API_URL is required}
-      APP__QQ_BOT__PUBLIC_QQ_NUMBER: ${APP__QQ_BOT__PUBLIC_QQ_NUMBER:?APP__QQ_BOT__PUBLIC_QQ_NUMBER is required}
-      APP__QQ_BOT__BEARER_TOKEN_FILE: /run/secrets/app_qq_bot_bearer_token
-      APP__EMAIL__SMTP_PASSWORD_FILE: /run/secrets/app_email_smtp_password
-      APP__PUBLIC_SITE__DOMAIN: ${APP__PUBLIC_SITE__DOMAIN:?APP__PUBLIC_SITE__DOMAIN is required}
-      APP__PUBLIC_SITE__PORT: ${APP__PUBLIC_SITE__PORT:?APP__PUBLIC_SITE__PORT is required}
-      APP__ADMIN__DEFAULT_QQ_NUMBER: ${APP__ADMIN__DEFAULT_QQ_NUMBER:?APP__ADMIN__DEFAULT_QQ_NUMBER is required}
-    secrets:
-      - source: app_database_password
-        target: app_database_password
-      - source: app_jwt_secret
-        target: app_jwt_secret
-      - source: app_qq_bot_bearer_token
-        target: app_qq_bot_bearer_token
-      - source: app_email_smtp_password
-        target: app_email_smtp_password
+    environment: *app-environment
+    secrets: *app-secrets
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s

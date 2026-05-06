@@ -86,7 +86,6 @@ electricity-monitor-backend/
 # 安装编译和客户端依赖
 sudo apt-get update
 sudo apt-get install -y build-essential libpq-dev libssl-dev pkg-config postgresql-client redis-tools
-cargo install diesel_cli --no-default-features --features postgres
 
 # 准备运行时配置
 cp config/development.toml.example config/development.toml
@@ -119,14 +118,17 @@ Copy-Item config/development.toml.example config/development.toml
 $env:APP_ENV="development"
 $env:RUST_LOG="debug"
 
-# 安装 Diesel CLI（如需数据库迁移）
-cargo install diesel_cli --no-default-features --features postgres
-
 # 运行数据库迁移
 cargo run --bin migrate
 
 # 启动开发服务器
 cargo run
+```
+
+运行迁移不要求安装 Diesel CLI；只有生成新迁移或手动刷新 schema 时才需要：
+
+```bash
+cargo install diesel_cli --no-default-features --features postgres
 ```
 
 ### 生产环境（Linux）

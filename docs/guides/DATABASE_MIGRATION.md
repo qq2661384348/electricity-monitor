@@ -1,6 +1,6 @@
 # 数据库迁移指南
 
-本项目使用 Diesel CLI 进行数据库迁移管理，配置完全基于 TOML 配置文件，无需 `.env` 文件。
+本项目使用 Diesel 内嵌迁移执行数据库变更，配置完全基于 TOML 配置文件，无需 `.env` 文件。Diesel CLI 只在生成新迁移或手动刷新 schema 时需要，运行迁移不依赖目标环境安装 `diesel` 命令。
 
 ## 统一迁移命令
 
@@ -27,12 +27,12 @@ cargo run --bin migrate -- production --revert
 `migrate` 工具会：
 1. 读取当前环境对应的运行时配置文件（`config/development.toml` 或 `config/production.toml`）中的数据库配置
 2. 按当前环境校验数据库访问边界（例如 development 只允许本地数据库）
-3. 构建 `DATABASE_URL` 环境变量
-4. 调用 `diesel migration run/revert` 执行迁移
+3. 构建数据库连接串
+4. 通过编译进 `migrate` 二进制的内嵌 migrations 执行 `run_pending_migrations` 或 `revert_last_migration`
 
 ## 环境准备
 
-### 1. 安装 Diesel CLI
+### 1. 可选：安装 Diesel CLI
 
 ```bash
 # 仅安装 PostgreSQL 支持
@@ -41,6 +41,8 @@ cargo install diesel_cli --no-default-features --features postgres
 # 如需 MySQL 支持
 cargo install diesel_cli --no-default-features --features postgres,mysql
 ```
+
+只有生成新迁移、手动执行 `diesel migration list` 或刷新 `schema.rs` 时才需要 Diesel CLI；`cargo run --bin migrate` 和 release 包内的 `/app/migrate` 不需要它。
 
 ### 2. 配置数据库连接
 
@@ -256,17 +258,17 @@ EXECUTE FUNCTION update_send_flag();
 
 ## 故障排查
 
-### 问题1: diesel命令未找到
+### 问题1: 迁移二进制无法连接数据库
 
 **错误**:
 ```
-❌ 执行diesel命令失败: No such file or directory
+❌ 迁移失败: connection to server at ...
 ```
 
 **解决**:
-```bash
-cargo install diesel_cli --no-default-features --features postgres
-```
+1. 检查数据库服务是否运行
+2. 验证当前环境对应的运行时配置文件中的连接信息
+3. 确认网络连接、防火墙和容器网络设置
 
 ### 问题2: 配置文件未找到
 
@@ -281,17 +283,17 @@ cargo install diesel_cli --no-default-features --features postgres
 - 开发环境：`config/development.toml.example -> config/development.toml`
 - 生产环境：`config/production.toml.example -> config/production.toml`
 
-### 问题3: 数据库连接失败
+### 问题3: 生成迁移时 diesel 命令未找到
 
 **错误**:
 ```
-Error: Connection to database failed
+diesel: command not found
 ```
 
 **解决**:
-1. 检查数据库服务是否运行
-2. 验证当前环境对应的运行时配置文件中的连接信息
-3. 确认网络连接和防火墙设置
+```bash
+cargo install diesel_cli --no-default-features --features postgres
+```
 
 ### 问题4: Schema未更新
 
@@ -309,12 +311,7 @@ dir = "migrations"
 
 ## 环境变量说明
 
-虽然不使用 `.env` 文件，但 `migrate` 工具会临时设置以下环境变量：
-
-- `DATABASE_URL`: 数据库连接字符串（从TOML生成）
-- `APP_ENV`: 当前环境名称（development/production）
-
-这些变量仅在 `diesel` 命令执行期间有效，不会污染全局环境。
+`migrate` 工具直接读取当前环境对应的 TOML 配置，并使用解析后的数据库连接串建立 PostgreSQL 连接；不会要求外部 `.env` 文件，也不会要求全局设置 `DATABASE_URL`。
 
 ## 多环境管理
 

@@ -42,7 +42,6 @@ Linux 开发环境应安装客户端、头文件和编译工具；PostgreSQL / R
 ```bash
 sudo apt-get update
 sudo apt-get install -y build-essential libpq-dev libssl-dev pkg-config postgresql-client redis-tools
-cargo install diesel_cli --no-default-features --features postgres
 ```
 
 验证：
@@ -55,6 +54,7 @@ cargo check
 ```
 
 Linux 下不要在 `.cargo/config.toml` 写入 `PQ_LIB_DIR` 或 `OPENSSL_DIR`。这些变量会被 Cargo 注入到所有平台，一旦写入 Windows 路径，Linux 构建会被错误路径污染。
+运行 `cargo run --bin migrate` 不要求安装 Diesel CLI；生成新 migration 或手动刷新 schema 时再安装 `diesel_cli`。
 
 ### Windows 原生推荐方式：标准安装路径
 

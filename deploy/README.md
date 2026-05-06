@@ -24,9 +24,14 @@
 
 - 生产发布主线：`.github/workflows/docker-build.yml`
 - PR / 手动质量门禁：`.github/workflows/ci.yml`
-- 服务器部署方式：下载 GitHub Actions artifact，解压后执行包内 `deploy.sh`
+- 服务器部署方式：local environment使用 `gh` 触发 GitHub Actions、下载 artifact，再通过 `ssh/scp` 上传到服务器并执行包内 `deploy.sh`
+- release 包会离线携带应用、PostgreSQL 和 Redis 镜像；服务器只执行 `docker load`，不从外部 registry 拉取镜像
+- release compose 服务包含 `postgres`、`redis`、一次性 `migrate` 和 `app`；`deploy.sh` 会先启动依赖、执行内嵌数据库迁移，再启动应用
+- 默认对外绑定为 `127.0.0.1:11450 -> app:8000`，不包含反向代理配置
+- artifact deployment默认把持久数据放在 `<release-root>/data/postgres` 与 `<release-root>/data/redis`，release 版本放在 `<release-root>/releases/<tag>`，当前版本软链为 `<release-root>/current`
 - 本地 Docker 调试前会优先使用 `config/development.toml.example -> config/development.toml` 的本地运行时配置，且该运行时配置必须补齐 `database.password`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`qq_bot.bearer_token`、`public_site.domain` 与 `public_site.port`
 - 生产敏感配置通过 Compose secrets 提供，并由 `.env` 中的 `*_SECRET_FILE` 指向宿主机文件，当前覆盖数据库密码、JWT secret、QQ bearer token 和 SMTP 授权码
+- out-of-repository deployment automation不要纳入仓库；`.gitignore` 已忽略 `deploy/relay-deploy*.sh`，可用它们from the deployment environment `config/development.toml` 派生远端 `.env` 与 secret files
 - `.env` 还必须显式填写 CORS、QQ 机器人发送配置、公开站点域名/端口和管理员 QQ；这些值不会写入 `production.toml.example`
 - release 部署前必须把 secret file 权限收紧到仅 owner 可读写；`deploy.sh` 会对权限过宽的文件直接 fail-fast
 - 服务器部署时会读取 `release-manifest.json`，并在 release 目录写出 `deploy-result.json`

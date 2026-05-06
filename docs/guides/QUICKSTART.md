@@ -11,7 +11,6 @@ Electricity Monitor 是 Rust + Axum + Diesel 后端与 React + Vite 前端同仓
 ```bash
 sudo apt-get update
 sudo apt-get install -y build-essential libpq-dev libssl-dev pkg-config postgresql-client redis-tools
-cargo install diesel_cli --no-default-features --features postgres
 ```
 
 ### 2. 准备本地 PostgreSQL 和 Redis
@@ -63,10 +62,9 @@ bash scripts/backend-checks.sh
 
 ## Windows 原生快速启动
 
-Windows 原生开发需要 PostgreSQL、Redis、Rust 工具链和 Diesel CLI。PostgreSQL 如果不在标准安装路径，请通过用户环境变量设置 `POSTGRES_HOME` 或 `PQ_LIB_DIR`，不要把local environment私有路径写回 `.cargo/config.toml`。
+Windows 原生开发需要 PostgreSQL、Redis 和 Rust 工具链。PostgreSQL 如果不在标准安装路径，请通过用户环境变量设置 `POSTGRES_HOME` 或 `PQ_LIB_DIR`，不要把local environment私有路径写回 `.cargo/config.toml`。只有生成新迁移或手动刷新 schema 时才需要 Diesel CLI。
 
 ```powershell
-cargo install diesel_cli --no-default-features --features postgres
 Copy-Item config/development.toml.example config/development.toml
 # 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port
 $env:APP_ENV="development"
@@ -90,9 +88,10 @@ powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1
 cargo run --bin migrate
 ```
 
-新增迁移时再使用 Diesel CLI：
+新增迁移时再安装并使用 Diesel CLI：
 
 ```bash
+cargo install diesel_cli --no-default-features --features postgres
 diesel migration generate your_migration_name
 ```
 

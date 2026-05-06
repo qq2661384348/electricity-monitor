@@ -21,36 +21,32 @@ Linux：
 sudo apt-get update
 sudo apt-get install -y build-essential libpq-dev libssl-dev pkg-config postgresql-client redis-tools
 
-# 2. 安装 Diesel CLI
-cargo install diesel_cli --no-default-features --features postgres
-
-# 3. 准备本地运行时配置
+# 2. 准备本地运行时配置
 cp config/development.toml.example config/development.toml
 
-# 4. 将 config/development.toml 中的 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
+# 3. 将 config/development.toml 中的 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值
 #    同时填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token，以及 public_site.domain / public_site.port
 #    如需启用邮箱登录和邮箱通知，再填写 email.smtp_password 或 APP__EMAIL__SMTP_PASSWORD(_FILE)
 
-# 5. 配置环境
+# 4. 配置环境
 export APP_ENV=development
 
-# 6. 确保 PostgreSQL 和 Redis 已启动，并可通过 127.0.0.1:5432 / 127.0.0.1:6379 访问
+# 5. 确保 PostgreSQL 和 Redis 已启动，并可通过 127.0.0.1:5432 / 127.0.0.1:6379 访问
 #    它们可以是系统服务，也可以是 Docker 映射到本地端口的容器。
 
-# 7. 运行迁移（统一命令）
+# 6. 运行迁移（统一命令，不要求安装 diesel_cli）
 cargo run --bin migrate
 
-# 8. 启动服务
+# 7. 启动服务
 cargo run
 
-# 9. 测试 API
+# 8. 测试 API
 curl http://localhost:8000/api/health
 ```
 
 Windows 原生：
 
 ```powershell
-cargo install diesel_cli --no-default-features --features postgres
 Copy-Item config/development.toml.example config/development.toml
 # 继续编辑 config/development.toml，把 database.password 改成当前本地 PostgreSQL 的真实密码或非空开发值，并填写 qq_bot.api_url、qq_bot.public_qq_number、qq_bot.bearer_token 和 public_site.domain / public_site.port；如需启用邮箱登录和邮箱通知，再填写 email.smtp_password 或 APP__EMAIL__SMTP_PASSWORD(_FILE)
 $env:APP_ENV="development"
@@ -171,6 +167,12 @@ cargo audit -q
 powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 ```
 
+生成新 migration 或手动刷新 Diesel schema 时再安装 Diesel CLI：
+
+```bash
+cargo install diesel_cli --no-default-features --features postgres
+```
+
 ## 部署
 
 生产部署已调整为 GitHub Actions 手动触发打包，仓库内部署资产统一收敛在 `deploy/`：
@@ -178,20 +180,24 @@ powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1
 - PR / 手动质量门禁：`.github/workflows/ci.yml`
 - 工作流：`.github/workflows/docker-build.yml`
 - 镜像构建：`deploy/Dockerfile`
+- artifact deployment：local environment使用 `gh` 触发 Actions、下载 artifact、read private configuration from the deployment environment并通过 `ssh <server>` 上传到 `<release-root>`；中转脚本属于out-of-repository private file，不纳入仓库，`deploy/relay-deploy*.sh` 已被 `.gitignore` 忽略
 - 运行时配置：工作流会先将 `config/production.toml.example` 复制为 `config/production.toml` 再构建镜像
 - 生产模板中的 `cors.allowed_origins`、`auth.refresh_cookie_secure`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`public_site.domain`、`public_site.port` 和 `admin.default_qq_number` 必须在发布前补成真实生产值；`qq_bot.bearer_token` 和 `email.smtp_password` 生产环境必须通过 secret file 注入
 - release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
+- release 包离线携带应用、PostgreSQL 和 Redis 镜像；服务器只执行 `docker load` 和 `docker compose`，不会从外部 registry 拉取镜像
+- release compose 服务包含 `postgres`、`redis`、一次性 `migrate` 和 `app`，默认绑定 `127.0.0.1:11450`
+- artifact deployment默认把数据放在 `<release-root>/data/postgres` 与 `<release-root>/data/redis`
 - smoke 契约：`deploy/smoke.targets`，由 `tests/runtime/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用，包含端点、必需文件与统一响应安全头
 - release manifest：artifact 内的 `release/release-manifest.json`
 - 本地 Docker 调试：`deploy/build.sh`、`deploy/docker-compose.local.yml`
 - `static/` 由前端 `build:prod` 在本地或 CI 生成，仓库只保留目录占位，不再跟踪构建产物
 - 前端行为测试：在 `frontend/` 目录执行 `bun run test`，由 `Vitest + Testing Library + MSW` 驱动并纳入 `.github/workflows/ci.yml`
 - `cargo audit -q` 已纳入 `.github/workflows/ci.yml` 阻断门禁
-1. 在 GitHub Actions 中手动触发发布工作流并指定 `git_tag`
-2. 下载生成的 release artifact
-3. 在服务器解压后准备 `.env` 与 `secrets/` 中的 Compose secrets 文件，并把数据库、JWT、QQ token 和 SMTP 授权码 secret file 权限收紧到仅 owner 可读写
-4. 执行 release 包中的 `deploy.sh`，必要时再执行 `smoke.sh`；smoke 会继续校验运行时端点、必需文件与统一响应安全头
-5. 部署结果会写入 release 目录下的 `deploy-result.json`
+1. 准备并推送发布 tag。
+2. 使用out-of-repository deployment automation或手动在 GitHub Actions 中触发发布工作流并指定 `git_tag`。
+3. 如果手动部署，在服务器解压后准备 `.env` 与 `secrets/` 中的 Compose secrets 文件，并把数据库、JWT、QQ token 和 SMTP 授权码 secret file 权限收紧到仅 owner 可读写。
+4. 执行 release 包中的 `deploy.sh`，必要时再执行 `smoke.sh`；smoke 会继续校验运行时端点、必需文件与统一响应安全头。
+5. 部署结果会写入 release 目录下的 `deploy-result.json`。
 
 详见 **[Docker 部署指南](./docs/guides/DOCKER_DEPLOYMENT.md)** 和 **[deploy 目录说明](./deploy/README.md)**。
 

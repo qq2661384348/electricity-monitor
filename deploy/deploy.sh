@@ -23,6 +23,7 @@ DEPLOY_RESULT_FILE="${SCRIPT_DIR}/deploy-result.json"
 BACKUP_TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 
 APP_BACKUP_NAME=""
+POSTGRES_BACKUP_NAME=""
 REDIS_BACKUP_NAME=""
 MANIFEST_GIT_TAG=""
 MANIFEST_GIT_SHA=""
@@ -115,6 +116,7 @@ load_env() {
     done < "${ENV_FILE}"
 
     : "${APP_CONTAINER_NAME:=electricity-app}"
+    : "${POSTGRES_CONTAINER_NAME:=electricity-postgres}"
     : "${REDIS_CONTAINER_NAME:=electricity-redis}"
     : "${APP_HOST_PORT:=11450}"
     : "${DEPLOY_HEALTHCHECK_URL:=http://127.0.0.1:${APP_HOST_PORT}/api/health}"
@@ -131,7 +133,12 @@ load_env() {
     : "${APP__PUBLIC_SITE__DOMAIN:?APP__PUBLIC_SITE__DOMAIN 未配置}"
     : "${APP__PUBLIC_SITE__PORT:?APP__PUBLIC_SITE__PORT 未配置}"
     : "${APP__ADMIN__DEFAULT_QQ_NUMBER:?APP__ADMIN__DEFAULT_QQ_NUMBER 未配置}"
+    : "${POSTGRES_IMAGE_REF:=postgres:16-alpine}"
+    : "${POSTGRES_USER:=${APP__DATABASE__USERNAME:-postgres}}"
+    : "${POSTGRES_DB:=${APP__DATABASE__DATABASE:-electricity_pro}}"
+    : "${POSTGRES_DATA_DIR:=./data/postgres}"
     : "${REDIS_IMAGE_REF:=redis:8-alpine}"
+    : "${REDIS_DATA_DIR:=./data/redis}"
 
     [ -f "${APP_DATABASE_PASSWORD_SECRET_FILE}" ] || error "数据库密码 secret file 不存在: ${APP_DATABASE_PASSWORD_SECRET_FILE}"
     [ -f "${APP_JWT_SECRET_SECRET_FILE}" ] || error "JWT secret file 不存在: ${APP_JWT_SECRET_SECRET_FILE}"
@@ -142,6 +149,8 @@ load_env() {
     validate_secret_file_permissions "${APP_JWT_SECRET_SECRET_FILE}"
     validate_secret_file_permissions "${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE}"
     validate_secret_file_permissions "${APP_EMAIL_SMTP_PASSWORD_SECRET_FILE}"
+
+    mkdir -p "${POSTGRES_DATA_DIR}" "${REDIS_DATA_DIR}"
 
     docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" config >/dev/null
 
@@ -181,9 +190,19 @@ backup_container() {
     printf '%s' "${backup_name}"
 }
 
+start_dependencies() {
+    info "启动 PostgreSQL 和 Redis"
+    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d postgres redis
+}
+
+run_migrations() {
+    info "执行数据库迁移"
+    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" run --rm migrate
+}
+
 start_new_release() {
-    info "启动新版本容器"
-    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d
+    info "启动新版本应用容器"
+    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d app
 }
 
 wait_for_health() {
@@ -218,7 +237,9 @@ rollback() {
 
     docker rm -f "${APP_CONTAINER_NAME}" >/dev/null 2>&1 || true
     docker rm -f "${REDIS_CONTAINER_NAME}" >/dev/null 2>&1 || true
+    docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
 
+    restore_container "${POSTGRES_BACKUP_NAME}" "${POSTGRES_CONTAINER_NAME}"
     restore_container "${REDIS_BACKUP_NAME}" "${REDIS_CONTAINER_NAME}"
     restore_container "${APP_BACKUP_NAME}" "${APP_CONTAINER_NAME}"
 }
@@ -238,6 +259,7 @@ write_deploy_result() {
   "app_image_digest": "${MANIFEST_APP_IMAGE_DIGEST}",
   "healthcheck_url": "${DEPLOY_HEALTHCHECK_URL}",
   "app_backup": "${APP_BACKUP_NAME}",
+  "postgres_backup": "${POSTGRES_BACKUP_NAME}",
   "redis_backup": "${REDIS_BACKUP_NAME}"
 }
 EOF
@@ -248,6 +270,7 @@ main() {
     echo -e "${GREEN}🚀 Electricity Monitor Release Deploy${NC}"
     echo "============================================================"
 
+    cd "${SCRIPT_DIR}"
     check_prerequisites
     load_manifest
     prepare_env_file
@@ -255,7 +278,20 @@ main() {
     load_images
 
     APP_BACKUP_NAME="$(backup_container "${APP_CONTAINER_NAME}")"
+    POSTGRES_BACKUP_NAME="$(backup_container "${POSTGRES_CONTAINER_NAME}")"
     REDIS_BACKUP_NAME="$(backup_container "${REDIS_CONTAINER_NAME}")"
+
+    if ! start_dependencies; then
+        rollback
+        write_deploy_result "rolled_back" "PostgreSQL 或 Redis 启动失败，已回滚"
+        error "PostgreSQL 或 Redis 启动失败，已尝试回滚"
+    fi
+
+    if ! run_migrations; then
+        rollback
+        write_deploy_result "rolled_back" "数据库迁移失败，已回滚容器"
+        error "数据库迁移失败，已尝试回滚容器"
+    fi
 
     if ! start_new_release; then
         rollback
@@ -266,9 +302,10 @@ main() {
     if wait_for_health; then
         write_deploy_result "deployed" "健康检查通过"
         success "部署完成，健康检查通过"
-        if [ -n "${APP_BACKUP_NAME}" ] || [ -n "${REDIS_BACKUP_NAME}" ]; then
+        if [ -n "${APP_BACKUP_NAME}" ] || [ -n "${POSTGRES_BACKUP_NAME}" ] || [ -n "${REDIS_BACKUP_NAME}" ]; then
             warn "已保留旧容器备份，必要时可手动清理"
             [ -n "${APP_BACKUP_NAME}" ] && info "应用备份: ${APP_BACKUP_NAME}"
+            [ -n "${POSTGRES_BACKUP_NAME}" ] && info "PostgreSQL 容器备份: ${POSTGRES_BACKUP_NAME}"
             [ -n "${REDIS_BACKUP_NAME}" ] && info "Redis 备份: ${REDIS_BACKUP_NAME}"
         fi
         return 0

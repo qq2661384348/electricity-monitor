@@ -1,6 +1,6 @@
 //! 数据库迁移工具
 //!
-//! 从TOML配置文件读取数据库配置并执行Diesel迁移
+//! 从 TOML 配置文件读取数据库配置并执行内嵌 Diesel 迁移
 //!
 //! 使用方法:
 //!   cargo run --bin migrate                    # 使用development环境
@@ -8,9 +8,13 @@
 //!   cargo run --bin migrate -- --revert        # 回滚最后一次迁移
 
 use std::env;
-use std::process::Command;
+use std::error::Error;
 
+use diesel::{Connection, PgConnection};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use electricity_monitor_backend::AppConfig;
+
+const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 fn main() {
     // 解析命令行参数
@@ -59,40 +63,49 @@ fn main() {
     );
     println!();
 
-    // 执行diesel命令
-    let diesel_cmd = if revert {
-        "migration revert"
-    } else {
-        "migration run"
-    };
-
-    println!("⚙️  执行: diesel {}", diesel_cmd);
+    println!(
+        "⚙️  执行内嵌迁移: {}",
+        if revert {
+            "revert last migration"
+        } else {
+            "run pending migrations"
+        }
+    );
     println!();
 
-    let status = Command::new("diesel")
-        .args(diesel_cmd.split_whitespace())
-        .env("DATABASE_URL", &database_url)
-        .env("APP_ENV", &environment)
-        .status();
-
-    match status {
-        Ok(exit_status) => {
-            if exit_status.success() {
-                println!();
-                println!("✅ 迁移完成!");
-            } else {
-                eprintln!();
-                eprintln!("❌ 迁移失败，退出码: {:?}", exit_status.code());
-                std::process::exit(1);
-            }
+    match run_embedded_migrations(&database_url, revert) {
+        Ok(()) => {
+            println!();
+            println!("✅ 迁移完成!");
         }
         Err(e) => {
             eprintln!();
-            eprintln!("❌ 执行diesel命令失败: {}", e);
-            eprintln!();
-            eprintln!("💡 提示: 请确保已安装 diesel_cli:");
-            eprintln!("   cargo install diesel_cli --no-default-features --features postgres");
+            eprintln!("❌ 迁移失败: {}", e);
             std::process::exit(1);
         }
     }
+}
+
+fn run_embedded_migrations(
+    database_url: &str,
+    revert: bool,
+) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
+    let mut connection = PgConnection::establish(database_url)?;
+
+    if revert {
+        let reverted = connection.revert_last_migration(MIGRATIONS)?;
+        println!("↩️  已回滚迁移: {:?}", reverted);
+        return Ok(());
+    }
+
+    let applied = connection.run_pending_migrations(MIGRATIONS)?;
+    if applied.is_empty() {
+        println!("ℹ️  没有待执行迁移");
+    } else {
+        for migration in applied {
+            println!("✅ 已执行迁移: {:?}", migration);
+        }
+    }
+
+    Ok(())
 }

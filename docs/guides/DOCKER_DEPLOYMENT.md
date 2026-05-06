@@ -19,6 +19,7 @@ release-<git-tag>.tar.gz
 └── release/
     ├── images/
     │   ├── electricity-monitor-<git-tag>-linux-amd64.tar.gz
+    │   ├── postgres-16-alpine-linux-amd64.tar.gz
     │   └── redis-8-alpine-linux-amd64.tar.gz
     ├── compose.yaml
     ├── deploy.sh
@@ -65,7 +66,7 @@ deploy/
 2. 构建前端并复制到 `static/`
 3. 将 `config/production.toml.example` 复制为工作区内的 `config/production.toml`
 4. 使用 `deploy/Dockerfile` 在 GitHub Actions Linux runner 中构建 `linux/amd64` Docker 镜像
-5. 导出应用镜像与 Redis 镜像
+5. 导出应用、PostgreSQL 和 Redis 镜像，保证服务器无需从外部 registry 拉取运行镜像
 6. 复制 `deploy/smoke.targets` 作为 release smoke 契约文件
 7. 生成 `release-manifest.json`，写入 tag、git SHA、镜像 digest 与归档校验值
 8. 组装 release 目录并压缩成单个归档
@@ -95,7 +96,25 @@ deploy/
 - `deploy/Dockerfile.dockerignore` 用于约束镜像构建上下文
 - CI 直接构建 `linux/amd64` 镜像，避免本地与线上重复构建
 
-## 服务器部署
+## artifact deployment
+
+out-of-repository deployment automation不纳入仓库，不跟随 commit / push。仓库只维护 release artifact 与服务器侧 `deploy.sh` 的稳定契约；out-of-repository private script可以按需命名为 `deploy/relay-deploy.local.sh`，该路径已被 `.gitignore` 忽略。
+
+local environment中转流程为：
+
+1. 使用 `gh workflow run` 触发 `.github/workflows/docker-build.yml`。
+2. 等待 Actions 完成并用 `gh run download` 下载 release artifact。
+3. read private configuration from the deployment environment，生成远端 `.env` 和 secret files；私密值不会写回仓库。
+4. 通过 `ssh/scp` 上传到 `<release-root>`。
+5. 在远端解压到 `<release-root>/releases/<git-tag>/release`。
+6. 把数据目录固定到 `<release-root>/data/postgres` 与 `<release-root>/data/redis`。
+7. 执行 release 包内 `deploy.sh` 和 `smoke.sh`，成功后更新 `<release-root>/current` 软链。
+
+默认 SSH 目标是 `ali`，默认绑定端口是 `127.0.0.1:11450`。脚本不配置反向代理，也不会要求服务器直接访问 Docker 外部镜像站点。
+
+中转脚本要求 tag 已经存在于本地和 `origin`；发布前需要先完成 commit、tag 和 push。若只想上传并生成远端配置，不立即改容器状态，可以让out-of-repository private script只执行到解压、写入 `.env` 和安装 secret files 为止，不调用远端 `deploy.sh`。
+
+## 手动服务器部署
 
 ### 1. 下载 artifact
 
@@ -104,9 +123,9 @@ deploy/
 ### 2. 解压发布包
 
 ```bash
-mkdir -p /opt/electricity-monitor
-tar -xzf release-<git-tag>.tar.gz -C /opt/electricity-monitor
-cd /opt/electricity-monitor/release
+mkdir -p <release-root>/releases/<git-tag>
+tar -xzf release-<git-tag>.tar.gz -C <release-root>/releases/<git-tag>
+cd <release-root>/releases/<git-tag>/release
 ```
 
 ### 3. 配置环境变量
@@ -130,13 +149,17 @@ vim .env
 - `APP__ADMIN__DEFAULT_QQ_NUMBER`
 
 对应的宿主机 secret 文件必须在部署前收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。SMTP 授权码使用 `APP_EMAIL_SMTP_PASSWORD_SECRET_FILE` 指向的宿主机文件提供，容器内固定挂载为 `/run/secrets/app_email_smtp_password`。
+如果使用稳定 release 目录之外的数据路径，设置：
+
+- `POSTGRES_DATA_DIR=<release-root>/data/postgres`
+- `REDIS_DATA_DIR=<release-root>/data/redis`
 
 可按需覆盖：
 
-- `APP__DATABASE__HOST`
-- `APP__DATABASE__PORT`
 - `APP__DATABASE__USERNAME`
 - `APP__DATABASE__DATABASE`
+- `POSTGRES_USER`
+- `POSTGRES_DB`
 - `APP_HOST_PORT`
 - `APP_BIND_ADDRESS`
 
@@ -155,11 +178,13 @@ chmod +x deploy.sh
 2. 校验 `.env` 中声明的 secret file 存在且权限已收紧到仅 owner 可读写
 3. 读取 `release-manifest.json` 并校验 `APP_IMAGE_REF`
 4. 加载 `images/` 下的镜像归档
-5. 备份现有 `electricity-app` / `electricity-redis`
-6. 使用 `compose.yaml` 启动新版本
-7. 对 `GET /api/health` 做重试健康检查
-8. 将本次部署结果写入 `deploy-result.json`
-9. 若健康检查失败，则自动回滚到旧容器
+5. 备份现有 `electricity-app` / `electricity-postgres` / `electricity-redis`
+6. 使用 `compose.yaml` 启动 PostgreSQL 和 Redis
+7. 通过应用镜像中的内嵌 `migrate` 二进制执行数据库迁移
+8. 启动新版本应用容器
+9. 对 `GET /api/health` 做重试健康检查
+10. 将本次部署结果写入 `deploy-result.json`
+11. 若启动、迁移或健康检查失败，则自动回滚容器
 
 ### 5. 执行 smoke 检查
 
@@ -184,12 +209,13 @@ chmod +x smoke.sh
 ### 编排方式
 
 - 运行方式：`docker compose`
-- 服务：`app` + `redis`
+- 服务：`postgres` + `redis` + 一次性 `migrate` + `app`
 - 重启策略：`unless-stopped`
 
 ### 容器身份
 
 - 应用容器：`electricity-app`
+- PostgreSQL 容器：`electricity-postgres`
 - Redis 容器：`electricity-redis`
 
 ### 端口
@@ -197,6 +223,12 @@ chmod +x smoke.sh
 - 容器端口：`8000`
 - 默认宿主机端口：`11450`
 - 默认绑定地址：`127.0.0.1`
+
+### 数据目录
+
+- PostgreSQL：`.env` 中的 `POSTGRES_DATA_DIR`
+- Redis：`.env` 中的 `REDIS_DATA_DIR`
+- artifact deployment默认使用 `<release-root>/data/postgres` 和 `<release-root>/data/redis`
 
 ### 健康检查
 
@@ -210,13 +242,14 @@ chmod +x smoke.sh
 
 1. 发现旧容器后，先为当前镜像打 `rollback-<timestamp>` 标签
 2. 将旧容器重命名为 `*-backup-<timestamp>`
-3. 启动新容器并执行健康检查
+3. 启动 PostgreSQL / Redis，执行内嵌迁移，再启动应用容器并执行健康检查
 4. 若失败：
    - 删除新容器
    - 将备份容器重命名回原名称
    - 重新启动旧容器
 
 这意味着脚本不会只“报错退出”，而是会尝试恢复到上一个可运行状态。
+容器回滚不等于数据库 schema 自动回滚；如果某次 release 包含破坏性迁移，发布前必须额外准备数据库备份和人工恢复步骤。
 
 ## 发布身份记录
 
