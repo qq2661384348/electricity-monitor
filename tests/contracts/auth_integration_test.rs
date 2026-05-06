@@ -22,7 +22,7 @@ use electricity_monitor_backend::{
 };
 
 use support::{
-    app_factory::create_test_app,
+    app_factory::{create_test_app, TestApp},
     auth_fixture::{
         admin_qq_number, delete_with_bearer, get_with_bearer, login_with_seeded_code,
         login_with_seeded_email_code, post_json, post_json_with_bearer, post_with_cookie,
@@ -41,6 +41,25 @@ async fn rebuild_path_tree_for_room(state: &AppState, room: &Room) {
             path_count: 1,
         }]))
         .await;
+}
+
+async fn binding_proof_for_room(test_app: &TestApp, roomid: i32) -> String {
+    let admin_login =
+        login_with_seeded_code(&test_app.app, &test_app.state, &admin_qq_number(), "246810").await;
+
+    let response = get_with_bearer(
+        &test_app.app,
+        &format!("/api/bindings/proof/{roomid}"),
+        &admin_login.access_token,
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body: Value = read_json(response).await;
+    body["binding_proof"]
+        .as_str()
+        .expect("管理员 proof 响应应包含 binding_proof")
+        .to_string()
 }
 
 #[tokio::test]
@@ -228,6 +247,7 @@ async fn email_login_returns_user_profile_without_admin_role() {
 async fn qq_and_email_accounts_keep_bindings_isolated() {
     let test_app = create_test_app().await;
     let room = seed_room(&test_app.state).await;
+    let binding_proof = binding_proof_for_room(&test_app, room.roomid).await;
 
     let qq_login = login_with_seeded_code(
         &test_app.app,
@@ -249,6 +269,7 @@ async fn qq_and_email_accounts_keep_bindings_isolated() {
         serde_json::json!({
             "roomid": room.roomid,
             "notification_enabled": true,
+            "binding_proof": binding_proof,
         }),
     )
     .await;
@@ -363,6 +384,7 @@ async fn logout_clears_refresh_cookie() {
 async fn user_can_complete_binding_crud_flow() {
     let test_app = create_test_app().await;
     let room = seed_room(&test_app.state).await;
+    let binding_proof = binding_proof_for_room(&test_app, room.roomid).await;
     let qq_number = unique_qq_number();
     let login = login_with_seeded_code(&test_app.app, &test_app.state, &qq_number, "654321").await;
 
@@ -373,6 +395,7 @@ async fn user_can_complete_binding_crud_flow() {
         serde_json::json!({
             "roomid": room.roomid,
             "notification_enabled": false,
+            "binding_proof": binding_proof,
         }),
     )
     .await;
@@ -431,6 +454,7 @@ async fn user_can_complete_binding_crud_flow() {
 async fn user_cannot_access_other_users_binding() {
     let test_app = create_test_app().await;
     let room = seed_room(&test_app.state).await;
+    let binding_proof = binding_proof_for_room(&test_app, room.roomid).await;
     let owner_login = login_with_seeded_code(
         &test_app.app,
         &test_app.state,
@@ -453,6 +477,7 @@ async fn user_cannot_access_other_users_binding() {
         serde_json::json!({
             "roomid": room.roomid,
             "notification_enabled": false,
+            "binding_proof": binding_proof,
         }),
     )
     .await;
@@ -481,9 +506,87 @@ async fn user_cannot_access_other_users_binding() {
 }
 
 #[tokio::test]
+async fn user_cannot_create_binding_without_admin_issued_proof() {
+    let test_app = create_test_app().await;
+    let room = seed_room(&test_app.state).await;
+    rebuild_path_tree_for_room(&test_app.state, &room).await;
+    let login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "333333",
+    )
+    .await;
+
+    let missing_proof = post_json_with_bearer(
+        &test_app.app,
+        "/api/bindings",
+        &login.access_token,
+        serde_json::json!({
+            "roomid": room.roomid,
+            "notification_enabled": false,
+        }),
+    )
+    .await;
+    assert_eq!(missing_proof.status(), StatusCode::FORBIDDEN);
+
+    let invalid_proof = post_json_with_bearer(
+        &test_app.app,
+        "/api/bindings",
+        &login.access_token,
+        serde_json::json!({
+            "roomid": room.roomid,
+            "notification_enabled": false,
+            "binding_proof": "wrong-proof",
+        }),
+    )
+    .await;
+    assert_eq!(invalid_proof.status(), StatusCode::FORBIDDEN);
+
+    let encoded_path = urlencoding::encode(&room.primary_roompath);
+    let unbound_by_path = get_with_bearer(
+        &test_app.app,
+        &format!("/api/rooms/by-path?path={encoded_path}"),
+        &login.access_token,
+    )
+    .await;
+    assert_eq!(unbound_by_path.status(), StatusCode::FORBIDDEN);
+
+    delete_room(&test_app.state, room.id).await;
+}
+
+#[tokio::test]
+async fn only_admin_can_issue_room_binding_proof() {
+    let test_app = create_test_app().await;
+    let room = seed_room(&test_app.state).await;
+    let user_login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "333333",
+    )
+    .await;
+
+    let user_response = get_with_bearer(
+        &test_app.app,
+        &format!("/api/bindings/proof/{}", room.roomid),
+        &user_login.access_token,
+    )
+    .await;
+    assert_eq!(user_response.status(), StatusCode::FORBIDDEN);
+
+    let binding_proof = binding_proof_for_room(&test_app, room.roomid).await;
+    assert_eq!(binding_proof.len(), 12);
+    assert!(binding_proof.chars().all(|ch| ch.is_ascii_hexdigit()));
+
+    delete_room(&test_app.state, room.id).await;
+}
+
+#[tokio::test]
 async fn user_needs_binding_before_reading_room_path_details() {
     let test_app = create_test_app().await;
     let room = seed_room(&test_app.state).await;
+    let binding_proof = binding_proof_for_room(&test_app, room.roomid).await;
     rebuild_path_tree_for_room(&test_app.state, &room).await;
 
     let login = login_with_seeded_code(
@@ -548,6 +651,7 @@ async fn user_needs_binding_before_reading_room_path_details() {
         serde_json::json!({
             "roomid": room.roomid,
             "notification_enabled": false,
+            "binding_proof": binding_proof,
         }),
     )
     .await;

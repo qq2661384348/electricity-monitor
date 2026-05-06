@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, AlertCircle, ChevronRight, Home } from 'lucide-react';
+import { X, Check, AlertCircle, ChevronRight, Home, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { SkeletonOptionCard } from '@/components/ui/SkeletonOptionCard';
 
@@ -14,9 +14,12 @@ interface BindRoomModalProps {
 export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps) {
   const {
     currentStep,
+    bindingProof,
+    bindingProofRequired,
     clearError,
     error,
     finalRoom,
+    handleBindingProofChange,
     handleBind,
     handleClose,
     handleGoBack,
@@ -118,6 +121,22 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
                         <span className="px-2 py-1 bg-black text-white font-black text-xs uppercase tracking-widest shadow-[2px_2px_0_0_#000]">编号</span>
                         <span className="font-black text-base text-brand-primary">{finalRoom.roomid}</span>
                       </div>
+                      {bindingProofRequired && (
+                        <label className="block pt-2">
+                          <span className="flex items-center gap-2 mb-2 text-xs font-black uppercase tracking-widest text-gray-700">
+                            <KeyRound size={14} strokeWidth={3} />
+                            绑定码
+                          </span>
+                          <input
+                            value={bindingProof}
+                            onChange={(event) => handleBindingProofChange(event.target.value)}
+                            className="w-full border-2 border-black bg-white px-3 py-2 text-sm font-black uppercase tracking-widest outline-none shadow-[3px_3px_0_0_#000] focus:border-brand-primary"
+                            placeholder="输入管理员提供的绑定码"
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                        </label>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -268,7 +287,7 @@ export function BindRoomModal({ isOpen, onClose, onSuccess }: BindRoomModalProps
                       </Button>
                       <Button
                         onClick={handleBind}
-                        disabled={isLoading || !finalRoom}
+                        disabled={isLoading || !finalRoom || (bindingProofRequired && !bindingProof.trim())}
                         variant="primary"
                         size="lg"
                         isLoading={isLoading}

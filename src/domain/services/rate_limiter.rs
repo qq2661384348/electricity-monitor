@@ -1,12 +1,13 @@
 //! 限流服务
 //!
-//! 使用Redis实现固定窗口限流算法
-//! 仅限制电费插入子线程和send_flag查询子线程
+//! 使用Redis实现固定窗口限流算法。后台电费任务继续使用固定操作类型；
+//! 公开认证入口使用自定义 bucket，避免 CAPTCHA 通过后仍可无限触达 QQ/SMTP。
 
 use crate::config::RateLimitConfig;
 use crate::errors::{AppError, Result};
 use crate::infrastructure::RedisPool;
 use deadpool_redis::redis::AsyncCommands;
+use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// 限流操作类型
@@ -51,42 +52,63 @@ impl RateLimiter {
     /// - `Ok(false)`: 超过限制，需要等待
     /// - `Err`: Redis错误
     pub async fn check_rate_limit(&self, operation: RateLimitOperation) -> Result<bool> {
-        let mut conn =
-            self.redis_pool.get().await.map_err(|e| {
-                AppError::Internal(format!("Failed to get Redis connection: {}", e))
-            })?;
-
-        // 获取当前时间戳（秒）
-        // SystemTime::now()总是大于UNIX_EPOCH（除非系统时钟设置在1970年之前）
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("系统时钟错误：时间早于UNIX纪元（1970-01-01）")
-            .as_secs();
-
-        // 构造Redis键：ratelimit:insert:1730000000 或 ratelimit:query:1730000000
-        let key = format!("{}:{}", operation.key_prefix(), now);
-
-        // 获取限制值
         let limit = match operation {
             RateLimitOperation::Insert => self.config.insert_per_second,
             RateLimitOperation::Query => self.config.query_per_second,
         };
 
-        // 原子操作：INCR + EXPIRE
-        // 1. 增加计数器
+        self.check_fixed_window(operation.key_prefix(), limit, 1)
+            .await
+    }
+
+    /// 检查自定义固定窗口 quota。
+    ///
+    /// `scope` 用于区分业务域，`subject` 先做 SHA-256 后进入 Redis key，避免
+    /// QQ 号、邮箱、IP 等可识别信息直接散落在缓存键里。
+    pub async fn check_custom_window(
+        &self,
+        scope: &str,
+        subject: &str,
+        limit: u32,
+        window_seconds: u64,
+    ) -> Result<bool> {
+        let subject_hash = short_hash(subject);
+        let key_prefix = format!("ratelimit:{}:{}", scope, subject_hash);
+        self.check_fixed_window(&key_prefix, limit, window_seconds)
+            .await
+    }
+
+    async fn check_fixed_window(
+        &self,
+        key_prefix: &str,
+        limit: u32,
+        window_seconds: u64,
+    ) -> Result<bool> {
+        let mut conn =
+            self.redis_pool.get().await.map_err(|e| {
+                AppError::Internal(format!("Failed to get Redis connection: {}", e))
+            })?;
+
+        // SystemTime::now()总是大于UNIX_EPOCH（除非系统时钟设置在1970年之前）
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("系统时钟错误：时间早于UNIX纪元（1970-01-01）")
+            .as_secs();
+        let window_seconds = window_seconds.max(1);
+        let window = now / window_seconds;
+        let key = format!("{}:{}", key_prefix, window);
+
         let count: u32 = conn
             .incr(&key, 1)
             .await
             .map_err(|e| AppError::Internal(format!("Redis INCR failed: {}", e)))?;
 
-        // 2. 如果是第一次访问，设置过期时间为1秒
         if count == 1 {
-            conn.expire::<_, ()>(&key, 1)
+            conn.expire::<_, ()>(&key, window_seconds as i64)
                 .await
                 .map_err(|e| AppError::Internal(format!("Redis EXPIRE failed: {}", e)))?;
         }
 
-        // 3. 检查是否超过限制
         Ok(count <= limit)
     }
 
@@ -139,6 +161,14 @@ impl RateLimiter {
         let used = count.unwrap_or(0);
         Ok(limit.saturating_sub(used))
     }
+}
+
+fn short_hash(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    digest[..12]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 #[cfg(test)]

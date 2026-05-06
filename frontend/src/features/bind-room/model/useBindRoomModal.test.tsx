@@ -57,6 +57,10 @@ describe('useBindRoomModal', () => {
     await selectDefaultRoom(result);
 
     await act(async () => {
+      result.current.handleBindingProofChange('ABC123DEF456');
+    });
+
+    await act(async () => {
       await result.current.handleBind();
     });
 
@@ -65,6 +69,28 @@ describe('useBindRoomModal', () => {
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: roomKeys.all });
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: roomKeys.flagged() });
     expect(invalidateQueriesSpy).toHaveBeenCalledWith({ queryKey: bindingKeys.all });
+  });
+
+  it('requires a binding proof for normal users', async () => {
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+    const { result } = renderHookWithProviders(() =>
+      useBindRoomModal({
+        isOpen: true,
+        onClose,
+        onSuccess,
+      }),
+    );
+
+    await selectDefaultRoom(result);
+
+    await act(async () => {
+      await result.current.handleBind();
+    });
+
+    expect(result.current.error).toBe('请输入管理员提供的房间绑定码');
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('shows an error when a leaf node is missing roomid', async () => {

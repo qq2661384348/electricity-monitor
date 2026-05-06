@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { usePathTree } from '@/hooks/usePathTree';
 import { bindingKeys, roomKeys } from '@/shared/api/queryKeys';
+import { useAuthStore } from '@/stores/authStore';
 import type { PathChild } from '@/types';
 
 import { bindRoomApi } from '../api/bindRoomApi';
@@ -28,9 +29,12 @@ export function useBindRoomModal({
   const [selectedPath, setSelectedPath] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [finalRoom, setFinalRoom] = useState<SelectedRoomPreview | null>(null);
+  const [bindingProof, setBindingProof] = useState('');
   const [isTouchDevice, setIsTouchDevice] = useState(false);
 
+  const currentUser = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
+  const bindingProofRequired = currentUser?.role !== 'admin';
   const stepLabels = ['校区', '建筑', '楼层', '房间'];
   const parent = selectedPath.join('/');
   const {
@@ -58,6 +62,7 @@ export function useBindRoomModal({
     setSelectedPath([]);
     setError(null);
     setFinalRoom(null);
+    setBindingProof('');
   };
 
   const handleClose = () => {
@@ -104,12 +109,25 @@ export function useBindRoomModal({
     setError(null);
   };
 
+  const handleBindingProofChange = (value: string) => {
+    setBindingProof(value);
+    if (error) {
+      setError(null);
+    }
+  };
+
   const handleBind = async () => {
     if (!finalRoom) return;
 
     setError(null);
+    const normalizedProof = bindingProof.trim();
+    if (bindingProofRequired && !normalizedProof) {
+      setError('请输入管理员提供的房间绑定码');
+      return;
+    }
+
     try {
-      await bindRoomApi.createBinding(finalRoom.roomid);
+      await bindRoomApi.createBinding(finalRoom.roomid, normalizedProof || undefined);
       await queryClient.invalidateQueries({ queryKey: roomKeys.all });
       await queryClient.invalidateQueries({ queryKey: roomKeys.flagged() });
       await queryClient.invalidateQueries({ queryKey: bindingKeys.all });
@@ -123,9 +141,12 @@ export function useBindRoomModal({
 
   return {
     currentStep,
+    bindingProof,
+    bindingProofRequired,
     clearError,
     error,
     finalRoom,
+    handleBindingProofChange,
     handleBind,
     handleClose,
     handleGoBack,

@@ -19,6 +19,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/bindings", post(binding::create_binding))
         .route("/bindings", get(binding::list_bindings))
+        .route("/bindings/proof/{roomid}", get(binding::get_binding_proof))
         .route("/bindings/{id}", get(binding::get_binding))
         .route(
             "/bindings/{id}/notification",

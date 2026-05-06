@@ -24,6 +24,9 @@ pub enum AppError {
     #[error("权限不足")]
     Forbidden,
 
+    #[error("请求过于频繁: {0}")]
+    RateLimited(String),
+
     #[error("资源未找到")]
     NotFound,
 
@@ -53,6 +56,7 @@ impl IntoResponse for AppError {
             }
             AppError::Unauthorized(ref msg) => (StatusCode::UNAUTHORIZED, msg.as_str()),
             AppError::Forbidden => (StatusCode::FORBIDDEN, "权限不足"),
+            AppError::RateLimited(ref msg) => (StatusCode::TOO_MANY_REQUESTS, msg.as_str()),
             AppError::NotFound => (StatusCode::NOT_FOUND, "资源未找到"),
             AppError::UserNotFriend { ref qq_number } => {
                 tracing::warn!(qq_number = qq_number, "用户未添加机器人为好友");

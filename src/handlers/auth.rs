@@ -28,6 +28,12 @@ use crate::state::AppState;
 use crate::utils::validation::{normalize_email_address, QQ_NUMBER_REGEX};
 
 const REFRESH_COOKIE_NAME: &str = "refresh_token";
+const SEND_CODE_GLOBAL_LIMIT: u32 = 120;
+const SEND_CODE_GLOBAL_WINDOW_SECONDS: u64 = 60;
+const SEND_CODE_CLIENT_LIMIT: u32 = 10;
+const SEND_CODE_CLIENT_WINDOW_SECONDS: u64 = 600;
+const SEND_CODE_DESTINATION_LIMIT: u32 = 3;
+const SEND_CODE_DESTINATION_WINDOW_SECONDS: u64 = 600;
 
 /// 发送验证码请求
 #[derive(Debug, Deserialize)]
@@ -328,6 +334,7 @@ fn build_user_info(user: crate::domain::models::User) -> UserInfo {
 /// POST /auth/send-verification-code
 pub async fn send_verification_code(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<SendVerificationCodeRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>)> {
     let identity = req.identity()?;
@@ -338,6 +345,8 @@ pub async fn send_verification_code(
         has_captcha_token = req.captcha_token.is_some(),
         "收到发送验证码请求"
     );
+
+    enforce_send_code_pre_captcha_limits(&state, &headers).await?;
 
     let captcha_token = req
         .captcha_token
@@ -365,6 +374,8 @@ pub async fn send_verification_code(
             "验证码token无效或已过期".to_string(),
         ));
     }
+
+    enforce_send_code_destination_limit(&state, &identity).await?;
 
     tracing::info!(
         login_provider = identity.provider(),
@@ -421,6 +432,78 @@ pub async fn send_verification_code(
             "email": identity.email
         })),
     ))
+}
+
+async fn enforce_send_code_pre_captcha_limits(state: &AppState, headers: &HeaderMap) -> Result<()> {
+    let global_allowed = state
+        .rate_limiter
+        .check_custom_window(
+            "auth-send-code-global",
+            "all",
+            SEND_CODE_GLOBAL_LIMIT,
+            SEND_CODE_GLOBAL_WINDOW_SECONDS,
+        )
+        .await?;
+
+    if !global_allowed {
+        return Err(AppError::RateLimited(
+            "验证码发送过于频繁，请稍后再试".to_string(),
+        ));
+    }
+
+    if let Some(client_key) = client_rate_limit_key(headers) {
+        let client_allowed = state
+            .rate_limiter
+            .check_custom_window(
+                "auth-send-code-client",
+                &client_key,
+                SEND_CODE_CLIENT_LIMIT,
+                SEND_CODE_CLIENT_WINDOW_SECONDS,
+            )
+            .await?;
+
+        if !client_allowed {
+            return Err(AppError::RateLimited(
+                "当前客户端验证码发送过于频繁，请稍后再试".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+async fn enforce_send_code_destination_limit(
+    state: &AppState,
+    identity: &LoginIdentity,
+) -> Result<()> {
+    let subject = format!("{}:{}", identity.provider(), identity.identifier);
+    let destination_allowed = state
+        .rate_limiter
+        .check_custom_window(
+            "auth-send-code-destination",
+            &subject,
+            SEND_CODE_DESTINATION_LIMIT,
+            SEND_CODE_DESTINATION_WINDOW_SECONDS,
+        )
+        .await?;
+
+    if !destination_allowed {
+        return Err(AppError::RateLimited(
+            "该登录标识验证码发送过于频繁，请稍后再试".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn client_rate_limit_key(headers: &HeaderMap) -> Option<String> {
+    ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"]
+        .iter()
+        .filter_map(|name| headers.get(*name))
+        .filter_map(|value| value.to_str().ok())
+        .map(|value| value.split(',').next().unwrap_or(value).trim())
+        .find(|value| !value.is_empty())
+        .map(|value| value.to_string())
 }
 
 /// 验证并登录
