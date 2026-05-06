@@ -23,7 +23,7 @@
 
 1. 解压 `release-__RELEASE_TAG__.tar.gz`。
 2. 将 `.env.example` 复制为 `.env`。
-3. 按 `.env` 中的约定填写必需运行时值，并在 `./secrets/` 下准备对应的 secret 文件，包括 `app_email_smtp_password`，把权限收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。如果需要跨 release 保留数据，建议把 `POSTGRES_DATA_DIR` 与 `REDIS_DATA_DIR` 改成 release 目录之外的稳定路径。
+3. 按 `.env` 中的约定填写必需运行时值，并在 `./secrets/` 下准备对应的 secret 文件，包括 `app_email_smtp_password`，把权限收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。如果需要跨 release 保留数据，建议把 `POSTGRES_DATA_DIR` 与 `REDIS_DATA_DIR` 改成 release 目录之外的稳定路径。部署时 `deploy.sh` 会把 secret owner 切到 `APP_RUNTIME_UID/GID`，保证非 root 应用进程能读取 Compose file secret。
 4. 运行以下命令：
 
 ```bash

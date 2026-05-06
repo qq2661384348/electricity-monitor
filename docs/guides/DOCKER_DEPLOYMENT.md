@@ -148,7 +148,7 @@ vim .env
 - `APP__PUBLIC_SITE__PORT`
 - `APP__ADMIN__DEFAULT_QQ_NUMBER`
 
-对应的宿主机 secret 文件必须在部署前收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。SMTP 授权码使用 `APP_EMAIL_SMTP_PASSWORD_SECRET_FILE` 指向的宿主机文件提供，容器内固定挂载为 `/run/secrets/app_email_smtp_password`。
+对应的宿主机 secret 文件必须在部署前收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。SMTP 授权码使用 `APP_EMAIL_SMTP_PASSWORD_SECRET_FILE` 指向的宿主机文件提供，容器内固定挂载为 `/run/secrets/app_email_smtp_password`。`deploy.sh` 会把 secret owner 切到 `APP_RUNTIME_UID/GID`，因为应用镜像以非 root 用户运行，不能读取 root-only 的 Compose file secret。
 如果使用稳定 release 目录之外的数据路径，设置：
 
 - `POSTGRES_DATA_DIR=<release-root>/data/postgres`

@@ -25,6 +25,8 @@ POSTGRES_DATA_UID="${POSTGRES_DATA_UID:-70}"
 POSTGRES_DATA_GID="${POSTGRES_DATA_GID:-70}"
 REDIS_DATA_UID="${REDIS_DATA_UID:-999}"
 REDIS_DATA_GID="${REDIS_DATA_GID:-999}"
+APP_RUNTIME_UID="${APP_RUNTIME_UID:-1000}"
+APP_RUNTIME_GID="${APP_RUNTIME_GID:-1000}"
 
 APP_BACKUP_NAME=""
 POSTGRES_BACKUP_NAME=""
@@ -61,6 +63,20 @@ validate_secret_file_permissions() {
     if [ "${permissions:4:6}" != "------" ]; then
         error "secret file 权限过宽: ${path} (${permissions})。请收紧到仅 owner 可读写，例如 chmod 600。"
     fi
+}
+
+prepare_secret_file_owner() {
+    local path="$1"
+
+    chown "${APP_RUNTIME_UID}:${APP_RUNTIME_GID}" "${path}"
+    chmod 400 "${path}"
+}
+
+prepare_secret_files() {
+    prepare_secret_file_owner "${APP_DATABASE_PASSWORD_SECRET_FILE}"
+    prepare_secret_file_owner "${APP_JWT_SECRET_SECRET_FILE}"
+    prepare_secret_file_owner "${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE}"
+    prepare_secret_file_owner "${APP_EMAIL_SMTP_PASSWORD_SECRET_FILE}"
 }
 
 validate_data_dir_path() {
@@ -181,6 +197,10 @@ load_env() {
     validate_secret_file_permissions "${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE}"
     validate_secret_file_permissions "${APP_EMAIL_SMTP_PASSWORD_SECRET_FILE}"
 
+    # release 镜像中的应用进程以 uid 1000 非 root 用户运行。Docker Compose
+    # file secret 在本地 compose 模式下会保留宿主机文件权限，因此这里把
+    # secret owner 显式切到应用 uid，同时继续保持 owner-only 读取。
+    prepare_secret_files
     prepare_data_directories
 
     docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" config >/dev/null
