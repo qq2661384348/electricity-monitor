@@ -21,7 +21,7 @@
 # -----------------------------------------------------------------------------
 # 阶段 1: Chef 基础镜像（安装 cargo-chef）
 # -----------------------------------------------------------------------------
-FROM rust:1.87-bookworm AS chef
+FROM rust:1.95-bookworm AS chef
 
 # 安装构建依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
