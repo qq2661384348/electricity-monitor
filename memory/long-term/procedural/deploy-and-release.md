@@ -44,6 +44,7 @@ summary: 生产发布主线、release 产物、local environment中转边界、�
 - artifact deployment默认使用 `ssh <server>` 上传到 `<release-root>`，release 版本目录为 `<release-root>/releases/<tag>`，持久数据目录为 `<release-root>/data/postgres` 与 `<release-root>/data/redis`。
 - release 包离线携带应用、PostgreSQL 和 Redis 镜像；服务器只执行 `docker load`，不从外部 registry 拉取这些镜像。
 - release compose 服务拓扑为 `postgres`、`redis`、一次性 `migrate` 和 `app`，默认端口绑定为 `127.0.0.1:11450 -> app:8000`，不包含反向代理配置。
+- release `deploy.sh` 会显式设置 PostgreSQL / Redis bind mount 数据目录属主；local environment中转或 root shell 创建的 root-only 数据目录不能直接交给容器使用。
 - `migrate` 二进制使用编译期内嵌 migrations，目标环境运行迁移不需要安装 `diesel_cli`。
 - release 部署脚本会对 `APP_DATABASE_PASSWORD_SECRET_FILE`、`APP_JWT_SECRET_SECRET_FILE`、`APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE`、`APP_EMAIL_SMTP_PASSWORD_SECRET_FILE` 做 owner-only 权限校验；group / other 有权限位时直接失败。
 - SMTP 授权码在 release 包内通过 `APP_EMAIL_SMTP_PASSWORD_SECRET_FILE` 指向宿主机文件，并由 compose 挂载为 `/run/secrets/app_email_smtp_password`，应用侧通过 `APP__EMAIL__SMTP_PASSWORD_FILE` 读取。

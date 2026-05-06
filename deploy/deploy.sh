@@ -21,6 +21,10 @@ IMAGES_DIR="${SCRIPT_DIR}/images"
 MANIFEST_FILE="${SCRIPT_DIR}/release-manifest.json"
 DEPLOY_RESULT_FILE="${SCRIPT_DIR}/deploy-result.json"
 BACKUP_TIMESTAMP="$(date +%Y%m%d%H%M%S)"
+POSTGRES_DATA_UID="${POSTGRES_DATA_UID:-70}"
+POSTGRES_DATA_GID="${POSTGRES_DATA_GID:-70}"
+REDIS_DATA_UID="${REDIS_DATA_UID:-999}"
+REDIS_DATA_GID="${REDIS_DATA_GID:-999}"
 
 APP_BACKUP_NAME=""
 POSTGRES_BACKUP_NAME=""
@@ -57,6 +61,33 @@ validate_secret_file_permissions() {
     if [ "${permissions:4:6}" != "------" ]; then
         error "secret file 权限过宽: ${path} (${permissions})。请收紧到仅 owner 可读写，例如 chmod 600。"
     fi
+}
+
+validate_data_dir_path() {
+    local path="$1"
+    local name="$2"
+
+    [ -n "${path}" ] || error "${name} 不能为空"
+
+    case "${path}" in
+        "/"|"/root"|"/home"|"/usr"|"/var"|"/etc"|"/opt"|"/tmp")
+            error "${name} 指向过宽的系统目录: ${path}"
+            ;;
+    esac
+}
+
+prepare_data_directories() {
+    validate_data_dir_path "${POSTGRES_DATA_DIR}" "POSTGRES_DATA_DIR"
+    validate_data_dir_path "${REDIS_DATA_DIR}" "REDIS_DATA_DIR"
+
+    mkdir -p "${POSTGRES_DATA_DIR}" "${REDIS_DATA_DIR}"
+
+    # release 使用 bind mount 而不是 Docker named volume，以保证服务器数据
+    # 固定落在 <release-root> 下。显式设置容器用户 UID，
+    # 避免out-of-repository deployment automation用 owner-only umask 创建 root:root 目录后导致服务无法初始化。
+    chown -R "${POSTGRES_DATA_UID}:${POSTGRES_DATA_GID}" "${POSTGRES_DATA_DIR}"
+    chown -R "${REDIS_DATA_UID}:${REDIS_DATA_GID}" "${REDIS_DATA_DIR}"
+    chmod 700 "${POSTGRES_DATA_DIR}" "${REDIS_DATA_DIR}"
 }
 
 read_manifest_value() {
@@ -150,7 +181,7 @@ load_env() {
     validate_secret_file_permissions "${APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE}"
     validate_secret_file_permissions "${APP_EMAIL_SMTP_PASSWORD_SECRET_FILE}"
 
-    mkdir -p "${POSTGRES_DATA_DIR}" "${REDIS_DATA_DIR}"
+    prepare_data_directories
 
     docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" config >/dev/null
 

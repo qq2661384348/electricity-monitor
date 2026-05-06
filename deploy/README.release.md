@@ -47,7 +47,7 @@ chmod +x deploy.sh
   - `electricity-postgres`
   - `electricity-redis`
 - 默认端口绑定：`127.0.0.1:11450 -> app:8000`
-- 数据目录：`.env` 中的 `POSTGRES_DATA_DIR` 与 `REDIS_DATA_DIR`
+- 数据目录：`.env` 中的 `POSTGRES_DATA_DIR` 与 `REDIS_DATA_DIR`。`deploy.sh` 会按 `POSTGRES_DATA_UID/GID` 与 `REDIS_DATA_UID/GID` 修正目录属主，避免 bind mount 目录由 root 创建后容器无法初始化。
 
 ## 回滚行为
 

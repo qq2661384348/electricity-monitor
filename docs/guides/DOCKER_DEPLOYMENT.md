@@ -229,6 +229,7 @@ chmod +x smoke.sh
 - PostgreSQL：`.env` 中的 `POSTGRES_DATA_DIR`
 - Redis：`.env` 中的 `REDIS_DATA_DIR`
 - artifact deployment默认使用 `<release-root>/data/postgres` 和 `<release-root>/data/redis`
+- `deploy.sh` 会按 `.env` 中的 `POSTGRES_DATA_UID/GID` 与 `REDIS_DATA_UID/GID` 修正 bind mount 目录属主，避免 root 创建的数据目录导致 PostgreSQL 或 Redis 容器无法初始化。
 
 ### 健康检查
 
