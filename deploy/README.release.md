@@ -42,6 +42,7 @@ chmod +x deploy.sh
 - 服务：`postgres` + `redis` + 一次性 `migrate` + `app`
 - 重启策略：`unless-stopped`
 - 健康检查：`GET /api/health`
+- 默认应用日志级别：`warn`
 - 稳定容器名：
   - `electricity-app`
   - `electricity-postgres`

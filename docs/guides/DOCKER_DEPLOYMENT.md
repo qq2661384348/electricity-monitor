@@ -218,6 +218,11 @@ chmod +x smoke.sh
 - PostgreSQL 容器：`electricity-postgres`
 - Redis 容器：`electricity-redis`
 
+### 日志级别
+
+- release 默认应用日志级别：`warn`
+- 临时排障时可以通过 `.env` 中的 `APP__LOGGING__LEVEL` 改为 `info`、`debug` 或其他 tracing 级别；排障结束后应恢复为 `warn`，避免后台任务和轮询路径在公网服务器持续输出大量日志。
+
 ### 端口
 
 - 容器端口：`8000`
