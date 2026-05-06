@@ -2,14 +2,19 @@
 type: semantic
 status: verified
 scope: 长期质量风险与安全风险
-updated_at: 2026-05-05
-verified_at: 2026-05-05
+updated_at: 2026-05-06
+verified_at: 2026-05-06
 sources:
   - docs/guides/TECHNICAL_DEBT.md
   - docs/guides/SECRETS_INVENTORY.md
   - .github/workflows/ci.yml
   - frontend/package.json
-summary: 已关闭风险、当前质量风险、供应链风险和仓库外部安全边界
+  - src/handlers/auth.rs
+  - src/handlers/binding.rs
+  - src/domain/services/rate_limiter.rs
+  - tests/contracts/auth_integration_test.rs
+  - tests/contracts/send_verification_code_integration_test.rs
+summary: 已关闭风险、当前质量风险、供应链风险、仓库历史清理状态和仓库外部安全边界
 ---
 
 # Electricity Monitor 质量与安全风险
@@ -33,14 +38,18 @@ summary: 已关闭风险、当前质量风险、供应链风险和仓库外部�
 - 后端统一响应安全头已收敛到应用层与 `deploy/smoke.targets` 共享契约；release smoke 与 readiness test 会同时校验这些头。
 - release 部署脚本已对 secret file 做 owner-only 权限校验，过宽权限会直接阻断部署。
 - `/api/auth/send-verification-code` 已要求先消费一次性 captcha token，不能再在缺失图形验证码校验时直接触达 QQ 机器人。
+- `/api/auth/send-verification-code` 已增加应用侧 Redis 固定窗口配额，按全局、客户端来源和发送目标限制公开验证码发送入口。
+- 普通用户创建 `/api/bindings` 绑定时已要求提交管理员签发的房间绑定证明；绑定证明校验通过后，绑定才会继续作为房间详情授权事实。
 - 电费抓取 HTTP 客户端已恢复 HTTPS 证书校验，生产路径不再接受无效证书。
 - `/api/rooms/by-path` 与 `/api/rooms/by-hash` 已恢复为房间详情授权读取，未绑定普通用户不能再通过路径或哈希查询直接读取电费余额和阈值。
+- 本地和 `origin/master` 历史已重写并验证不再包含 `config/development.toml`、`config/production.toml` 或 `config/default.toml` 这类运行时配置文件路径。
 
 ## 当前质量风险
 
 - `DashboardPage.tsx` 仍是高耦合页面容器，虽然 modal 已做懒加载，但 dashboard 数据装配和交互编排仍偏集中。
 - `frontend/src/services/api.ts` 仍保留兼容 facade，后续需要继续缩小存在感，避免旧入口反向扩张。
 - 部署脚本的回滚路径仍需要在真实 Linux Docker 主机上做端到端演练，本地 readiness test 不能替代这类验证。
+- 绑定证明上线前已经存在的 `user_room_bindings` 记录仍会被视为授权事实；如果生产数据曾暴露给未授权自助绑定，需要按业务记录做一次人工审计或清理。
 
 ## 当前供应链风险
 
@@ -50,15 +59,17 @@ summary: 已关闭风险、当前质量风险、供应链风险和仓库外部�
 ## 仓库外部安全缺口
 
 - 反向代理、TLS 终止、`Strict-Transport-Security` 与 WAF 仍依赖部署环境负责，不在仓库内实现。
+- 验证码发送的客户端来源配额依赖生产反向代理正确清洗 `X-Forwarded-For`、`X-Real-IP` 或 `CF-Connecting-IP`，否则只能作为成本抬升，不能替代边缘侧限流。
 - 服务器侧凭据轮换、运维审计记录同样属于仓库外部控制面；没有外部证据时，不能在仓库里写成“已完成”。
 
 ## 与历史配置相关的风险
 
-- 仓库曾出现过把真实敏感配置写入 git 历史的情况，因此必须继续避免把真实 secret 写回仓库。
+- 仓库曾出现过把真实敏感配置写入 git 历史的情况；本地与远端 `master` 已完成历史重写，但仍必须继续避免把真实 secret 写回仓库。
 - 真实 `QQ/JWT/DB/SMTP` 凭据轮换仍依赖外部 secret file 或部署目标访问权；在没有外部证据前，不应在仓库中写成“已完成轮换”。
+- 若旧仓库历史曾被克隆、公开访问或旧 commit SHA 已被外部引用，GitHub 侧不可达对象缓存与外部副本不由仓库代码控制，需要通过凭据轮换和必要时联系 GitHub Support 作为补充处置。
 
 ## 优先级方向
 
 - 第一优先级：继续降低 `DashboardPage.tsx` 与兼容 facade 的耦合，避免前端复杂度重新堆回入口层。
 - 第二优先级：升级前端工具链时同步复核 `overrides`、`bun audit` 和 bundle budget，避免告警基线回退。
-- 第三优先级：在部署环境补齐反向代理、TLS、`Strict-Transport-Security` 与 WAF。
+- 第三优先级：在部署环境补齐反向代理、TLS、`Strict-Transport-Security`、边缘侧限流与 WAF。

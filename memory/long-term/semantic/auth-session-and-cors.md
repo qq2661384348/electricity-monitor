@@ -6,8 +6,11 @@ updated_at: 2026-05-06
 verified_at: 2026-05-06
 sources:
   - src/handlers/auth.rs
+  - src/handlers/binding.rs
+  - src/routes/binding.rs
   - src/config/captcha.rs
   - src/config/verification.rs
+  - src/domain/services/rate_limiter.rs
   - src/domain/models/user.rs
   - src/infrastructure/repositories/user_repository.rs
   - src/modules/auth/api/middleware.rs
@@ -15,7 +18,7 @@ sources:
   - src/handlers/path_tree.rs
   - src/config/cors.rs
   - docs/api/API_REFERENCE.md
-summary: JWT 类型边界、cookie 会话契约、CORS 白名单、管理员提升规则和房间详情授权边界
+summary: JWT 类型边界、cookie 会话契约、验证码发送配额、CORS 白名单、管理员提升规则、绑定证明和房间详情授权边界
 ---
 
 # Electricity Monitor 鉴权会话、CORS 与权限提升规则
@@ -26,12 +29,15 @@ summary: JWT 类型边界、cookie 会话契约、CORS 白名单、管理员提�
 - `src/middleware/auth.rs` 仅保留兼容 facade / `UserContext` 投影，不应重新变成主逻辑入口。
 - 登录身份显式区分 `login_provider=qq|email`；`users.qq_number` 和 `users.email` 按渠道互斥，`user_room_bindings.user_id` 继续作为账号数据隔离边界。
 - `/api/auth/send-verification-code` 必须先消费 `/api/captcha/verify` 签发的一次性 `captcha_token`，缺失、过期或重复使用时不得调用 QQ 机器人或 SMTP 邮件发送器发送验证码。
+- `/api/auth/send-verification-code` 使用 Redis 固定窗口配额限制公开发送入口：发送前先检查全局配额和可识别客户端来源配额，消费 captcha 后再检查 `provider:identifier` 目标配额；触发配额时返回 429，不继续调用 QQ 或 SMTP。
+- 客户端来源配额按 `CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For` 提取，生产反向代理必须清洗外部伪造头，否则该层只能作为应用侧补充防线。
 - `/api/captcha/verify` 签发的 `captcha_token` 有效期由 `captcha.token_expire_seconds` 控制；登录验证码长度和 Redis 有效期分别由 `verification.code_length` 与 `verification.expire_seconds` 控制，Redis key 必须带 `qq` / `email` 渠道前缀避免跨模式混淆。
 - `/api/auth/verify-and-login` 只接受与 `verification.code_length` 完全一致的数字验证码，不应在前端或后端继续硬编码 6 位长度。
 - JWT claims 显式区分 `token_kind=access|refresh`；受保护接口只接受 access token，`/api/auth/refresh` 只接受 refresh token。
 - JWT `sub` 使用 `provider:identifier` 形式，避免 QQ 号与邮箱地址在不同登录渠道下同值混淆。
 - `src/handlers/auth.rs` 负责签发 access token、轮换 refresh cookie 与 logout 清理 cookie 的 HTTP 契约；不要在其他 handler 重新实现这套逻辑。
-- `/api/bindings` 以当前登录账号为个人绑定主体；管理员账号与普通用户账号都可以创建并列出自己的绑定，管理员仍可查看、更新或删除任意绑定。
+- `/api/bindings` 以当前登录账号为个人绑定主体；普通用户创建绑定必须提交管理员签发的 `binding_proof`，管理员可通过 `GET /api/bindings/proof/{roomid}` 获取绑定证明，并且管理员给自己创建绑定时可跳过该证明。
+- 绑定证明由服务端基于 `roomid` 与当前 JWT secret 派生，输入允许去除空白和连字符后大小写不敏感匹配；它只证明管理员已向用户发放该房间绑定码，不应被当作长期独立凭据存储。
 - `/api/rooms/by-path` 与 `/api/rooms/by-hash` 是房间详情读取入口，必须通过 `RoomAccessUseCase::ensure_room_access` 约束为管理员或已绑定用户；绑定前路径树只允许返回叶子节点 `roomid` 这类最小绑定标识，不返回电费余额或阈值。
 
 ## 会话模型

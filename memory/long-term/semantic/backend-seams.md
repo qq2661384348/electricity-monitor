@@ -6,11 +6,14 @@ updated_at: 2026-05-06
 verified_at: 2026-05-06
 sources:
   - src/modules/auth/api/middleware.rs
+  - src/handlers/auth.rs
+  - src/handlers/binding.rs
+  - src/domain/services/rate_limiter.rs
   - src/modules/room/application/mod.rs
   - src/infrastructure/cache/cache_manager.rs
   - src/domain/services/notification_gate.rs
   - src/domain/services/notification_service.rs
-summary: 后端鉴权、房间授权、缓存、通知域和模块化迁移接缝
+summary: 后端鉴权、验证码限流、房间授权、缓存、通知域和模块化迁移接缝
 ---
 
 # Electricity Monitor 后端可维护性接缝
@@ -25,6 +28,7 @@ summary: 后端鉴权、房间授权、缓存、通知域和模块化迁移接�
 - JWT claims 现在显式区分 `token_kind=access|refresh`；受保护接口只接受 access token，`/api/auth/refresh` 只接受 refresh token。
 - refresh token 只通过 `Set-Cookie` / `Cookie` 往返，JSON 响应不再包含 refresh token 字段。
 - `src/handlers/auth.rs` 负责签发 access token、轮换 refresh cookie 与 logout 清理 cookie 的 HTTP 契约；不要在其他 handler 重新实现这套逻辑。
+- `src/domain/services/rate_limiter.rs` 是认证公开入口的 Redis 固定窗口配额接缝；`send-verification-code` 在这里复用全局、客户端来源和目标维度限流，不应在 handler 内自行拼接 Redis 限流 key。
 
 ## 缓存接缝
 
@@ -43,6 +47,7 @@ summary: 后端鉴权、房间授权、缓存、通知域和模块化迁移接�
 
 - `room`、`path_tree`、`room_sync` 的复杂编排已经开始下沉到 `src/modules/*/application`。
 - 房间详情读取（包括 id、roomid、path、hash 入口）统一由 `RoomAccessUseCase` 做访问控制；handler 不应直接绕过 use case 读取完整房间电费和阈值。
+- 普通用户创建房间绑定前必须通过管理员签发的 `binding_proof` 校验；已有绑定仍是 `RoomAccessUseCase` 的授权事实，因此清理历史异常绑定应通过数据审计处理，而不是放宽房间读取 guard。
 - 旧 handler 热点主要集中在 `binding` 与 `auth`，后续应继续往模块应用层收敛。
 
 ## 外部 HTTP 接缝
