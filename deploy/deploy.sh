@@ -35,6 +35,8 @@ MANIFEST_GIT_TAG=""
 MANIFEST_GIT_SHA=""
 MANIFEST_APP_IMAGE_REF=""
 MANIFEST_APP_IMAGE_DIGEST=""
+MANIFEST_POSTGRES_IMAGE_REF=""
+MANIFEST_REDIS_IMAGE_REF=""
 
 require_command() {
     command -v "$1" >/dev/null 2>&1 || error "缺少命令: $1"
@@ -125,6 +127,8 @@ load_manifest() {
     MANIFEST_GIT_SHA="$(read_manifest_value git_sha)"
     MANIFEST_APP_IMAGE_REF="$(read_manifest_value app_image_ref)"
     MANIFEST_APP_IMAGE_DIGEST="$(read_manifest_value app_image_digest)"
+    MANIFEST_POSTGRES_IMAGE_REF="$(read_manifest_value postgres_image_ref)"
+    MANIFEST_REDIS_IMAGE_REF="$(read_manifest_value redis_image_ref)"
 
     info "读取 release manifest: tag=${MANIFEST_GIT_TAG:-unknown}, git_sha=${MANIFEST_GIT_SHA:-unknown}, app_image_ref=${MANIFEST_APP_IMAGE_REF:-unknown}"
 }
@@ -208,6 +212,14 @@ load_env() {
     if [ -n "${MANIFEST_APP_IMAGE_REF}" ] && [ "${MANIFEST_APP_IMAGE_REF}" != "${APP_IMAGE_REF}" ]; then
         error "APP_IMAGE_REF (${APP_IMAGE_REF}) 与 release-manifest.json 中的 app_image_ref (${MANIFEST_APP_IMAGE_REF}) 不一致"
     fi
+
+    if [ -n "${MANIFEST_POSTGRES_IMAGE_REF}" ] && [ "${MANIFEST_POSTGRES_IMAGE_REF}" != "${POSTGRES_IMAGE_REF}" ]; then
+        error "POSTGRES_IMAGE_REF (${POSTGRES_IMAGE_REF}) 与 release-manifest.json 中的 postgres_image_ref (${MANIFEST_POSTGRES_IMAGE_REF}) 不一致"
+    fi
+
+    if [ -n "${MANIFEST_REDIS_IMAGE_REF}" ] && [ "${MANIFEST_REDIS_IMAGE_REF}" != "${REDIS_IMAGE_REF}" ]; then
+        error "REDIS_IMAGE_REF (${REDIS_IMAGE_REF}) 与 release-manifest.json 中的 redis_image_ref (${MANIFEST_REDIS_IMAGE_REF}) 不一致"
+    fi
 }
 
 load_images() {
@@ -220,6 +232,24 @@ load_images() {
     done < <(find "${IMAGES_DIR}" -maxdepth 1 -type f -name '*.tar.gz' -print0 | sort -z)
 
     [ "${loaded}" -gt 0 ] || error "未在 ${IMAGES_DIR} 中找到任何 .tar.gz 镜像归档"
+}
+
+assert_image_available() {
+    local image_ref="$1"
+    local purpose="$2"
+
+    if ! docker image inspect "${image_ref}" >/dev/null 2>&1; then
+        error "缺少离线镜像: ${image_ref} (${purpose})。请先在同一 release 目录解压 infra images artifact，或确认服务器已预置该镜像；部署脚本不会从外部 registry 拉取镜像。"
+    fi
+}
+
+assert_required_images_available() {
+    # app 包日常只携带应用镜像；PostgreSQL / Redis 镜像可由 infra 包
+    # 首次解压或由服务器既有镜像提供。这里在 compose up 前显式检查，
+    # 避免 Docker Compose 发现镜像缺失后尝试访问外部 registry。
+    assert_image_available "${APP_IMAGE_REF}" "app"
+    assert_image_available "${POSTGRES_IMAGE_REF}" "postgres"
+    assert_image_available "${REDIS_IMAGE_REF}" "redis"
 }
 
 backup_container() {
@@ -327,6 +357,7 @@ main() {
     prepare_env_file
     load_env
     load_images
+    assert_required_images_available
 
     APP_BACKUP_NAME="$(backup_container "${APP_CONTAINER_NAME}")"
     POSTGRES_BACKUP_NAME="$(backup_container "${POSTGRES_CONTAINER_NAME}")"

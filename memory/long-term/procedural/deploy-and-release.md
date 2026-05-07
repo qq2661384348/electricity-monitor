@@ -13,7 +13,7 @@ sources:
   - deploy/README.release.md
   - deploy/release.env.example
   - deploy/smoke.targets
-summary: 生产发布主线、release 产物、local environment中转边界、服务器职责和共享部署契约
+summary: 生产发布主线、拆分 release 产物、local environment中转边界、服务器职责和共享部署契约
 ---
 
 # Electricity Monitor 部署与 release 契约
@@ -30,11 +30,12 @@ summary: 生产发布主线、release 产物、local environment中转边界、�
 
 ## 标准步骤
 
-1. 由 GitHub Actions 工作流通过 `workflow_dispatch` 接收 `git_tag`，输出 `release-<tag>.tar.gz`。
+1. 由 GitHub Actions 工作流通过 `workflow_dispatch` 接收 `git_tag`，输出 app release artifact 与 infra images artifact。
 2. CI 在 `frontend/` 中执行 `bun install --frozen-lockfile` 与 `bun run build:prod`，再把 `static/` 产物打入镜像。
 3. CI 在构建镜像前把 `config/production.toml.example` 复制为工作区内的 `config/production.toml`，并保持 `config/` 下只存在这一个运行时 TOML。
-4. release 包固定包含应用镜像、PostgreSQL 镜像、Redis 镜像、`compose.yaml`、`deploy.sh`、`smoke.sh`、`smoke.targets`、`.env.example`、`README.md` 和 `release-manifest.json`。
-5. 服务器加载镜像、校验 `release-manifest.json`、挂载 secret files、执行 `docker compose` 启动 PostgreSQL / Redis、运行一次性 `migrate`、启动应用、做健康检查、写出 `deploy-result.json`，并在失败时回滚容器。
+4. app release 包固定包含应用镜像、`compose.yaml`、`deploy.sh`、`smoke.sh`、`smoke.targets`、`.env.example`、`README.md` 和 `release-manifest.json`。
+5. infra images 包固定包含 PostgreSQL 与 Redis 镜像归档；首次部署、服务器缺少基础镜像或基础镜像版本变更时，将 infra 包解压到同一个 release 父目录以合并 `release/images/`。
+6. 服务器加载包内镜像、校验 `release-manifest.json`、确认 app / PostgreSQL / Redis 镜像均已离线可用、挂载 secret files、执行 `docker compose` 启动 PostgreSQL / Redis、运行一次性 `migrate`、启动应用、做健康检查、写出 `deploy-result.json`，并在失败时回滚容器。
 
 ## 共享部署契约
 
@@ -42,7 +43,8 @@ summary: 生产发布主线、release 产物、local environment中转边界、�
 - `deploy/build.sh` 与 `deploy/docker-compose.local.yml` 只用于本地 Docker 调试，不是生产发布主线。
 - out-of-repository deployment automation属于out-of-repository private file，不纳入仓库和公开发布；仓库 `.gitignore` 忽略 `deploy/relay-deploy*.sh`。
 - artifact deployment默认使用 `ssh <server>` 上传到 `<release-root>`，release 版本目录为 `<release-root>/releases/<tag>`，持久数据目录为 `<release-root>/data/postgres` 与 `<release-root>/data/redis`。
-- release 包离线携带应用、PostgreSQL 和 Redis 镜像；服务器只执行 `docker load`，不从外部 registry 拉取这些镜像。
+- release artifact 拆分为 `electricity-monitor-app-release-<tag>` 与 `electricity-monitor-infra-images-<tag>`；日常发布只下载 app 包，首次部署或 PostgreSQL / Redis 镜像变更时再下载 infra 包。
+- 服务器只执行 `docker load`，不从外部 registry 拉取镜像；`deploy.sh` 会在 `docker compose up` 前显式检查 `APP_IMAGE_REF`、`POSTGRES_IMAGE_REF` 与 `REDIS_IMAGE_REF` 已离线可用，缺失时 fail-fast。
 - release compose 服务拓扑为 `postgres`、`redis`、一次性 `migrate` 和 `app`，默认端口绑定为 `127.0.0.1:11450 -> app:8000`，不包含反向代理配置。
 - release 默认应用日志级别为 `warn`；公网服务器如需临时排障可通过 `.env` 的 `APP__LOGGING__LEVEL` 提高日志详细度，排障结束后应恢复为 `warn`。
 - release `deploy.sh` 会显式设置 PostgreSQL / Redis bind mount 数据目录属主；local environment中转或 root shell 创建的 root-only 数据目录不能直接交给容器使用。

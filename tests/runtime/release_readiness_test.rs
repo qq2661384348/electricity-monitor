@@ -6,6 +6,7 @@ use axum::{
     http::{HeaderMap, Request, StatusCode},
 };
 use serde_json::Value;
+use std::{fs, path::PathBuf};
 use tower::ServiceExt;
 
 use support::{
@@ -121,6 +122,36 @@ async fn smoke_contract_tracks_release_artifact_files() {
     assert!(
         !targets.required_headers.is_empty(),
         "smoke 契约必须声明统一响应安全头"
+    );
+}
+
+#[test]
+fn release_packaging_splits_app_and_infra_artifacts() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workflow = fs::read_to_string(repo_root.join(".github/workflows/docker-build.yml"))
+        .expect("应能读取 release workflow");
+    let deploy_script =
+        fs::read_to_string(repo_root.join("deploy/deploy.sh")).expect("应能读取 deploy.sh");
+
+    assert!(
+        workflow.contains("electricity-monitor-app-release-${{ inputs.git_tag }}"),
+        "日常发布 artifact 必须只下载应用 release 包"
+    );
+    assert!(
+        workflow.contains("electricity-monitor-infra-images-${{ inputs.git_tag }}"),
+        "infra 镜像必须拆成独立 artifact，供首次部署或基础镜像变更时使用"
+    );
+    assert!(
+        workflow.contains("infra_package_name=\"infra-images-${GIT_TAG}.tar.gz\""),
+        "workflow 必须生成可解压合并到 release/images 的 infra 包"
+    );
+    assert!(
+        deploy_script.contains("assert_required_images_available"),
+        "deploy.sh 必须在 docker compose up 前检查所有运行镜像已离线可用"
+    );
+    assert!(
+        deploy_script.contains("部署脚本不会从外部 registry 拉取镜像"),
+        "缺少 infra 镜像时必须 fail-fast，不能让服务器尝试外网拉取"
     );
 }
 

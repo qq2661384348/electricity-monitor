@@ -8,19 +8,19 @@
 
 - 不在personal development environment上构建生产镜像
 - 不在服务器上从源码重新编译
-- 服务器只负责 `docker load`、`docker compose up`、健康检查与失败回滚
+- 服务器只负责 `docker load`、镜像离线可用性检查、`docker compose up`、健康检查与失败回滚
 
 ### 发布产物
 
-手动触发工作流后，会生成一个 GitHub Actions artifact：
+手动触发工作流后，会生成两个 GitHub Actions artifact。日常发布只需要下载 app release artifact；首次部署、服务器缺少基础镜像，或 PostgreSQL / Redis 镜像版本变更时，再下载 infra images artifact。
+
+app release artifact：
 
 ```text
 release-<git-tag>.tar.gz
 └── release/
     ├── images/
-    │   ├── electricity-monitor-<git-tag>-linux-amd64.tar.gz
-    │   ├── postgres-16-alpine-linux-amd64.tar.gz
-    │   └── redis-8-alpine-linux-amd64.tar.gz
+    │   └── electricity-monitor-<git-tag>-linux-amd64.tar.gz
     ├── compose.yaml
     ├── deploy.sh
     ├── smoke.sh
@@ -28,6 +28,17 @@ release-<git-tag>.tar.gz
     ├── .env.example
     ├── release-manifest.json
     └── README.md
+```
+
+infra images artifact：
+
+```text
+infra-images-<git-tag>.tar.gz
+└── release/
+    ├── images/
+    │   ├── postgres-16-alpine-linux-amd64.tar.gz
+    │   └── redis-8-alpine-linux-amd64.tar.gz
+    └── infra-manifest.json
 ```
 
 ## 仓库内部署文件布局
@@ -69,8 +80,11 @@ deploy/
 5. 导出应用、PostgreSQL 和 Redis 镜像，保证服务器无需从外部 registry 拉取运行镜像
 6. 复制 `deploy/smoke.targets` 作为 release smoke 契约文件
 7. 生成 `release-manifest.json`，写入 tag、git SHA、镜像 digest 与归档校验值
-8. 组装 release 目录并压缩成单个归档
-9. 上传为 GitHub Actions artifact
+8. 组装 app release 包，只携带应用镜像和部署脚本
+9. 组装 infra images 包，只携带 PostgreSQL / Redis 镜像
+10. 上传为两个 GitHub Actions artifact：
+   - `electricity-monitor-app-release-<git-tag>`
+   - `electricity-monitor-infra-images-<git-tag>`
 
 `static/` 是前端构建产物目录，不再作为仓库真源提交；CI 在 `bun run build:prod` 后生成它，再由 `deploy/Dockerfile` 复制进入镜像。
 `deploy/Dockerfile` 会在构建期检查 `config/` 下是否只保留一个运行时 TOML，且文件名只能是 `development.toml` 或 `production.toml`，避免镜像带着歧义配置构建成功。
@@ -103,7 +117,7 @@ out-of-repository deployment automation不纳入仓库，不跟随 commit / push
 local environment中转流程为：
 
 1. 使用 `gh workflow run` 触发 `.github/workflows/docker-build.yml`。
-2. 等待 Actions 完成并用 `gh run download` 下载 release artifact。
+2. 等待 Actions 完成并用 `gh run download` 下载 `electricity-monitor-app-release-<git-tag>`；首次部署或基础镜像变更时，再下载 `electricity-monitor-infra-images-<git-tag>`。
 3. read private configuration from the deployment environment，生成远端 `.env` 和 secret files；私密值不会写回仓库。
 4. 通过 `ssh/scp` 上传到 `<release-root>`。
 5. 在远端解压到 `<release-root>/releases/<git-tag>/release`。
@@ -118,7 +132,9 @@ local environment中转流程为：
 
 ### 1. 下载 artifact
 
-在 GitHub Actions 页面下载对应 tag 的 artifact，并上传到服务器。
+在 GitHub Actions 页面下载对应 tag 的 `electricity-monitor-app-release-<git-tag>` artifact，并上传到服务器。
+
+如果服务器还没有 `postgres:16-alpine` 或 `redis:8-alpine`，或者本次变更升级了基础镜像版本，同时下载 `electricity-monitor-infra-images-<git-tag>` artifact。
 
 ### 2. 解压发布包
 
@@ -127,6 +143,14 @@ mkdir -p <release-root>/releases/<git-tag>
 tar -xzf release-<git-tag>.tar.gz -C <release-root>/releases/<git-tag>
 cd <release-root>/releases/<git-tag>/release
 ```
+
+如果需要加载 infra 包，先在同一个 release 父目录解压：
+
+```bash
+tar -xzf infra-images-<git-tag>.tar.gz -C <release-root>/releases/<git-tag>
+```
+
+该命令会把 PostgreSQL / Redis 镜像归档合并到 `release/images/`。日常 app-only 发布可以跳过这一步，前提是服务器已经存在 `.env` 中声明的 `POSTGRES_IMAGE_REF` 和 `REDIS_IMAGE_REF`。
 
 ### 3. 配置环境变量
 
@@ -178,13 +202,14 @@ chmod +x deploy.sh
 2. 校验 `.env` 中声明的 secret file 存在且权限已收紧到仅 owner 可读写
 3. 读取 `release-manifest.json` 并校验 `APP_IMAGE_REF`
 4. 加载 `images/` 下的镜像归档
-5. 备份现有 `electricity-app` / `electricity-postgres` / `electricity-redis`
-6. 使用 `compose.yaml` 启动 PostgreSQL 和 Redis
-7. 通过应用镜像中的内嵌 `migrate` 二进制执行数据库迁移
-8. 启动新版本应用容器
-9. 对 `GET /api/health` 做重试健康检查
-10. 将本次部署结果写入 `deploy-result.json`
-11. 若启动、迁移或健康检查失败，则自动回滚容器
+5. 检查 `APP_IMAGE_REF`、`POSTGRES_IMAGE_REF` 与 `REDIS_IMAGE_REF` 对应镜像是否已离线可用；缺失时直接失败，不触发外部 registry 拉取
+6. 备份现有 `electricity-app` / `electricity-postgres` / `electricity-redis`
+7. 使用 `compose.yaml` 启动 PostgreSQL 和 Redis
+8. 通过应用镜像中的内嵌 `migrate` 二进制执行数据库迁移
+9. 启动新版本应用容器
+10. 对 `GET /api/health` 做重试健康检查
+11. 将本次部署结果写入 `deploy-result.json`
+12. 若启动、迁移或健康检查失败，则自动回滚容器
 
 ### 5. 执行 smoke 检查
 
@@ -259,7 +284,7 @@ chmod +x smoke.sh
 
 ## 发布身份记录
 
-- `release-manifest.json`：由 GitHub Actions 生成，记录 `git_tag`、`git_sha`、镜像 digest、归档 SHA256、前端静态资源校验值。
+- `release-manifest.json`：由 GitHub Actions 生成，记录 `git_tag`、`git_sha`、app 镜像 digest、app 归档 SHA256、PostgreSQL / Redis 镜像身份、infra artifact 名称、infra 归档 SHA256 和前端静态资源校验值。
 - `deploy-result.json`：由服务器侧 `deploy.sh` 生成，记录本次部署状态、使用的 manifest 身份信息和健康检查目标。
 
 ## 本地调试说明

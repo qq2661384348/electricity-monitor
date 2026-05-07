@@ -25,7 +25,8 @@
 - 生产发布主线：`.github/workflows/docker-build.yml`
 - PR / 手动质量门禁：`.github/workflows/ci.yml`
 - 服务器部署方式：local environment使用 `gh` 触发 GitHub Actions、下载 artifact，再通过 `ssh/scp` 上传到服务器并执行包内 `deploy.sh`
-- release 包会离线携带应用、PostgreSQL 和 Redis 镜像；服务器只执行 `docker load`，不从外部 registry 拉取镜像
+- GitHub Actions 会拆分产出 app release artifact 与 infra images artifact；日常发布只需要 app 包，首次部署或 PostgreSQL / Redis 镜像版本变更时再把 infra 包解压到同一 release 目录
+- 服务器只执行 `docker load`，不从外部 registry 拉取镜像；`deploy.sh` 会在 `docker compose up` 前检查 app、PostgreSQL 和 Redis 镜像是否已离线可用
 - release compose 服务包含 `postgres`、`redis`、一次性 `migrate` 和 `app`；`deploy.sh` 会先启动依赖、执行内嵌数据库迁移，再启动应用
 - 默认对外绑定为 `127.0.0.1:11450 -> app:8000`，不包含反向代理配置
 - release 默认应用日志级别为 `warn`，避免公网服务器在后台任务和轮询场景下输出大量 `info` 日志；需要临时排障时再通过 `.env` 中的 `APP__LOGGING__LEVEL` 提高日志详细度

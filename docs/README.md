@@ -280,7 +280,8 @@ cargo build --release --target x86_64-unknown-linux-gnu
 
 - 工作流：`../.github/workflows/docker-build.yml`
 - 部署资产目录：`../deploy/`
-- 服务器职责：`docker load`、`docker compose up`、健康检查、失败回滚
+- artifact 结构：日常发布下载 app release 包；首次部署或 PostgreSQL / Redis 镜像变更时再下载 infra images 包
+- 服务器职责：`docker load`、镜像离线可用性检查、`docker compose up`、健康检查、失败回滚
 
 详细步骤见：[DOCKER_DEPLOYMENT.md](./guides/DOCKER_DEPLOYMENT.md)
 

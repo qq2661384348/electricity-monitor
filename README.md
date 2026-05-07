@@ -184,7 +184,8 @@ cargo install diesel_cli --no-default-features --features postgres
 - 运行时配置：工作流会先将 `config/production.toml.example` 复制为 `config/production.toml` 再构建镜像
 - 生产模板中的 `cors.allowed_origins`、`auth.refresh_cookie_secure`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`public_site.domain`、`public_site.port` 和 `admin.default_qq_number` 必须在发布前补成真实生产值；`qq_bot.bearer_token` 和 `email.smtp_password` 生产环境必须通过 secret file 注入
 - release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
-- release 包离线携带应用、PostgreSQL 和 Redis 镜像；服务器只执行 `docker load` 和 `docker compose`，不会从外部 registry 拉取镜像
+- GitHub Actions 会拆分产出 app release artifact 与 infra images artifact；日常发布只需要上传 app 包，首次部署或 PostgreSQL / Redis 镜像版本变更时再把 infra 包解压到同一 release 目录
+- 服务器只执行 `docker load` 和 `docker compose`，不会从外部 registry 拉取镜像；`deploy.sh` 会在 `docker compose up` 前检查 app、PostgreSQL 和 Redis 镜像是否已离线可用
 - release compose 服务包含 `postgres`、`redis`、一次性 `migrate` 和 `app`，默认绑定 `127.0.0.1:11450`
 - artifact deployment默认把数据放在 `<release-root>/data/postgres` 与 `<release-root>/data/redis`
 - smoke 契约：`deploy/smoke.targets`，由 `tests/runtime/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用，包含端点、必需文件与统一响应安全头
@@ -195,9 +196,10 @@ cargo install diesel_cli --no-default-features --features postgres
 - `cargo audit -q` 已纳入 `.github/workflows/ci.yml` 阻断门禁
 1. 准备并推送发布 tag。
 2. 使用out-of-repository deployment automation或手动在 GitHub Actions 中触发发布工作流并指定 `git_tag`。
-3. 如果手动部署，在服务器解压后准备 `.env` 与 `secrets/` 中的 Compose secrets 文件，并把数据库、JWT、QQ token 和 SMTP 授权码 secret file 权限收紧到仅 owner 可读写。
-4. 执行 release 包中的 `deploy.sh`，必要时再执行 `smoke.sh`；smoke 会继续校验运行时端点、必需文件与统一响应安全头。
-5. 部署结果会写入 release 目录下的 `deploy-result.json`。
+3. 下载 `electricity-monitor-app-release-<git-tag>`；首次部署或基础镜像变更时，再下载并解压 `electricity-monitor-infra-images-<git-tag>` 到同一个 release 父目录。
+4. 如果手动部署，在服务器解压后准备 `.env` 与 `secrets/` 中的 Compose secrets 文件，并把数据库、JWT、QQ token 和 SMTP 授权码 secret file 权限收紧到仅 owner 可读写。
+5. 执行 release 包中的 `deploy.sh`，必要时再执行 `smoke.sh`；smoke 会继续校验运行时端点、必需文件与统一响应安全头。
+6. 部署结果会写入 release 目录下的 `deploy-result.json`。
 
 详见 **[Docker 部署指南](./docs/guides/DOCKER_DEPLOYMENT.md)** 和 **[deploy 目录说明](./deploy/README.md)**。
 
