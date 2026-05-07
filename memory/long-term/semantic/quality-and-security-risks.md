@@ -45,6 +45,7 @@ summary: 已关闭风险、当前质量风险、供应链风险、仓库历史�
 - 电费抓取 HTTP 客户端已恢复 HTTPS 证书校验，生产路径不再接受无效证书。
 - `/api/rooms/by-path` 与 `/api/rooms/by-hash` 已恢复为房间详情授权读取，未绑定普通用户不能再通过路径或哈希查询直接读取电费余额和阈值。
 - 电费历史快照已改为数据库侧 `INSERT ... SELECT`；每小时任务不再先把所有活跃房间加载到 Rust 堆并构造逐条历史记录，release readiness test 会防止这类容器 RSS 高水位风险回退。
+- 冷启动不再对全量 active room 执行 cache warm，也不再维护常驻 `flagged_rooms_cache`；路径树初始化改为最小字段投影，避免把完整 `Room` 和临时 `RoomData` 全量搬进启动堆。
 - 本地和 `origin/master` 历史已重写并验证不再包含 `config/development.toml`、`config/production.toml` 或 `config/default.toml` 这类运行时配置文件路径。
 - 2026-05-06 对本地可达 git 历史做了凭据形态扫描，未发现真实 `QQ/JWT/DB/SMTP` 凭据；命中内容为示例值、测试值、文档占位、公开 API URL 或依赖包示例 JWT。
 - 远端仓库已删除重建，并已重新推送清理后的 `master`；远端旧历史残留不再作为当前仓库剩余风险记录。

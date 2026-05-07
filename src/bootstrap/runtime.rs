@@ -170,23 +170,12 @@ pub async fn initialize_path_tree(state: &AppState, db_pool: &DbPool) {
 
     let room_repo = RoomRepository::new(db_pool.clone());
 
-    match room_repo.find_all_active().await {
+    match room_repo.find_all_active_path_entries().await {
         Ok(rooms) => {
-            let room_data = rooms
-                .iter()
-                .map(
-                    |room| crate::domain::services::room_sync::crawler::models::RoomData {
-                        roomid: room.roomid,
-                        roompaths: vec![room.primary_roompath.clone()],
-                        primary_roompath: room.primary_roompath.clone(),
-                        path_count: if room.has_additional_paths { 2 } else { 1 },
-                    },
-                )
-                .collect::<Vec<_>>();
-
-            let tree = RoomPathTree::build_from_rooms(&room_data);
+            let room_count = rooms.len();
+            let tree = RoomPathTree::build_from_primary_paths(rooms);
             state.update_path_tree(tree).await;
-            tracing::info!("房间路径树初始化完成，包含 {} 个房间", rooms.len());
+            tracing::info!("房间路径树初始化完成，包含 {} 个房间", room_count);
         }
         Err(error) => {
             tracing::warn!("初始化路径树失败: {}，将使用空树", error);
@@ -198,7 +187,6 @@ pub fn spawn_background_services(state: AppState) {
     let db_pool = state.db_pool.clone();
     let redis_pool = state.redis_pool.clone();
     let rate_limiter = state.rate_limiter.clone();
-    let flagged_rooms_cache = state.flagged_rooms_cache.clone();
 
     let room_repository = RoomRepository::new(db_pool.clone());
     let user_repository = UserRepository::new(db_pool.clone());
@@ -291,38 +279,4 @@ pub fn spawn_background_services(state: AppState) {
             tracing::error!("QQ客户端初始化失败，通知服务未启动: {}", error);
         }
     }
-
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(10));
-        log_task_started("flagged_rooms_cache_refresher", "room");
-        tracing::info!("Flagged rooms cache refresher started (interval: 10s)");
-
-        loop {
-            interval.tick().await;
-
-            let start = std::time::Instant::now();
-            match room_repository.find_rooms_with_send_flag_true().await {
-                Ok(rooms) => {
-                    let count = rooms.len();
-                    let mut cache = flagged_rooms_cache.write().await;
-                    *cache = rooms;
-                    let duration = start.elapsed();
-                    tracing::debug!(
-                        count = count,
-                        duration_ms = duration.as_millis(),
-                        "Updated flagged rooms cache"
-                    );
-                }
-                Err(error) => {
-                    log_task_failed(
-                        "flagged_rooms_cache_refresher",
-                        "room",
-                        TaskFailureCategory::Query,
-                        &error.to_string(),
-                    );
-                    tracing::error!("Failed to fetch flagged rooms from DB: {}", error);
-                }
-            }
-        }
-    });
 }

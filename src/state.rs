@@ -5,7 +5,6 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::domain::models::Room;
 use crate::domain::services::{ElectricityFetcherService, RateLimiter, RoomPathTree};
 use crate::infrastructure::{email::EmailDelivery, CacheManager, DbPool, RedisPool};
 
@@ -23,9 +22,6 @@ pub struct AppState {
 
     /// 电费获取服务（可选）
     pub electricity_fetcher_service: Option<Arc<ElectricityFetcherService>>,
-
-    /// 需要通知的房间缓存（避免N+1查询）
-    pub flagged_rooms_cache: Arc<RwLock<Vec<Room>>>,
 
     /// 房间路径树（用于逐层查询）
     pub room_path_tree: Arc<RwLock<RoomPathTree>>,
@@ -51,7 +47,6 @@ impl AppState {
             redis_pool,
             rate_limiter,
             electricity_fetcher_service,
-            flagged_rooms_cache: Arc::new(RwLock::new(Vec::new())),
             room_path_tree: Arc::new(RwLock::new(RoomPathTree::new())),
             cache_manager,
             email_sender: None,

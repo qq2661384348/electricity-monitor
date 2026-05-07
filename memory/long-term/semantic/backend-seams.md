@@ -15,7 +15,12 @@ sources:
   - src/domain/services/notification_service.rs
   - src/infrastructure/repositories/electricity_history_repository.rs
   - tests/runtime/release_readiness_test.rs
-summary: 后端鉴权、验证码限流、房间授权、缓存、通知域、后台批处理和模块化迁移接缝
+  - src/bootstrap/app.rs
+  - src/bootstrap/runtime.rs
+  - src/modules/room/application/mod.rs
+  - src/infrastructure/repositories/room_repository.rs
+  - src/domain/services/room_path_tree.rs
+summary: 后端鉴权、验证码限流、房间授权、缓存、通知域、后台批处理、启动内存优化和模块化迁移接缝
 ---
 
 # Electricity Monitor 后端可维护性接缝
@@ -63,3 +68,9 @@ summary: 后端鉴权、验证码限流、房间授权、缓存、通知域、�
 ## 后台批处理接缝
 
 - 电费历史快照由 `ElectricityHistoryRepository::batch_insert_from_rooms` 负责；这条每小时任务必须保持数据库侧 `INSERT ... SELECT`，不能先把所有活跃房间加载到 Rust 堆再构造逐条历史记录和大批量 INSERT，否则生产容器会出现明显 RSS 高水位。
+
+## 启动内存接缝
+
+- 启动阶段不应再对全量 active room 执行 `warm_cache`，也不应再维护 10 秒刷新一次的 `flagged_rooms_cache`。
+- 路径树初始化只允许查询 `roomid + primary_roompath` 这类最小字段，再由 `RoomPathTree::build_from_primary_paths` 构建索引；不要先把完整 `Room` 与 `RoomData` 全量搬进内存。
+- `/api/rooms/flagged` 现在按请求查询数据库并做权限过滤，不再依赖后台常驻 flagged 房间缓存。

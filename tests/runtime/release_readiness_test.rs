@@ -179,6 +179,18 @@ fn background_bulk_jobs_are_memory_bounded() {
         repo_root.join("src/infrastructure/repositories/electricity_history_repository.rs"),
     )
     .expect("应能读取电费历史记录仓储");
+    let room_repository =
+        fs::read_to_string(repo_root.join("src/infrastructure/repositories/room_repository.rs"))
+            .expect("应能读取房间仓储");
+    let room_path_tree =
+        fs::read_to_string(repo_root.join("src/domain/services/room_path_tree.rs"))
+            .expect("应能读取房间路径树");
+    let bootstrap_app =
+        fs::read_to_string(repo_root.join("src/bootstrap/app.rs")).expect("应能读取应用启动入口");
+    let bootstrap_runtime =
+        fs::read_to_string(repo_root.join("src/bootstrap/runtime.rs")).expect("应能读取启动运行时");
+    let room_use_case = fs::read_to_string(repo_root.join("src/modules/room/application/mod.rs"))
+        .expect("应能读取房间访问用例");
     let redis_writer =
         fs::read_to_string(repo_root.join("src/infrastructure/redis/batch_writer.rs"))
             .expect("应能读取 Redis 批量写入器");
@@ -219,6 +231,34 @@ fn background_bulk_jobs_are_memory_bounded() {
     assert!(
         !history_repository.contains("NewElectricityHistory"),
         "电费历史仓储不应再依赖 Rust 侧逐条构造历史记录"
+    );
+    assert!(
+        bootstrap_app.contains("initialize_path_tree(&state, &db_pool).await;"),
+        "应用启动仍应初始化路径树"
+    );
+    assert!(
+        !bootstrap_app.contains("warm_cache(roomids)"),
+        "应用启动不应再预热全量 Room/Binding 缓存"
+    );
+    assert!(
+        bootstrap_runtime.contains("find_all_active_path_entries"),
+        "路径树初始化应只加载最小活跃路径字段"
+    );
+    assert!(
+        room_repository.contains("find_all_active_path_entries"),
+        "房间仓储应提供路径树最小字段查询"
+    );
+    assert!(
+        room_path_tree.contains("build_from_primary_paths"),
+        "路径树应支持直接从轻量 path entries 构建"
+    );
+    assert!(
+        !bootstrap_runtime.contains("flagged_rooms_cache_refresher"),
+        "启动后台任务不应再维护全量 flagged rooms 缓存"
+    );
+    assert!(
+        !room_use_case.contains("flagged_rooms_cache"),
+        "房间访问用例不应再依赖后台 flagged rooms 缓存"
     );
     assert!(
         notification_service.contains("MissedTickBehavior::Delay"),

@@ -163,6 +163,76 @@ impl RoomPathTree {
         }
     }
 
+    /// 从最小活跃房间路径数据构建路径树。
+    ///
+    /// 启动路径树只需要 `(roomid, primary_roompath)`。不要先把完整 `Room`
+    /// 或 `RoomData` 组装成临时大向量，否则启动期会白白放大堆分配和页保留。
+    pub fn build_from_primary_paths<I, P>(rooms: I) -> Self
+    where
+        I: IntoIterator<Item = (i32, P)>,
+        P: AsRef<str>,
+    {
+        let mut mutable_root = MutablePathNode::new(String::new(), false);
+        let mut hash_map = HashIndex::new();
+        let mut room_count = 0usize;
+
+        tracing::info!("开始构建路径树");
+
+        for room in rooms {
+            let (roomid, path) = room;
+            let path = path.as_ref();
+            room_count += 1;
+            let parts: Vec<&str> = path.split(PATH_SEPARATOR).collect();
+
+            if parts.is_empty() {
+                tracing::warn!("跳过空路径：roomid={}", roomid);
+                continue;
+            }
+
+            // 逐层构建节点（使用 MutablePathNode）
+            let mut current = &mut mutable_root;
+
+            for (level, part) in parts.iter().enumerate() {
+                let is_leaf = level == parts.len() - 1;
+                current = current.get_or_create_child(part, is_leaf);
+            }
+
+            // 叶子节点存储 roomid
+            if current.is_leaf {
+                current.roomids.push(roomid);
+            }
+
+            // 构建哈希索引
+            let hash = calculate_roompath_hash(path);
+            hash_map.entry(hash).or_default().push(PathHashEntry {
+                roompath: path.to_owned(),
+                roomid,
+            });
+        }
+
+        // 转换为不可变树
+        let root = mutable_root.into_path_node();
+
+        // 统计信息
+        let total_nodes = Self::count_nodes(&root);
+        let total_rooms = root.count_rooms();
+
+        tracing::info!(
+            "路径树构建完成：输入房间数={}，总节点数={}，总房间数={}，哈希索引={}",
+            room_count,
+            total_nodes,
+            total_rooms,
+            hash_map.len()
+        );
+
+        // 直接返回构造好的实例
+        Self {
+            root: Arc::new(RwLock::new(root)),
+            last_updated: Arc::new(RwLock::new(chrono::Utc::now().naive_utc())),
+            hash_index: Arc::new(RwLock::new(hash_map)),
+        }
+    }
+
     /// 从爬虫数据构建路径树
     ///
     /// # 参数
@@ -182,61 +252,11 @@ impl RoomPathTree {
     /// let tree = RoomPathTree::build_from_rooms(&rooms);
     /// ```
     pub fn build_from_rooms(rooms: &[RoomData]) -> Self {
-        let mut mutable_root = MutablePathNode::new(String::new(), false);
-        let mut hash_map = HashIndex::new();
-
-        tracing::info!("开始构建路径树：共 {} 个房间", rooms.len());
-
-        for room in rooms {
-            let path = &room.primary_roompath;
-            let parts: Vec<&str> = path.split(PATH_SEPARATOR).collect();
-
-            if parts.is_empty() {
-                tracing::warn!("跳过空路径：roomid={}", room.roomid);
-                continue;
-            }
-
-            // 逐层构建节点（使用 MutablePathNode）
-            let mut current = &mut mutable_root;
-
-            for (level, part) in parts.iter().enumerate() {
-                let is_leaf = level == parts.len() - 1;
-                current = current.get_or_create_child(part, is_leaf);
-            }
-
-            // 叶子节点存储 roomid
-            if current.is_leaf {
-                current.roomids.push(room.roomid);
-            }
-
-            // 构建哈希索引
-            let hash = calculate_roompath_hash(path);
-            hash_map.entry(hash).or_default().push(PathHashEntry {
-                roompath: room.primary_roompath.clone(),
-                roomid: room.roomid,
-            });
-        }
-
-        // 转换为不可变树
-        let root = mutable_root.into_path_node();
-
-        // 统计信息
-        let total_nodes = Self::count_nodes(&root);
-        let total_rooms = root.count_rooms();
-
-        tracing::info!(
-            "路径树构建完成：总节点数={}，总房间数={}，哈希索引={}",
-            total_nodes,
-            total_rooms,
-            hash_map.len()
-        );
-
-        // 直接返回构造好的实例
-        Self {
-            root: Arc::new(RwLock::new(root)),
-            last_updated: Arc::new(RwLock::new(chrono::Utc::now().naive_utc())),
-            hash_index: Arc::new(RwLock::new(hash_map)),
-        }
+        Self::build_from_primary_paths(
+            rooms
+                .iter()
+                .map(|room| (room.roomid, room.primary_roompath.as_str())),
+        )
     }
 
     /// 逐层查询子节点
@@ -447,6 +467,28 @@ mod tests {
         assert_eq!(root.children.len(), 2); // 2个校区
         assert!(root.children.contains_key("箭盘校区"));
         assert!(root.children.contains_key("东环校区"));
+    }
+
+    #[tokio::test]
+    async fn test_build_from_primary_paths() {
+        let tree = RoomPathTree::build_from_primary_paths(vec![
+            (101, "箭盘校区/北区12栋/三楼/B12313"),
+            (102, "箭盘校区/北区12栋/三楼/B12314"),
+        ]);
+
+        assert_eq!(
+            tree.find_roomid_by_path("箭盘校区/北区12栋/三楼/B12313")
+                .await,
+            Some(101)
+        );
+        assert_eq!(
+            tree.find_roomid_by_hash(
+                calculate_roompath_hash("箭盘校区/北区12栋/三楼/B12314"),
+                "箭盘校区/北区12栋/三楼/B12314",
+            )
+            .await,
+            Some(102)
+        );
     }
 
     #[tokio::test]

@@ -4,8 +4,7 @@ use crate::{
     bootstrap::{config, observability, router, runtime, shutdown},
     domain::services::RateLimiter,
     infrastructure::{
-        database::create_pool, redis::create_redis_pool, repositories::RoomRepository,
-        CacheManager, CacheManagerConfig,
+        database::create_pool, redis::create_redis_pool, CacheManager, CacheManagerConfig,
     },
     state::AppState,
 };
@@ -56,15 +55,6 @@ pub async fn run() -> anyhow::Result<()> {
     .with_email_sender(email_sender);
 
     runtime::initialize_path_tree(&state, &db_pool).await;
-    if let Ok(active_rooms) = RoomRepository::new(db_pool.clone()).find_all_active().await {
-        let roomids = active_rooms
-            .into_iter()
-            .map(|room| room.roomid)
-            .collect::<Vec<_>>();
-        if let Err(error) = cache_manager.warm_cache(roomids).await {
-            tracing::warn!(error = %error, "Cache manager warm-up failed");
-        }
-    }
     runtime::spawn_background_services(state.clone());
 
     let app = router::create_app(state);

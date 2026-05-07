@@ -220,10 +220,6 @@ pub async fn reset_send_flag(
 /// GET /api/rooms/flagged
 ///
 /// 需要JWT认证，普通用户只能查询已绑定房间中需要通知的
-///
-/// # 性能优化
-/// 使用内存缓存(state.flagged_rooms_cache)避免全量数据库查询
-/// 使用内存过滤避免N+1查询
 pub async fn get_flagged_rooms(
     State(state): State<AppState>,
     Extension(user_ctx): Extension<UserContext>,

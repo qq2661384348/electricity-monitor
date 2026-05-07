@@ -462,6 +462,23 @@ impl RoomRepository {
             .map_err(AppError::Database)
     }
 
+    /// 查询路径树初始化所需的最小活跃房间字段。
+    ///
+    /// 路径树启动构建只需要 roomid 和 primary_roompath。不要在这里加载完整
+    /// `Room`，否则冷启动会把电费、阈值、时间戳、来源等无关字段和字符串
+    /// 一并搬进 Rust 堆，放大容器启动 RSS 高水位。
+    pub async fn find_all_active_path_entries(&self) -> Result<Vec<(i32, String)>> {
+        let mut conn = self.get_conn().await?;
+
+        rooms::table
+            .filter(rooms::is_active.eq(true))
+            .select((rooms::roomid, rooms::primary_roompath))
+            .order_by(rooms::created_at.desc())
+            .load::<(i32, String)>(&mut conn)
+            .await
+            .map_err(AppError::Database)
+    }
+
     /// 根据roompath查找房间
     ///
     /// # 参数

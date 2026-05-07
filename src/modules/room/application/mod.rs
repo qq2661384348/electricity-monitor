@@ -28,7 +28,6 @@ pub struct RoomAccessUseCase {
     room_commands: RoomCommands,
     binding_queries: BindingQueries,
     cache_manager: Arc<CacheManager>,
-    flagged_rooms_cache: Arc<RwLock<Vec<Room>>>,
     path_tree: Arc<RwLock<RoomPathTree>>,
 }
 
@@ -38,7 +37,6 @@ impl RoomAccessUseCase {
             RoomRepository::new(state.db_pool.clone()),
             UserRoomBindingRepository::new(state.db_pool.clone()),
             state.cache_manager.clone(),
-            state.flagged_rooms_cache.clone(),
             state.room_path_tree.clone(),
         )
     }
@@ -47,7 +45,6 @@ impl RoomAccessUseCase {
         room_repository: RoomRepository,
         binding_repository: UserRoomBindingRepository,
         cache_manager: Arc<CacheManager>,
-        flagged_rooms_cache: Arc<RwLock<Vec<Room>>>,
         path_tree: Arc<RwLock<RoomPathTree>>,
     ) -> Self {
         Self {
@@ -55,7 +52,6 @@ impl RoomAccessUseCase {
             room_commands: RoomCommands::new(room_repository),
             binding_queries: BindingQueries::new(binding_repository),
             cache_manager,
-            flagged_rooms_cache,
             path_tree,
         }
     }
@@ -123,17 +119,7 @@ impl RoomAccessUseCase {
         fields(module = "room", use_case = "get_flagged_rooms")
     )]
     pub async fn get_flagged_rooms(&self, actor: &RoomActor) -> Result<Vec<Room>> {
-        let rooms_snapshot = {
-            let cache = self.flagged_rooms_cache.read().await;
-            cache.clone()
-        };
-
-        let rooms = if rooms_snapshot.is_empty() {
-            tracing::warn!("Flagged Rooms缓存为空，降级为数据库查询");
-            self.room_queries.find_flagged().await?
-        } else {
-            rooms_snapshot
-        };
+        let rooms = self.room_queries.find_flagged().await?;
 
         if actor.is_admin {
             return Ok(rooms);
