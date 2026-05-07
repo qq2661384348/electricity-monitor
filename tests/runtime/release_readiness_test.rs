@@ -153,6 +153,18 @@ fn release_packaging_splits_app_and_infra_artifacts() {
         deploy_script.contains("部署脚本不会从外部 registry 拉取镜像"),
         "缺少 infra 镜像时必须 fail-fast，不能让服务器尝试外网拉取"
     );
+    assert!(
+        deploy_script.contains("APP_ROLLBACK_IMAGE_REF"),
+        "deploy.sh 应通过旧应用镜像标签回滚应用容器"
+    );
+    assert!(
+        deploy_script.contains("up -d --no-recreate postgres redis"),
+        "依赖容器必须原地启动，不能在日常 app 发布中重建 PostgreSQL / Redis"
+    );
+    assert!(
+        !deploy_script.contains("docker rename"),
+        "Compose 管理的容器不能通过 docker rename 备份，否则 Compose 会继续按 service label 识别旧容器"
+    );
 }
 
 #[tokio::test]

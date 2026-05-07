@@ -203,7 +203,7 @@ chmod +x deploy.sh
 3. 读取 `release-manifest.json` 并校验 `APP_IMAGE_REF`
 4. 加载 `images/` 下的镜像归档
 5. 检查 `APP_IMAGE_REF`、`POSTGRES_IMAGE_REF` 与 `REDIS_IMAGE_REF` 对应镜像是否已离线可用；缺失时直接失败，不触发外部 registry 拉取
-6. 备份现有 `electricity-app` / `electricity-postgres` / `electricity-redis`
+6. 为当前应用镜像打 `rollback-<timestamp>` 标签
 7. 使用 `compose.yaml` 启动 PostgreSQL 和 Redis
 8. 通过应用镜像中的内嵌 `migrate` 二进制执行数据库迁移
 9. 启动新版本应用容器
@@ -269,15 +269,15 @@ chmod +x smoke.sh
 
 ## 回滚机制
 
-部署脚本采用容器级回滚：
+部署脚本采用应用容器级回滚：
 
-1. 发现旧容器后，先为当前镜像打 `rollback-<timestamp>` 标签
-2. 将旧容器重命名为 `*-backup-<timestamp>`
-3. 启动 PostgreSQL / Redis，执行内嵌迁移，再启动应用容器并执行健康检查
+1. 发现旧应用容器后，先为当前应用镜像打 `rollback-<timestamp>` 标签
+2. 使用 Compose 原地启动 PostgreSQL / Redis，不再 rename 这些依赖容器
+3. 执行内嵌迁移，再启动应用容器并执行健康检查
 4. 若失败：
-   - 删除新容器
-   - 将备份容器重命名回原名称
-   - 重新启动旧容器
+   - 删除或替换新应用容器
+   - 用旧应用镜像标签重新启动 `electricity-app`
+   - 保持 PostgreSQL / Redis 稳定容器名不变
 
 这意味着脚本不会只“报错退出”，而是会尝试恢复到上一个可运行状态。
 容器回滚不等于数据库 schema 自动回滚；如果某次 release 包含破坏性迁移，发布前必须额外准备数据库备份和人工恢复步骤。

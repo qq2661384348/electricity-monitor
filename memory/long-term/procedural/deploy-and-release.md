@@ -35,7 +35,7 @@ summary: 生产发布主线、拆分 release 产物、local environment中转边
 3. CI 在构建镜像前把 `config/production.toml.example` 复制为工作区内的 `config/production.toml`，并保持 `config/` 下只存在这一个运行时 TOML。
 4. app release 包固定包含应用镜像、`compose.yaml`、`deploy.sh`、`smoke.sh`、`smoke.targets`、`.env.example`、`README.md` 和 `release-manifest.json`。
 5. infra images 包固定包含 PostgreSQL 与 Redis 镜像归档；首次部署、服务器缺少基础镜像或基础镜像版本变更时，将 infra 包解压到同一个 release 父目录以合并 `release/images/`。
-6. 服务器加载包内镜像、校验 `release-manifest.json`、确认 app / PostgreSQL / Redis 镜像均已离线可用、挂载 secret files、执行 `docker compose` 启动 PostgreSQL / Redis、运行一次性 `migrate`、启动应用、做健康检查、写出 `deploy-result.json`，并在失败时回滚容器。
+6. 服务器加载包内镜像、校验 `release-manifest.json`、确认 app / PostgreSQL / Redis 镜像均已离线可用、挂载 secret files、执行 `docker compose` 原地启动 PostgreSQL / Redis、运行一次性 `migrate`、启动应用、做健康检查、写出 `deploy-result.json`，并在失败时用旧应用镜像标签回滚 `electricity-app`。
 
 ## 共享部署契约
 
@@ -55,7 +55,8 @@ summary: 生产发布主线、拆分 release 产物、local environment中转边
 - release `.env` 必须显式提供 `APP__CORS__ALLOWED_ORIGINS`、`APP__QQ_BOT__API_URL`、`APP__QQ_BOT__PUBLIC_QQ_NUMBER`、`APP__PUBLIC_SITE__DOMAIN`、`APP__PUBLIC_SITE__PORT` 与 `APP__ADMIN__DEFAULT_QQ_NUMBER`；这些非敏感运行时值不写入生产配置模板。
 - `deploy/smoke.targets` 是本地 readiness test 与 release smoke 的共享检查目标真源。
 - `deploy.sh` 会读取 manifest 做一致性校验，`smoke.sh` 会检查 `/api/health`、`/api/health/db`、静态入口、必需响应头和 manifest / result 文件。
-- 容器级回滚不会自动反向执行已经成功落库的 schema 迁移；包含破坏性迁移的 release 必须在发布前准备数据库备份与人工恢复步骤。
+- 部署脚本不再 rename Compose 管理的 PostgreSQL / Redis 容器；失败回滚只针对应用容器，依靠旧应用镜像的 `rollback-<timestamp>` 标签恢复 `electricity-app`。
+- 应用容器级回滚不会自动反向执行已经成功落库的 schema 迁移；包含破坏性迁移的 release 必须在发布前准备数据库备份与人工恢复步骤。
 
 ## 验证方式
 

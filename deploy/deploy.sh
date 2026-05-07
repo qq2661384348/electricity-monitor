@@ -28,9 +28,7 @@ REDIS_DATA_GID="${REDIS_DATA_GID:-999}"
 APP_RUNTIME_UID="${APP_RUNTIME_UID:-1000}"
 APP_RUNTIME_GID="${APP_RUNTIME_GID:-1000}"
 
-APP_BACKUP_NAME=""
-POSTGRES_BACKUP_NAME=""
-REDIS_BACKUP_NAME=""
+APP_ROLLBACK_IMAGE_REF=""
 MANIFEST_GIT_TAG=""
 MANIFEST_GIT_SHA=""
 MANIFEST_APP_IMAGE_REF=""
@@ -252,28 +250,20 @@ assert_required_images_available() {
     assert_image_available "${REDIS_IMAGE_REF}" "redis"
 }
 
-backup_container() {
-    local container_name="$1"
-    local backup_name=""
+capture_app_rollback_image() {
+    local image_id=""
 
-    if docker container inspect "${container_name}" >/dev/null 2>&1; then
-        backup_name="${container_name}-backup-${BACKUP_TIMESTAMP}"
-        local image_id
-        image_id="$(docker inspect -f '{{.Image}}' "${container_name}")"
-
-        docker image tag "${image_id}" "${container_name}:rollback-${BACKUP_TIMESTAMP}" >/dev/null 2>&1 || true
-
-        info "备份现有容器 ${container_name} -> ${backup_name}"
-        docker stop "${container_name}" >/dev/null 2>&1 || true
-        docker rename "${container_name}" "${backup_name}"
+    if docker container inspect "${APP_CONTAINER_NAME}" >/dev/null 2>&1; then
+        image_id="$(docker inspect -f '{{.Image}}' "${APP_CONTAINER_NAME}")"
+        APP_ROLLBACK_IMAGE_REF="${APP_CONTAINER_NAME}:rollback-${BACKUP_TIMESTAMP}"
+        docker image tag "${image_id}" "${APP_ROLLBACK_IMAGE_REF}" >/dev/null
+        info "已为当前应用镜像创建回滚标签: ${APP_ROLLBACK_IMAGE_REF}"
     fi
-
-    printf '%s' "${backup_name}"
 }
 
 start_dependencies() {
     info "启动 PostgreSQL 和 Redis"
-    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d postgres redis
+    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d --no-recreate postgres redis
 }
 
 run_migrations() {
@@ -283,7 +273,7 @@ run_migrations() {
 
 start_new_release() {
     info "启动新版本应用容器"
-    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d app
+    docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d --no-deps app
 }
 
 wait_for_health() {
@@ -302,27 +292,20 @@ wait_for_health() {
     return 1
 }
 
-restore_container() {
-    local backup_name="$1"
-    local stable_name="$2"
-
-    if [ -n "${backup_name}" ] && docker container inspect "${backup_name}" >/dev/null 2>&1; then
-        info "恢复容器 ${backup_name} -> ${stable_name}"
-        docker rename "${backup_name}" "${stable_name}"
-        docker start "${stable_name}" >/dev/null
-    fi
-}
-
 rollback() {
-    warn "部署失败，开始回滚"
+    warn "部署失败，开始回滚应用容器"
 
-    docker rm -f "${APP_CONTAINER_NAME}" >/dev/null 2>&1 || true
-    docker rm -f "${REDIS_CONTAINER_NAME}" >/dev/null 2>&1 || true
-    docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
+    if [ -z "${APP_ROLLBACK_IMAGE_REF}" ]; then
+        warn "没有可用的应用回滚镜像标签，跳过应用容器回滚"
+        return 0
+    fi
 
-    restore_container "${POSTGRES_BACKUP_NAME}" "${POSTGRES_CONTAINER_NAME}"
-    restore_container "${REDIS_BACKUP_NAME}" "${REDIS_CONTAINER_NAME}"
-    restore_container "${APP_BACKUP_NAME}" "${APP_CONTAINER_NAME}"
+    if ! docker image inspect "${APP_ROLLBACK_IMAGE_REF}" >/dev/null 2>&1; then
+        warn "应用回滚镜像不存在: ${APP_ROLLBACK_IMAGE_REF}"
+        return 0
+    fi
+
+    APP_IMAGE_REF="${APP_ROLLBACK_IMAGE_REF}" docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d --no-deps app
 }
 
 write_deploy_result() {
@@ -339,9 +322,7 @@ write_deploy_result() {
   "app_image_ref": "${MANIFEST_APP_IMAGE_REF:-${APP_IMAGE_REF}}",
   "app_image_digest": "${MANIFEST_APP_IMAGE_DIGEST}",
   "healthcheck_url": "${DEPLOY_HEALTHCHECK_URL}",
-  "app_backup": "${APP_BACKUP_NAME}",
-  "postgres_backup": "${POSTGRES_BACKUP_NAME}",
-  "redis_backup": "${REDIS_BACKUP_NAME}"
+  "app_rollback_image": "${APP_ROLLBACK_IMAGE_REF}"
 }
 EOF
 }
@@ -359,20 +340,16 @@ main() {
     load_images
     assert_required_images_available
 
-    APP_BACKUP_NAME="$(backup_container "${APP_CONTAINER_NAME}")"
-    POSTGRES_BACKUP_NAME="$(backup_container "${POSTGRES_CONTAINER_NAME}")"
-    REDIS_BACKUP_NAME="$(backup_container "${REDIS_CONTAINER_NAME}")"
+    capture_app_rollback_image
 
     if ! start_dependencies; then
-        rollback
-        write_deploy_result "rolled_back" "PostgreSQL 或 Redis 启动失败，已回滚"
-        error "PostgreSQL 或 Redis 启动失败，已尝试回滚"
+        write_deploy_result "failed" "PostgreSQL 或 Redis 启动失败，应用容器未切换"
+        error "PostgreSQL 或 Redis 启动失败，应用容器未切换"
     fi
 
     if ! run_migrations; then
-        rollback
-        write_deploy_result "rolled_back" "数据库迁移失败，已回滚容器"
-        error "数据库迁移失败，已尝试回滚容器"
+        write_deploy_result "failed" "数据库迁移失败，应用容器未切换"
+        error "数据库迁移失败，应用容器未切换"
     fi
 
     if ! start_new_release; then
@@ -384,11 +361,8 @@ main() {
     if wait_for_health; then
         write_deploy_result "deployed" "健康检查通过"
         success "部署完成，健康检查通过"
-        if [ -n "${APP_BACKUP_NAME}" ] || [ -n "${POSTGRES_BACKUP_NAME}" ] || [ -n "${REDIS_BACKUP_NAME}" ]; then
-            warn "已保留旧容器备份，必要时可手动清理"
-            [ -n "${APP_BACKUP_NAME}" ] && info "应用备份: ${APP_BACKUP_NAME}"
-            [ -n "${POSTGRES_BACKUP_NAME}" ] && info "PostgreSQL 容器备份: ${POSTGRES_BACKUP_NAME}"
-            [ -n "${REDIS_BACKUP_NAME}" ] && info "Redis 备份: ${REDIS_BACKUP_NAME}"
+        if [ -n "${APP_ROLLBACK_IMAGE_REF}" ]; then
+            info "应用回滚镜像标签: ${APP_ROLLBACK_IMAGE_REF}"
         fi
         return 0
     fi
