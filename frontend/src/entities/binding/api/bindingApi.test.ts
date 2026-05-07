@@ -6,7 +6,34 @@ import { server } from '@/test/msw/server';
 
 import { bindingApi } from './bindingApi';
 
-describe('bindingApi auth refresh flow', () => {
+describe('bindingApi', () => {
+  it('creates bindings with only the room id payload', async () => {
+    let receivedBody: unknown;
+
+    server.use(
+      http.post('*/api/bindings', async ({ request }) => {
+        receivedBody = await request.json();
+
+        return HttpResponse.json(
+          {
+            id: 'binding-1',
+            user_id: 'user-1',
+            roomid: 1001,
+            notification_enabled: false,
+            created_at: '2026-05-07T00:00:00Z',
+            updated_at: '2026-05-07T00:00:00Z',
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const binding = await bindingApi.createBinding(1001);
+
+    expect(receivedBody).toEqual({ roomid: 1001 });
+    expect(binding.roomid).toBe(1001);
+  });
+
   it('refreshes access token once and replays concurrent unauthorized requests', async () => {
     let bindingRequestCount = 0;
     let refreshRequestCount = 0;

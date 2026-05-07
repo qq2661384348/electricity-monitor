@@ -7,12 +7,8 @@ export const bindingApi = {
     return data;
   },
 
-  async createBinding(roomid: number, bindingProof?: string): Promise<Binding> {
-    const payload =
-      bindingProof && bindingProof.trim().length > 0
-        ? { roomid, binding_proof: bindingProof.trim() }
-        : { roomid };
-    const { data } = await httpClient.post<Binding>('/bindings', payload);
+  async createBinding(roomid: number): Promise<Binding> {
+    const { data } = await httpClient.post<Binding>('/bindings', { roomid });
     return data;
   },
 

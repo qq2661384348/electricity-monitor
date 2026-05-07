@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 后端可维护性接缝
-updated_at: 2026-05-06
-verified_at: 2026-05-06
+updated_at: 2026-05-07
+verified_at: 2026-05-07
 sources:
   - src/modules/auth/api/middleware.rs
   - src/handlers/auth.rs
@@ -47,7 +47,7 @@ summary: 后端鉴权、验证码限流、房间授权、缓存、通知域和�
 
 - `room`、`path_tree`、`room_sync` 的复杂编排已经开始下沉到 `src/modules/*/application`。
 - 房间详情读取（包括 id、roomid、path、hash 入口）统一由 `RoomAccessUseCase` 做访问控制；handler 不应直接绕过 use case 读取完整房间电费和阈值。
-- 普通用户创建房间绑定前必须通过管理员签发的 `binding_proof` 校验；已有绑定仍是 `RoomAccessUseCase` 的授权事实，因此清理历史异常绑定应通过数据审计处理，而不是放宽房间读取 guard。
+- 普通用户创建房间绑定不再需要绑定码；`/api/bindings` 的保护边界是 access token Bearer 认证、房间存在性校验和当前用户写入。已有绑定仍是 `RoomAccessUseCase` 的授权事实，因此不能放宽房间详情读取 guard。
 - 旧 handler 热点主要集中在 `binding` 与 `auth`，后续应继续往模块应用层收敛。
 
 ## 外部 HTTP 接缝

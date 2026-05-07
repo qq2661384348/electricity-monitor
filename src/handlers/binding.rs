@@ -7,22 +7,15 @@ use axum::{
     http::StatusCode,
     Extension, Json,
 };
-use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::config::AppConfig;
 use crate::domain::models::{NewUserRoomBinding, UserRoomBinding};
 use crate::errors::{AppError, Result};
 use crate::infrastructure::repositories::{RoomRepository, UserRoomBindingRepository};
 use crate::middleware::auth::UserContext;
 use crate::state::AppState;
-
-type HmacSha256 = Hmac<Sha256>;
-const BINDING_PROOF_VERSION: &str = "v1";
-const BINDING_PROOF_BYTES: usize = 6;
 
 /// 创建绑定请求
 #[derive(Debug, Deserialize, Validate)]
@@ -33,11 +26,6 @@ pub struct CreateBindingRequest {
     /// 是否启用通知（默认: false）
     #[serde(default)]
     pub notification_enabled: bool,
-
-    /// 房间绑定证明码。
-    ///
-    /// 普通用户必须提供由管理员按房间生成的证明码；管理员创建自己的绑定时可省略。
-    pub binding_proof: Option<String>,
 }
 
 /// 更新通知开关请求
@@ -60,14 +48,6 @@ pub struct BindingResponse {
     // 完整的房间信息（联表查询时填充）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub room: Option<crate::domain::models::Room>,
-}
-
-/// 管理员生成房间绑定证明码响应
-#[derive(Debug, Serialize)]
-pub struct BindingProofResponse {
-    pub roomid: i32,
-    pub binding_proof: String,
-    pub proof_version: String,
 }
 
 impl From<UserRoomBinding> for BindingResponse {
@@ -135,10 +115,6 @@ pub async fn create_binding(
         return Err(AppError::NotFound);
     }
 
-    if !user_ctx.is_admin {
-        validate_binding_proof(req.roomid, req.binding_proof.as_deref())?;
-    }
-
     // 检查是否已经绑定
     let binding_repo = UserRoomBindingRepository::new(state.db_pool.clone());
     if let Some(existing) = binding_repo
@@ -171,81 +147,6 @@ pub async fn create_binding(
     );
 
     Ok((StatusCode::CREATED, Json(binding.into())))
-}
-
-/// 管理员生成房间绑定证明码
-///
-/// GET /api/bindings/proof/{roomid}
-///
-/// 需要管理员权限。证明码不落库，基于服务端签名密钥和 roomid 生成；
-/// 这样可以在不新增房间密钥表的前提下阻断普通用户只凭 roomid 自助授权。
-pub async fn get_binding_proof(
-    State(state): State<AppState>,
-    Extension(user_ctx): Extension<UserContext>,
-    Path(roomid): Path<i32>,
-) -> Result<Json<BindingProofResponse>> {
-    if !user_ctx.is_admin {
-        return Err(AppError::Forbidden);
-    }
-
-    let room_repo = RoomRepository::new(state.db_pool.clone());
-    if room_repo.find_by_roomid(roomid).await?.is_none() {
-        return Err(AppError::NotFound);
-    }
-
-    Ok(Json(BindingProofResponse {
-        roomid,
-        binding_proof: room_binding_proof(roomid)?,
-        proof_version: BINDING_PROOF_VERSION.to_string(),
-    }))
-}
-
-fn validate_binding_proof(roomid: i32, proof: Option<&str>) -> Result<()> {
-    let provided = proof
-        .map(normalize_binding_proof)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::Forbidden)?;
-    let expected = room_binding_proof(roomid)?;
-
-    if constant_time_eq(provided.as_bytes(), expected.as_bytes()) {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden)
-    }
-}
-
-fn room_binding_proof(roomid: i32) -> Result<String> {
-    let secret = AppConfig::global().jwt.secret.as_bytes();
-    let mut mac = HmacSha256::new_from_slice(secret)
-        .map_err(|_| AppError::Internal("绑定证明码签名密钥无效".to_string()))?;
-    mac.update(format!("room-binding:{BINDING_PROOF_VERSION}:{roomid}").as_bytes());
-    let digest = mac.finalize().into_bytes();
-
-    Ok(digest[..BINDING_PROOF_BYTES]
-        .iter()
-        .map(|byte| format!("{byte:02X}"))
-        .collect())
-}
-
-fn normalize_binding_proof(proof: &str) -> String {
-    proof
-        .chars()
-        .filter(|ch| !ch.is_ascii_whitespace() && *ch != '-')
-        .flat_map(|ch| ch.to_uppercase())
-        .collect()
-}
-
-fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
-    let mut diff = left.len() ^ right.len();
-    let len = left.len().max(right.len());
-
-    for index in 0..len {
-        let left_byte = left.get(index).copied().unwrap_or(0);
-        let right_byte = right.get(index).copied().unwrap_or(0);
-        diff |= usize::from(left_byte ^ right_byte);
-    }
-
-    diff == 0
 }
 
 /// 查询用户的所有绑定（包含房间信息）

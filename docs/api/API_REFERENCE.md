@@ -521,12 +521,11 @@ curl -H "Authorization: Bearer <access-token>" \
 ```json
 {
   "roomid": 123,
-  "notification_enabled": false,
-  "binding_proof": "A1B2C3D4E5F6"
+  "notification_enabled": false
 }
 ```
 
-> 普通用户创建绑定必须提供管理员为该房间生成的 `binding_proof`。管理员账号创建自己的个人绑定时可以省略该字段。
+> 创建绑定仍需要 access token Bearer 认证；普通用户和管理员账号都不需要额外绑定码。
 
 #### 响应示例
 
@@ -538,22 +537,6 @@ curl -H "Authorization: Bearer <access-token>" \
   "notification_enabled": false,
   "created_at": "2026-05-05 12:00:00",
   "updated_at": "2026-05-05 12:00:00"
-}
-```
-
-### 生成房间绑定证明码
-
-**端点**: `GET /api/bindings/proof/{roomid}`
-**认证**: 需要管理员 access token Bearer 认证
-**描述**: 为指定房间生成一次房间绑定证明码，供管理员通过线下或受控渠道交给真实房间用户。证明码不落库，基于服务端签名密钥和 `roomid` 生成；普通用户不能调用该接口。
-
-#### 响应示例
-
-```json
-{
-  "roomid": 123,
-  "binding_proof": "A1B2C3D4E5F6",
-  "proof_version": "v1"
 }
 ```
 

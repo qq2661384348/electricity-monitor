@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 长期质量风险与安全风险
-updated_at: 2026-05-06
-verified_at: 2026-05-06
+updated_at: 2026-05-07
+verified_at: 2026-05-07
 sources:
   - docs/guides/TECHNICAL_DEBT.md
   - docs/guides/SECRETS_INVENTORY.md
@@ -39,13 +39,13 @@ summary: 已关闭风险、当前质量风险、供应链风险、仓库历史�
 - release 部署脚本已对 secret file 做 owner-only 权限校验，过宽权限会直接阻断部署。
 - `/api/auth/send-verification-code` 已要求先消费一次性 captcha token，不能再在缺失图形验证码校验时直接触达 QQ 机器人。
 - `/api/auth/send-verification-code` 已增加应用侧 Redis 固定窗口配额，按全局、客户端来源和发送目标限制公开验证码发送入口。
-- 普通用户创建 `/api/bindings` 绑定时已要求提交管理员签发的房间绑定证明；绑定证明校验通过后，绑定才会继续作为房间详情授权事实。
+- 普通用户创建 `/api/bindings` 绑定不再需要绑定码；风险边界转移为必须保持 `/api/bindings` 登录鉴权、房间存在性校验，以及 `/api/rooms/by-path`、`/api/rooms/by-hash` 未绑定拒绝读取详情。
 - 电费抓取 HTTP 客户端已恢复 HTTPS 证书校验，生产路径不再接受无效证书。
 - `/api/rooms/by-path` 与 `/api/rooms/by-hash` 已恢复为房间详情授权读取，未绑定普通用户不能再通过路径或哈希查询直接读取电费余额和阈值。
 - 本地和 `origin/master` 历史已重写并验证不再包含 `config/development.toml`、`config/production.toml` 或 `config/default.toml` 这类运行时配置文件路径。
 - 2026-05-06 对本地可达 git 历史做了凭据形态扫描，未发现真实 `QQ/JWT/DB/SMTP` 凭据；命中内容为示例值、测试值、文档占位、公开 API URL 或依赖包示例 JWT。
 - 远端仓库已删除重建，并已重新推送清理后的 `master`；远端旧历史残留不再作为当前仓库剩余风险记录。
-- 项目尚未进行生产部署，绑定证明上线前历史 `user_room_bindings` 数据清洗不再作为当前风险记录；若未来导入过旧数据库备份，再重新按授权边界审计绑定数据。
+- 旧绑定码机制已移除；若未来导入旧数据库备份，仍应按 `user_room_bindings` 是否符合真实账号关系审计绑定数据。
 
 ## 当前质量风险
 

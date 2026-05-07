@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 鉴权会话、CORS 与管理员提升规则
-updated_at: 2026-05-06
-verified_at: 2026-05-06
+updated_at: 2026-05-07
+verified_at: 2026-05-07
 sources:
   - src/handlers/auth.rs
   - src/handlers/binding.rs
@@ -18,7 +18,7 @@ sources:
   - src/handlers/path_tree.rs
   - src/config/cors.rs
   - docs/api/API_REFERENCE.md
-summary: JWT 类型边界、cookie 会话契约、验证码发送配额、CORS 白名单、管理员提升规则、绑定证明和房间详情授权边界
+summary: JWT 类型边界、cookie 会话契约、验证码发送配额、CORS 白名单、管理员提升规则、绑定创建和房间详情授权边界
 ---
 
 # Electricity Monitor 鉴权会话、CORS 与权限提升规则
@@ -36,8 +36,8 @@ summary: JWT 类型边界、cookie 会话契约、验证码发送配额、CORS �
 - JWT claims 显式区分 `token_kind=access|refresh`；受保护接口只接受 access token，`/api/auth/refresh` 只接受 refresh token。
 - JWT `sub` 使用 `provider:identifier` 形式，避免 QQ 号与邮箱地址在不同登录渠道下同值混淆。
 - `src/handlers/auth.rs` 负责签发 access token、轮换 refresh cookie 与 logout 清理 cookie 的 HTTP 契约；不要在其他 handler 重新实现这套逻辑。
-- `/api/bindings` 以当前登录账号为个人绑定主体；普通用户创建绑定必须提交管理员签发的 `binding_proof`，管理员可通过 `GET /api/bindings/proof/{roomid}` 获取绑定证明，并且管理员给自己创建绑定时可跳过该证明。
-- 绑定证明由服务端基于 `roomid` 与当前 JWT secret 派生，输入允许去除空白和连字符后大小写不敏感匹配；它只证明管理员已向用户发放该房间绑定码，不应被当作长期独立凭据存储。
+- `/api/bindings` 以当前登录账号为个人绑定主体；创建绑定必须通过 access token Bearer 认证，但普通用户和管理员账号都不再需要额外绑定码。
+- `/api/bindings` 只创建当前登录账号自己的绑定；绑定创建后才会成为 `RoomAccessUseCase` 允许普通用户读取房间详情的授权事实。
 - `/api/rooms/by-path` 与 `/api/rooms/by-hash` 是房间详情读取入口，必须通过 `RoomAccessUseCase::ensure_room_access` 约束为管理员或已绑定用户；绑定前路径树只允许返回叶子节点 `roomid` 这类最小绑定标识，不返回电费余额或阈值。
 
 ## 会话模型
