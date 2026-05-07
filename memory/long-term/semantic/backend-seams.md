@@ -55,4 +55,5 @@ summary: 后端鉴权、验证码限流、房间授权、缓存、通知域和�
 - `src/infrastructure/external/` 提供统一 `reqwest` 客户端构造与 HTTP 状态错误映射。
 - `electricity`、`room_sync crawler`、`qq_client` 已接入这条统一入口。
 - `electricity` 电费抓取客户端必须保留 HTTPS 证书校验；测试或开发调试不得把 `danger_accept_invalid_certs=true` 带回生产路径。
+- 电费全量抓取会覆盖生产库全部 active roomid；`RoomBatchFetcher` 必须通过 `buffer_unordered(self.max_concurrent)` 做流式背压，不能提前为所有房间 `tokio::spawn`，`ElectricityFetcherService` 的定时入口必须跳过未完成的上一轮任务，避免批处理内存高水位和外部 API 压力叠加。
 - 新增外部 HTTP 依赖时，应优先复用这条接缝，而不是各模块自行创建 `reqwest::Client`。

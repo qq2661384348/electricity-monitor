@@ -47,6 +47,7 @@ summary: 生产发布主线、拆分 release 产物、local environment中转边
 - 服务器只执行 `docker load`，不从外部 registry 拉取镜像；`deploy.sh` 会在 `docker compose up` 前显式检查 `APP_IMAGE_REF`、`POSTGRES_IMAGE_REF` 与 `REDIS_IMAGE_REF` 已离线可用，缺失时 fail-fast。
 - release compose 服务拓扑为 `postgres`、`redis`、一次性 `migrate` 和 `app`，默认端口绑定为 `127.0.0.1:11450 -> app:8000`，不包含反向代理配置。
 - release 默认应用日志级别为 `warn`；公网服务器如需临时排障可通过 `.env` 的 `APP__LOGGING__LEVEL` 提高日志详细度，排障结束后应恢复为 `warn`。
+- release 默认设置 `MIMALLOC_PURGE_DELAY=0` 与 `MIMALLOC_PURGE_DECOMMITS=1`；全量电费抓取等后台批处理释放对象后，应尽快把空闲物理页归还给宿主机，降低长跑容器 RSS 高水位。
 - release `deploy.sh` 会显式设置 PostgreSQL / Redis bind mount 数据目录属主；local environment中转或 root shell 创建的 root-only 数据目录不能直接交给容器使用。
 - `migrate` 二进制使用编译期内嵌 migrations，目标环境运行迁移不需要安装 `diesel_cli`。
 - release 部署脚本会对 `APP_DATABASE_PASSWORD_SECRET_FILE`、`APP_JWT_SECRET_SECRET_FILE`、`APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE`、`APP_EMAIL_SMTP_PASSWORD_SECRET_FILE` 做 owner-only 权限校验；group / other 有权限位时直接失败。

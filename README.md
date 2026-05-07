@@ -187,6 +187,7 @@ cargo install diesel_cli --no-default-features --features postgres
 - GitHub Actions 会拆分产出 app release artifact 与 infra images artifact；日常发布只需要上传 app 包，首次部署或 PostgreSQL / Redis 镜像版本变更时再把 infra 包解压到同一 release 目录
 - 服务器只执行 `docker load` 和 `docker compose`，不会从外部 registry 拉取镜像；`deploy.sh` 会在 `docker compose up` 前检查 app、PostgreSQL 和 Redis 镜像是否已离线可用
 - release compose 服务包含 `postgres`、`redis`、一次性 `migrate` 和 `app`，默认绑定 `127.0.0.1:11450`
+- release 应用容器默认设置 `MIMALLOC_PURGE_DELAY=0` 与 `MIMALLOC_PURGE_DECOMMITS=1`，配合流式后台批处理降低长跑服务的 RSS 高水位
 - artifact deployment默认把数据放在 `<release-root>/data/postgres` 与 `<release-root>/data/redis`
 - smoke 契约：`deploy/smoke.targets`，由 `tests/runtime/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用，包含端点、必需文件与统一响应安全头
 - release manifest：artifact 内的 `release/release-manifest.json`

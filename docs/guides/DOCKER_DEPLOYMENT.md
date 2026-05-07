@@ -248,6 +248,11 @@ chmod +x smoke.sh
 - release 默认应用日志级别：`warn`
 - 临时排障时可以通过 `.env` 中的 `APP__LOGGING__LEVEL` 改为 `info`、`debug` 或其他 tracing 级别；排障结束后应恢复为 `warn`，避免后台任务和轮询路径在公网服务器持续输出大量日志。
 
+### 内存释放
+
+- release 默认设置 `MIMALLOC_PURGE_DELAY=0` 与 `MIMALLOC_PURGE_DECOMMITS=1`，让 mimalloc 在后台批处理释放对象后尽快把空闲物理页交还给宿主机。
+- 电费全量抓取必须保持流式背压和定时任务防重入；不要改回“一次性为所有房间创建 Tokio task”的实现，否则公网服务器上的容器 RSS 会被批处理高水位放大。
+
 ### 端口
 
 - 容器端口：`8000`

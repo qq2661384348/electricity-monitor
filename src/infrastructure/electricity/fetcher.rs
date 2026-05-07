@@ -27,6 +27,7 @@ pub struct RoomBatchFetcher {
     http_client: Arc<ReqwestAsyncClient>,
     parser: Arc<ElectricityParser>,
     semaphore: Arc<Semaphore>,
+    max_concurrent: usize,
 }
 
 impl RoomBatchFetcher {
@@ -51,6 +52,7 @@ impl RoomBatchFetcher {
             http_client: Arc::new(http_client),
             parser: Arc::new(parser),
             semaphore: Arc::new(Semaphore::new(max_concurrent)),
+            max_concurrent,
         })
     }
 
@@ -94,27 +96,19 @@ impl RoomBatchFetcher {
     /// - 成功的HashMap<i32, f32>
     /// - 失败的列表会在DEBUG日志中输出
     pub async fn fetch_batch(&self, room_ids: Vec<i32>) -> HashMap<i32, f32> {
-        let tasks: Vec<_> = room_ids
-            .into_iter()
-            .map(|room_id| {
-                let fetcher = self.clone_inner();
-                tokio::spawn(async move { fetcher.fetch_one(room_id).await })
-            })
-            .collect();
+        let mut results = HashMap::with_capacity(room_ids.len());
+        let mut stream = self.fetch_stream(room_ids);
 
-        let mut results = HashMap::new();
-        for task in tasks {
-            if let Ok(result) = task.await {
-                if let Some(fee) = result.electricity {
-                    results.insert(result.room_id, fee);
-                } else {
-                    // 失败房间DEBUG日志
-                    tracing::debug!(
-                        roomid = result.room_id,
-                        error = ?result.error,
-                        "电费获取失败"
-                    );
-                }
+        while let Some(result) = stream.next().await {
+            if let Some(fee) = result.electricity {
+                results.insert(result.room_id, fee);
+            } else {
+                // 失败房间DEBUG日志
+                tracing::debug!(
+                    roomid = result.room_id,
+                    error = ?result.error,
+                    "电费获取失败"
+                );
             }
         }
 
@@ -124,18 +118,19 @@ impl RoomBatchFetcher {
     /// 流式处理（推荐，内存友好）
     ///
     /// 返回异步 Stream，可以逐个处理结果
-    pub async fn fetch_stream(
+    pub fn fetch_stream(
         &self,
         room_ids: Vec<i32>,
     ) -> impl futures_util::Stream<Item = RoomResult> + '_ {
-        let max_concurrent = self.semaphore.available_permits();
-
+        // 这里必须用 buffer_unordered 做背压，而不是提前 spawn 全量房间任务。
+        // 生产库会有数千个房间，提前创建所有 Tokio task 会制造大量短生命周期分配，
+        // 容器 RSS 会被分配器高水位放大。
         stream::iter(room_ids)
             .map(move |room_id| {
                 let fetcher = self.clone_inner();
                 async move { fetcher.fetch_one(room_id).await }
             })
-            .buffer_unordered(max_concurrent)
+            .buffer_unordered(self.max_concurrent)
     }
 
     /// 内部克隆（Arc 引用计数）
@@ -145,6 +140,7 @@ impl RoomBatchFetcher {
             http_client: Arc::clone(&self.http_client),
             parser: Arc::clone(&self.parser),
             semaphore: Arc::clone(&self.semaphore),
+            max_concurrent: self.max_concurrent,
         }
     }
 }

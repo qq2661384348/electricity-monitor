@@ -40,7 +40,7 @@ impl RedisBatchWriter {
     ///
     /// # 错误
     /// Redis连接或写入失败
-    pub async fn batch_write(&self, data: HashMap<i32, f32>) -> Result<usize> {
+    pub async fn batch_write(&self, data: &HashMap<i32, f32>) -> Result<usize> {
         if data.is_empty() {
             tracing::debug!("批量写入跳过：数据为空");
             return Ok(0);
@@ -58,42 +58,45 @@ impl RedisBatchWriter {
         const BATCH_SIZE: usize = 500;
         let total_count = data.len();
         let mut written_count = 0;
+        let mut batch_idx = 0;
+        let mut batch_len = 0;
+        let mut pipe = redis::pipe();
+        pipe.atomic();
 
-        // 分批写入
-        for (batch_idx, chunk) in data
-            .iter()
-            .collect::<Vec<_>>()
-            .chunks(BATCH_SIZE)
-            .enumerate()
-        {
-            // 创建Pipeline
-            let mut pipe = redis::pipe();
-            pipe.atomic();
+        // 分批写入。不要先 collect 成 Vec，否则全量房间批次会多产生一份临时索引。
+        for (roomid, fee) in data {
+            pipe.hset(&key, roomid.to_string(), fee.to_string());
+            batch_len += 1;
 
-            // 批量HSET
-            for (roomid, fee) in chunk {
-                pipe.hset(&key, roomid.to_string(), fee.to_string());
+            if batch_len < BATCH_SIZE {
+                continue;
             }
 
-            // 设置TTL（256秒，用户要求）
-            pipe.expire(&key, 256);
+            written_count += Self::flush_batch(
+                &mut conn,
+                &key,
+                &mut pipe,
+                batch_idx,
+                batch_len,
+                written_count,
+                total_count,
+            )
+            .await?;
+            batch_idx += 1;
+            batch_len = 0;
+        }
 
-            // 执行Pipeline（返回空tuple）
-            let _: () = pipe
-                .query_async(&mut conn)
-                .await
-                .map_err(|e| AppError::Internal(format!("Redis Pipeline执行失败: {}", e)))?;
-
-            written_count += chunk.len();
-
-            tracing::debug!(
-                batch_idx = batch_idx,
-                batch_size = chunk.len(),
-                written = written_count,
-                total = total_count,
-                key = %key,
-                "Redis批量写入批次完成"
-            );
+        if batch_len > 0 {
+            written_count += Self::flush_batch(
+                &mut conn,
+                &key,
+                &mut pipe,
+                batch_idx,
+                batch_len,
+                written_count,
+                total_count,
+            )
+            .await?;
         }
 
         tracing::info!(
@@ -105,6 +108,45 @@ impl RedisBatchWriter {
         );
 
         Ok(written_count)
+    }
+
+    async fn flush_batch<C>(
+        conn: &mut C,
+        key: &str,
+        pipe: &mut redis::Pipeline,
+        batch_idx: usize,
+        batch_len: usize,
+        already_written: usize,
+        total_count: usize,
+    ) -> Result<usize>
+    where
+        C: redis::aio::ConnectionLike + Send,
+    {
+        // 设置TTL（256秒，用户要求）
+        pipe.expire(key, 256);
+
+        // 执行Pipeline（返回空tuple）
+        let _: () = pipe
+            .query_async(conn)
+            .await
+            .map_err(|e| AppError::Internal(format!("Redis Pipeline执行失败: {}", e)))?;
+
+        let written = already_written + batch_len;
+
+        tracing::debug!(
+            batch_idx = batch_idx,
+            batch_size = batch_len,
+            written = written,
+            total = total_count,
+            key = %key,
+            "Redis批量写入批次完成"
+        );
+
+        let mut next_pipe = redis::pipe();
+        next_pipe.atomic();
+        *pipe = next_pipe;
+
+        Ok(batch_len)
     }
 
     /// 批量读取电费数据

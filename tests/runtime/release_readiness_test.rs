@@ -167,6 +167,57 @@ fn release_packaging_splits_app_and_infra_artifacts() {
     );
 }
 
+#[test]
+fn background_bulk_jobs_are_memory_bounded() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let fetcher = fs::read_to_string(repo_root.join("src/infrastructure/electricity/fetcher.rs"))
+        .expect("应能读取电费批量获取器");
+    let fetcher_service =
+        fs::read_to_string(repo_root.join("src/domain/services/electricity_fetcher_service.rs"))
+            .expect("应能读取电费获取服务");
+    let redis_writer =
+        fs::read_to_string(repo_root.join("src/infrastructure/redis/batch_writer.rs"))
+            .expect("应能读取 Redis 批量写入器");
+    let notification_service =
+        fs::read_to_string(repo_root.join("src/domain/services/notification_service.rs"))
+            .expect("应能读取通知服务");
+    let release_compose = fs::read_to_string(repo_root.join("deploy/compose.release.yml"))
+        .expect("应能读取 release compose");
+
+    assert!(
+        fetcher.contains(".buffer_unordered(self.max_concurrent)"),
+        "全量电费抓取必须使用流式背压限制在固定并发内"
+    );
+    assert!(
+        !fetcher.contains("tokio::spawn(async move { fetcher.fetch_one(room_id).await })"),
+        "全量电费抓取不能提前为所有房间创建 Tokio task"
+    );
+    assert!(
+        fetcher_service.contains("fetch_task_lock"),
+        "定时和手动电费抓取必须共享互斥保护，避免多轮全量任务叠加"
+    );
+    assert!(
+        fetcher_service.contains("try_run_fetch_task"),
+        "定时电费抓取必须在上一轮未结束时跳过本轮，而不是排队堆积"
+    );
+    assert!(
+        !redis_writer.contains("collect::<Vec<_>>()"),
+        "Redis 批量写入不能为全量电费结果再构造临时 Vec 索引"
+    );
+    assert!(
+        notification_service.contains("MissedTickBehavior::Delay"),
+        "周期通知任务耗时超过间隔时应延后下一轮，避免补偿式突发执行"
+    );
+    assert!(
+        !notification_service.contains("Arc::new(user_map.clone())"),
+        "通知发送不能为每个房间克隆整份用户映射"
+    );
+    assert!(
+        release_compose.contains("MIMALLOC_PURGE_DELAY"),
+        "release 容器必须显式启用 mimalloc 及时归还空闲物理页的配置入口"
+    );
+}
+
 #[tokio::test]
 async fn smoke_contract_tracks_required_headers() {
     let targets = load_smoke_targets();

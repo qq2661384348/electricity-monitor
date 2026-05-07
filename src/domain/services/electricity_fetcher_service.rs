@@ -11,6 +11,7 @@ use crate::infrastructure::{
     DbPool, RedisPool,
 };
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 /// 电费获取服务
@@ -27,6 +28,11 @@ pub struct ElectricityFetcherService {
     room_repo: RoomRepository,
     /// 历史记录仓储
     history_repo: ElectricityHistoryRepository,
+    /// 电费全量抓取互斥锁
+    ///
+    /// 定时任务和手动触发可能同时到达。全量抓取会访问数千个房间，
+    /// 必须串行化，避免多轮批处理叠加放大内存和外部 API 压力。
+    fetch_task_lock: Arc<Mutex<()>>,
 }
 
 /// 执行统计信息
@@ -79,6 +85,7 @@ impl ElectricityFetcherService {
             redis_writer,
             room_repo,
             history_repo,
+            fetch_task_lock: Arc::new(Mutex::new(())),
         })
     }
 
@@ -97,6 +104,23 @@ impl ElectricityFetcherService {
     /// - API失败的房间记录DEBUG日志，不中断流程
     /// - 数据库失败返回错误
     pub async fn run_fetch_task(&self) -> Result<FetchStatistics> {
+        let _guard = self.fetch_task_lock.lock().await;
+        self.run_fetch_task_inner().await
+    }
+
+    /// 如果当前没有抓取任务在运行，则执行一轮；否则返回 None。
+    ///
+    /// 定时任务使用此入口，避免上一轮外部 API 调用耗时过长时继续堆积后台 job。
+    async fn try_run_fetch_task(&self) -> Result<Option<FetchStatistics>> {
+        let Ok(_guard) = self.fetch_task_lock.try_lock() else {
+            tracing::warn!("上一轮电费获取任务仍在运行，跳过本轮定时触发");
+            return Ok(None);
+        };
+
+        self.run_fetch_task_inner().await.map(Some)
+    }
+
+    async fn run_fetch_task_inner(&self) -> Result<FetchStatistics> {
         let start_time = std::time::Instant::now();
 
         tracing::info!("开始执行电费获取任务");
@@ -118,7 +142,7 @@ impl ElectricityFetcherService {
         tracing::info!(total_rooms = total_rooms, "开始批量获取电费");
 
         // 2. 批量API获取（50并发）
-        let fetch_result = self.fetcher.fetch_batch(room_ids.clone()).await;
+        let fetch_result = self.fetcher.fetch_batch(room_ids).await;
         let success_count = fetch_result.len();
         let failure_count = total_rooms - success_count;
 
@@ -139,7 +163,7 @@ impl ElectricityFetcherService {
         }
 
         // 3. 写入Redis缓存（TTL=256s）
-        self.redis_writer.batch_write(fetch_result.clone()).await?;
+        self.redis_writer.batch_write(&fetch_result).await?;
 
         // 4. 批量更新数据库（100条/batch）
         let updated_count = self
@@ -246,8 +270,8 @@ impl ElectricityFetcherService {
                 loop {
                     attempt += 1;
 
-                    match service.run_fetch_task().await {
-                        Ok(stats) => {
+                    match service.try_run_fetch_task().await {
+                        Ok(Some(stats)) => {
                             tracing::info!(
                                 success = stats.success_count,
                                 failure = stats.failure_count,
@@ -256,6 +280,9 @@ impl ElectricityFetcherService {
                                 attempt = attempt,
                                 "定时电费获取任务完成"
                             );
+                            break;
+                        }
+                        Ok(None) => {
                             break;
                         }
                         Err(e) => {

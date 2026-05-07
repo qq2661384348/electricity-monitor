@@ -176,6 +176,7 @@ impl NotificationService {
             tracing::info!("通知服务已启动，查询间隔: {}秒", query_interval_secs);
 
             let mut interval_timer = interval(Duration::from_secs(query_interval_secs));
+            interval_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
             loop {
                 // 等待下一个间隔
@@ -190,42 +191,19 @@ impl NotificationService {
                     continue;
                 }
 
-                // Spawn独立任务处理通知（完全避免生命周期问题）
-                // 每个任务拥有自己的Repository克隆
-                let room_repo = room_repository.clone();
-                let user_repo = user_repository.clone();
-                let binding_repo = binding_repository.clone();
-                let channels = channels.clone();
-                let cache_clone = Arc::clone(&cache);
-                let gate_clone = Arc::clone(&gate);
-
-                let handle = tokio::spawn(async move {
-                    Self::process_notifications_internal(
-                        room_repo,
-                        user_repo,
-                        binding_repo,
-                        channels,
-                        cache_clone,
-                        gate_clone,
-                        concurrent_limit,
-                    )
-                    .await
-                });
-
-                // 等待任务完成并处理错误（非阻塞其他循环）
-                tokio::spawn(async move {
-                    match handle.await {
-                        Ok(Ok(())) => {
-                            // 成功完成
-                        }
-                        Ok(Err(e)) => {
-                            tracing::error!("处理通知失败: {}", e);
-                        }
-                        Err(e) => {
-                            tracing::error!("通知任务panic: {}", e);
-                        }
-                    }
-                });
+                if let Err(e) = Self::process_notifications_internal(
+                    room_repository.clone(),
+                    user_repository.clone(),
+                    binding_repository.clone(),
+                    channels.clone(),
+                    Arc::clone(&cache),
+                    Arc::clone(&gate),
+                    concurrent_limit,
+                )
+                .await
+                {
+                    tracing::error!("处理通知失败: {}", e);
+                }
             }
         })
     }
@@ -319,12 +297,18 @@ impl NotificationService {
                 .or_default()
                 .push(binding);
         }
+        let total_bindings = bindings_by_room.values().map(Vec::len).sum();
 
         // 9. 更新绑定缓存
         cache.set_bindings_batch(bindings_by_room.clone()).await;
 
         // 10. 并发发送通知（使用内存数据，带持久化）
-        let bindings_by_room = Arc::new(bindings_by_room);
+        let bindings_by_room = Arc::new(
+            bindings_by_room
+                .into_iter()
+                .map(|(roomid, bindings)| (roomid, Arc::new(bindings)))
+                .collect::<HashMap<_, _>>(),
+        );
         let user_map = Arc::new(user_map);
 
         let results: Vec<Result<usize>> = stream::iter(rooms)
@@ -337,8 +321,8 @@ impl NotificationService {
                 async move {
                     Self::send_room_notifications_optimized(
                         &room,
-                        bindings_by_room.get(&room.roomid),
-                        &user_map,
+                        bindings_by_room.get(&room.roomid).cloned(),
+                        Arc::clone(&user_map),
                         &channels,
                         &gate_clone,
                         &binding_repo,
@@ -370,7 +354,7 @@ impl NotificationService {
 
         let stats = NotificationStats {
             total_rooms: room_count,
-            total_bindings: bindings_by_room.len(),
+            total_bindings,
             total_sent,
             total_failed: total_errors,
             cache_hit_rate: 0.0, // TODO: 从cache获取实际命中率
@@ -449,8 +433,8 @@ impl NotificationService {
     /// 使用静态方法避免生命周期问题，明确传递所需参数
     async fn send_room_notifications_optimized(
         room: &Room,
-        bindings_opt: Option<&Vec<crate::domain::models::UserRoomBinding>>,
-        user_map: &HashMap<Uuid, crate::domain::models::User>,
+        bindings_opt: Option<Arc<Vec<crate::domain::models::UserRoomBinding>>>,
+        user_map: Arc<HashMap<Uuid, crate::domain::models::User>>,
         channels: &NotificationChannels,
         gate: &Arc<NotificationGate>,
         binding_repository: &UserRoomBindingRepository,
@@ -490,15 +474,12 @@ impl NotificationService {
             &public_url,
             &crate::config::AppConfig::global().email.from_name,
         )?;
-        let user_map_arc = Arc::new(user_map.clone());
-        let bindings_vec: Vec<_> = bindings.to_vec();
-
-        let results: Vec<Result<()>> = stream::iter(bindings_vec)
+        let results: Vec<Result<()>> = stream::iter(bindings.iter().cloned())
             .map(|binding| {
                 let channels = channels.clone();
                 let qq_message = qq_message.clone();
                 let email_message = email_message.clone();
-                let user_map = Arc::clone(&user_map_arc);
+                let user_map = Arc::clone(&user_map);
                 let gate_clone = Arc::clone(gate);
                 let room_clone = room.clone();
                 let binding_repo = binding_repository.clone();
