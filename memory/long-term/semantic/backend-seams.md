@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 后端可维护性接缝
-updated_at: 2026-05-07
-verified_at: 2026-05-07
+updated_at: 2026-05-08
+verified_at: 2026-05-08
 sources:
   - src/modules/auth/api/middleware.rs
   - src/handlers/auth.rs
@@ -13,7 +13,9 @@ sources:
   - src/infrastructure/cache/cache_manager.rs
   - src/domain/services/notification_gate.rs
   - src/domain/services/notification_service.rs
-summary: 后端鉴权、验证码限流、房间授权、缓存、通知域和模块化迁移接缝
+  - src/infrastructure/repositories/electricity_history_repository.rs
+  - tests/runtime/release_readiness_test.rs
+summary: 后端鉴权、验证码限流、房间授权、缓存、通知域、后台批处理和模块化迁移接缝
 ---
 
 # Electricity Monitor 后端可维护性接缝
@@ -57,3 +59,7 @@ summary: 后端鉴权、验证码限流、房间授权、缓存、通知域和�
 - `electricity` 电费抓取客户端必须保留 HTTPS 证书校验；测试或开发调试不得把 `danger_accept_invalid_certs=true` 带回生产路径。
 - 电费全量抓取会覆盖生产库全部 active roomid；`RoomBatchFetcher` 必须通过 `buffer_unordered(self.max_concurrent)` 做流式背压，不能提前为所有房间 `tokio::spawn`，`ElectricityFetcherService` 的定时入口必须跳过未完成的上一轮任务，避免批处理内存高水位和外部 API 压力叠加。
 - 新增外部 HTTP 依赖时，应优先复用这条接缝，而不是各模块自行创建 `reqwest::Client`。
+
+## 后台批处理接缝
+
+- 电费历史快照由 `ElectricityHistoryRepository::batch_insert_from_rooms` 负责；这条每小时任务必须保持数据库侧 `INSERT ... SELECT`，不能先把所有活跃房间加载到 Rust 堆再构造逐条历史记录和大批量 INSERT，否则生产容器会出现明显 RSS 高水位。

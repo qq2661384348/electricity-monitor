@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 长期质量风险与安全风险
-updated_at: 2026-05-07
-verified_at: 2026-05-07
+updated_at: 2026-05-08
+verified_at: 2026-05-08
 sources:
   - docs/guides/TECHNICAL_DEBT.md
   - docs/guides/SECRETS_INVENTORY.md
@@ -14,6 +14,8 @@ sources:
   - src/domain/services/rate_limiter.rs
   - tests/contracts/auth_integration_test.rs
   - tests/contracts/send_verification_code_integration_test.rs
+  - src/infrastructure/repositories/electricity_history_repository.rs
+  - tests/runtime/release_readiness_test.rs
 summary: 已关闭风险、当前质量风险、供应链风险、仓库历史清理状态和仓库外部安全边界
 ---
 
@@ -42,6 +44,7 @@ summary: 已关闭风险、当前质量风险、供应链风险、仓库历史�
 - 普通用户创建 `/api/bindings` 绑定不再需要绑定码；风险边界转移为必须保持 `/api/bindings` 登录鉴权、房间存在性校验，以及 `/api/rooms/by-path`、`/api/rooms/by-hash` 未绑定拒绝读取详情。
 - 电费抓取 HTTP 客户端已恢复 HTTPS 证书校验，生产路径不再接受无效证书。
 - `/api/rooms/by-path` 与 `/api/rooms/by-hash` 已恢复为房间详情授权读取，未绑定普通用户不能再通过路径或哈希查询直接读取电费余额和阈值。
+- 电费历史快照已改为数据库侧 `INSERT ... SELECT`；每小时任务不再先把所有活跃房间加载到 Rust 堆并构造逐条历史记录，release readiness test 会防止这类容器 RSS 高水位风险回退。
 - 本地和 `origin/master` 历史已重写并验证不再包含 `config/development.toml`、`config/production.toml` 或 `config/default.toml` 这类运行时配置文件路径。
 - 2026-05-06 对本地可达 git 历史做了凭据形态扫描，未发现真实 `QQ/JWT/DB/SMTP` 凭据；命中内容为示例值、测试值、文档占位、公开 API URL 或依赖包示例 JWT。
 - 远端仓库已删除重建，并已重新推送清理后的 `master`；远端旧历史残留不再作为当前仓库剩余风险记录。

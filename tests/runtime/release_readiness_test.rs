@@ -175,6 +175,10 @@ fn background_bulk_jobs_are_memory_bounded() {
     let fetcher_service =
         fs::read_to_string(repo_root.join("src/domain/services/electricity_fetcher_service.rs"))
             .expect("应能读取电费获取服务");
+    let history_repository = fs::read_to_string(
+        repo_root.join("src/infrastructure/repositories/electricity_history_repository.rs"),
+    )
+    .expect("应能读取电费历史记录仓储");
     let redis_writer =
         fs::read_to_string(repo_root.join("src/infrastructure/redis/batch_writer.rs"))
             .expect("应能读取 Redis 批量写入器");
@@ -203,6 +207,18 @@ fn background_bulk_jobs_are_memory_bounded() {
     assert!(
         !redis_writer.contains("collect::<Vec<_>>()"),
         "Redis 批量写入不能为全量电费结果再构造临时 Vec 索引"
+    );
+    assert!(
+        history_repository.contains("INSERT INTO electricity_history"),
+        "电费历史快照应直接让数据库执行 INSERT ... SELECT，避免把所有房间先载入 Rust 堆"
+    );
+    assert!(
+        history_repository.contains("SELECT roomid, electricity_fee"),
+        "电费历史快照应直接从 rooms 表投影所需列，而不是构造中间 Vec<NewElectricityHistory>"
+    );
+    assert!(
+        !history_repository.contains("NewElectricityHistory"),
+        "电费历史仓储不应再依赖 Rust 侧逐条构造历史记录"
     );
     assert!(
         notification_service.contains("MissedTickBehavior::Delay"),

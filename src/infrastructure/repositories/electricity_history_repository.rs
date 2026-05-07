@@ -1,10 +1,11 @@
 //! 电费历史记录仓储
 
-use crate::domain::models::{ElectricityHistory, NewElectricityHistory};
+use crate::domain::models::ElectricityHistory;
 use crate::errors::{AppError, Result};
 use crate::infrastructure::{database::schema::*, DbPool};
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
+use diesel::sql_types::Timestamp;
 use diesel_async::RunQueryDsl;
 
 /// 电费历史记录仓储
@@ -42,33 +43,24 @@ impl ElectricityHistoryRepository {
         let mut conn = self.get_conn().await?;
         let now = Utc::now().naive_utc();
 
-        // 查询所有活跃房间的roomid和electricity_fee
-        let room_data: Vec<(i32, f32)> = rooms::table
-            .filter(rooms::is_active.eq(true))
-            .select((rooms::roomid, rooms::electricity_fee))
-            .load(&mut conn)
-            .await
-            .map_err(AppError::Database)?;
+        // 生产库每小时会为数千个房间写入一次历史快照。这里必须让数据库
+        // 直接执行 INSERT ... SELECT，避免把所有房间先 load 到 Rust 堆、
+        // 再构造逐条历史记录和超大 INSERT 语句导致容器 RSS 高水位。
+        let count = diesel::sql_query(
+            "INSERT INTO electricity_history (roomid, electricity_fee, recorded_at)
+             SELECT roomid, electricity_fee, $1
+             FROM rooms
+             WHERE is_active = TRUE",
+        )
+        .bind::<Timestamp, _>(now)
+        .execute(&mut conn)
+        .await
+        .map_err(AppError::Database)?;
 
-        if room_data.is_empty() {
+        if count == 0 {
             tracing::info!("批量插入历史记录：无活跃房间");
             return Ok(0);
         }
-
-        // 构造历史记录
-        let histories: Vec<NewElectricityHistory> = room_data
-            .into_iter()
-            .map(|(roomid, fee)| NewElectricityHistory::new(roomid, fee, now))
-            .collect();
-
-        let count = histories.len();
-
-        // 批量插入
-        diesel::insert_into(electricity_history::table)
-            .values(&histories)
-            .execute(&mut conn)
-            .await
-            .map_err(AppError::Database)?;
 
         tracing::info!(
             count = count,
