@@ -13,7 +13,7 @@ use crate::middleware::auth::auth_middleware;
 use crate::state::AppState;
 
 /// 创建认证路由
-pub fn routes() -> Router<AppState> {
+pub fn routes(state: AppState) -> Router<AppState> {
     // 公开路由（无需认证）
     let public_routes = Router::new()
         .route(
@@ -27,7 +27,7 @@ pub fn routes() -> Router<AppState> {
     // 受保护路由（需要JWT认证）
     let protected_routes = Router::new()
         .route("/auth/me", get(auth::get_current_user))
-        .route_layer(middleware::from_fn(auth_middleware));
+        .route_layer(middleware::from_fn_with_state(state, auth_middleware));
 
     // 合并路由
     public_routes.merge(protected_routes)

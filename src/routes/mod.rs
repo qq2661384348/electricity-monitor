@@ -17,13 +17,13 @@ pub mod static_files;
 pub use static_files::create_static_service;
 
 /// 创建应用路由
-pub fn create_routes() -> Router<AppState> {
+pub fn create_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .nest("/api", api::routes())
-        .nest("/api", auth::routes())
-        .nest("/api", binding::routes())
+        .nest("/api", auth::routes(state.clone()))
+        .nest("/api", binding::routes(state.clone()))
         .nest("/api", captcha::routes())
-        .nest("/api", room::routes())
-        .nest("/api", room_sync::routes())
-        .nest("/api", electricity_fetcher::routes())
+        .nest("/api", room::routes(state.clone()))
+        .nest("/api", room_sync::routes(state.clone()))
+        .nest("/api", electricity_fetcher::routes(state))
 }

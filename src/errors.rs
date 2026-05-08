@@ -24,6 +24,9 @@ pub enum AppError {
     #[error("权限不足")]
     Forbidden,
 
+    #[error("请求参数错误: {0}")]
+    BadRequest(String),
+
     #[error("请求过于频繁: {0}")]
     RateLimited(String),
 
@@ -45,17 +48,18 @@ pub enum AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match self {
+        let (status, error_message) = match &self {
             AppError::Database(ref e) => {
                 tracing::error!("Database error: {:?}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "数据库操作失败")
             }
             AppError::Config(ref msg) => {
                 tracing::error!("Config error: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, "配置错误")
+                (StatusCode::INTERNAL_SERVER_ERROR, "服务配置错误")
             }
             AppError::Unauthorized(ref msg) => (StatusCode::UNAUTHORIZED, msg.as_str()),
             AppError::Forbidden => (StatusCode::FORBIDDEN, "权限不足"),
+            AppError::BadRequest(ref msg) => (StatusCode::BAD_REQUEST, msg.as_str()),
             AppError::RateLimited(ref msg) => (StatusCode::TOO_MANY_REQUESTS, msg.as_str()),
             AppError::NotFound => (StatusCode::NOT_FOUND, "资源未找到"),
             AppError::UserNotFriend { ref qq_number } => {
@@ -70,7 +74,7 @@ impl IntoResponse for AppError {
             }
             AppError::Internal(ref msg) => {
                 tracing::error!("Internal error: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, msg.as_str())
+                (StatusCode::INTERNAL_SERVER_ERROR, "内部服务器错误")
             }
             AppError::Crawler(ref msg) => {
                 tracing::error!("Crawler error: {}", msg);
@@ -84,7 +88,7 @@ impl IntoResponse for AppError {
 
         let body = Json(json!({
             "error": error_message,
-            "message": self.to_string(),
+            "message": error_message,
         }));
 
         (status, body).into_response()
@@ -131,5 +135,52 @@ impl From<crate::infrastructure::notification::error::NotificationError> for App
 impl From<crate::infrastructure::email::EmailError> for AppError {
     fn from(err: crate::infrastructure::email::EmailError) -> Self {
         AppError::Internal(format!("邮件服务错误: {}", err))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::to_bytes;
+    use serde_json::Value;
+
+    async fn response_body(error: AppError) -> (StatusCode, Value) {
+        let response = error.into_response();
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("错误响应体应可读取");
+        let json = serde_json::from_slice(&body).expect("错误响应体应为 JSON");
+        (status, json)
+    }
+
+    #[tokio::test]
+    async fn internal_error_response_does_not_expose_detail() {
+        let (status, body) = response_body(AppError::Internal(
+            "upstream token abc123 leaked".to_string(),
+        ))
+        .await;
+
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(body["error"], "内部服务器错误");
+        assert_eq!(body["message"], "内部服务器错误");
+        assert!(
+            !body.to_string().contains("abc123"),
+            "公开错误响应不能包含内部细节"
+        );
+    }
+
+    #[tokio::test]
+    async fn database_error_response_uses_stable_public_message() {
+        let (status, body) =
+            response_body(AppError::Database(diesel::result::Error::NotFound)).await;
+
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(body["error"], "数据库操作失败");
+        assert_eq!(body["message"], "数据库操作失败");
+        assert!(
+            !body.to_string().contains("NotFound"),
+            "数据库错误细节只能进入日志，不能进入响应体"
+        );
     }
 }

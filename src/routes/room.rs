@@ -24,7 +24,7 @@ use crate::state::AppState;
 /// # 注意
 /// create_room, delete_room, reset_send_flag已移除
 /// 这些操作仅通过后台同步服务或Repository层内部调用
-pub fn routes() -> Router<AppState> {
+pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         // 路径树相关（逐层查询）
         .route("/rooms/path-tree", get(handlers::query_path_tree))
@@ -45,5 +45,5 @@ pub fn routes() -> Router<AppState> {
         // 更新阈值
         .route("/rooms/{id}/threshold", put(handlers::update_threshold))
         // 应用JWT认证中间件
-        .route_layer(middleware::from_fn(auth_middleware))
+        .route_layer(middleware::from_fn_with_state(state, auth_middleware))
 }

@@ -34,7 +34,9 @@ pub fn create_app(state: AppState) -> Router {
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
         .allow_credentials(true);
 
-    let mut app = Router::new().merge(create_routes()).with_state(state);
+    let mut app = Router::new()
+        .merge(create_routes(state.clone()))
+        .with_state(state);
 
     if config.static_files.enabled {
         if config.static_files.directory_exists() {

@@ -46,6 +46,15 @@ pub struct QQClient {
     config: QQBotConfig,
 }
 
+fn log_private_message_attempt(user_id: &str, message: &str) {
+    // 验证码和通知正文都可能包含敏感信息；debug 日志只保留长度用于排障。
+    tracing::debug!(
+        user_id = user_id,
+        message_len = message.chars().count(),
+        "发送QQ私聊消息"
+    );
+}
+
 impl QQClient {
     /// 创建QQ客户端
     ///
@@ -82,11 +91,7 @@ impl QQClient {
         user_id: &str,
         message: &str,
     ) -> Result<QQMessageResponse> {
-        tracing::debug!(
-            user_id = user_id,
-            message_preview = &message[..message.len().min(50)],
-            "发送QQ私聊消息"
-        );
+        log_private_message_attempt(user_id, message);
 
         // 构建请求体
         let body = MessageBuilder::build_api_request_body(user_id, message);
@@ -176,6 +181,11 @@ impl QQClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        io::{self, Write},
+        sync::{Arc, Mutex},
+    };
+    use tracing_subscriber::fmt::MakeWriter;
 
     #[test]
     fn test_qq_client_creation() {
@@ -207,5 +217,59 @@ mod tests {
         assert_eq!(response.status, "failed");
         assert_eq!(response.retcode, 100);
         assert_eq!(response.message.unwrap(), "发送失败");
+    }
+
+    #[derive(Clone)]
+    struct SharedBufferWriter {
+        buffer: Arc<Mutex<Vec<u8>>>,
+    }
+
+    struct BufferWriter {
+        buffer: Arc<Mutex<Vec<u8>>>,
+    }
+
+    impl<'a> MakeWriter<'a> for SharedBufferWriter {
+        type Writer = BufferWriter;
+
+        fn make_writer(&'a self) -> Self::Writer {
+            BufferWriter {
+                buffer: Arc::clone(&self.buffer),
+            }
+        }
+    }
+
+    impl Write for BufferWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.buffer.lock().expect("日志缓冲区锁失败").extend(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn debug_log_for_verification_message_does_not_include_code() {
+        let buffer = Arc::new(Mutex::new(Vec::new()));
+        let writer = SharedBufferWriter {
+            buffer: Arc::clone(&buffer),
+        };
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .with_writer(writer)
+            .with_ansi(false)
+            .finish();
+        let message = MessageBuilder::build_verification_code_message("123456");
+
+        tracing::subscriber::with_default(subscriber, || {
+            log_private_message_attempt("100000001", &message);
+        });
+
+        let logs = String::from_utf8(buffer.lock().expect("日志缓冲区锁失败").clone())
+            .expect("日志应为 UTF-8");
+        assert!(logs.contains("message_len"));
+        assert!(!logs.contains("message_preview"));
+        assert!(!logs.contains("123456"), "验证码不能出现在 debug 日志中");
     }
 }
