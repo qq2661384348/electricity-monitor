@@ -6,3 +6,9 @@ export {
   normalizeLoginIdentifier,
   sanitizeLoginIdentifier,
 } from './model/loginIdentity';
+export {
+  formatUserNotFriendMessage,
+  getLoginErrorMessage,
+  getSendVerificationCodeErrorMessage,
+  useAuthLoginFlow,
+} from './model/useAuthLoginFlow';
