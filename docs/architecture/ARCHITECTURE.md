@@ -22,12 +22,12 @@
 - 延迟: ⭐⭐⭐⭐⭐ (最低)
 - 内存: ⭐⭐⭐⭐⭐ (最优)
 
-### ORM：Diesel 2.2 + diesel-async 0.5
+### ORM：Diesel 2.3 + diesel-async 0.7
 
 **选择理由**:
 - 编译时类型检查，零运行时错误
 - crates.io 生产验证
-- 支持PostgreSQL + MySQL双数据库
+- 当前运行链路只启用 PostgreSQL
 - diesel-async提供原生异步支持
 
 **替代方案对比**:
@@ -252,16 +252,9 @@ struct Claims {
 
 ## 扩展性设计
 
-### 多数据库支持
+### 数据库支持范围
 
-**当前**: PostgreSQL  
-**预留**: MySQL
-
-**切换方式**:
-```toml
-[database]
-type = "mysql"  # 修改此处即可
-```
+当前实现只提供 PostgreSQL 运行链路。配置类型里保留过 MySQL 枚举占位，但 Cargo features、连接池、迁移与 CI 都未覆盖 MySQL，不能把 `type = "mysql"` 当成可直接使用的部署能力。
 
 ### 水平扩展
 
@@ -349,25 +342,24 @@ cargo build --release
 diesel migration generate migration_name
 
 # 运行迁移
-diesel migration run
+cargo run --bin migrate
 
 # 回滚迁移
-diesel migration revert
+cargo run --bin migrate -- --revert
 ```
 
 ### 配置变更
 
-1. 修改 `config/*.toml`
-2. 或使用环境变量覆盖
+1. 从当前环境模板复制 `config/development.toml` 或 `config/production.toml`
+2. 修改复制出来的运行时 TOML，或使用 `APP__...` 环境变量覆盖
 3. 重启应用生效
 
 ## 技术债务与改进计划
 
 **已知限制**:
-- [ ] 数据库schema需手动运行迁移生成
-- [ ] JWT刷新token机制待实现
+- [ ] 数据库 `schema.rs` 需在迁移变更后手动刷新
 - [ ] 缺少API版本控制
-- [ ] 缺少限流中间件
+- [ ] 限流覆盖面仍需随公开入口扩展持续核对
 
 **未来优化**:
 - [ ] 引入OpenAPI文档生成
@@ -378,5 +370,5 @@ diesel migration revert
 ---
 
 **文档版本**: 1.0  
-**最后更新**: 2025-10-21  
+**最后更新**: 2026-05-08
 **维护团队**: Electricity Monitor Team

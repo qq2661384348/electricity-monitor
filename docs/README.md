@@ -21,10 +21,10 @@
 - **Tower-HTTP**: HTTP中间件（CORS、日志、压缩等）
 
 ### 数据库
-- **Diesel 2.2**: 类型安全的ORM
-- **diesel-async 0.5**: 异步数据库操作
+- **Diesel 2.3**: 类型安全的ORM
+- **diesel-async 0.7**: 异步数据库操作
 - **deadpool**: 高性能连接池
-- **支持数据库**: PostgreSQL (当前), MySQL (预留)
+- **当前支持数据库**: PostgreSQL
 
 ### 序列化与性能
 - **sonic-rs**: SIMD加速的JSON序列化（比serde_json快2-3倍）
@@ -181,16 +181,9 @@ export APP__JWT__SECRET_FILE="/run/secrets/app_jwt_secret"
 
 开发环境运行时会校验数据库和 Redis 主机，拒绝非本地地址，防止误连远端环境。
 
-### 切换到 MySQL
+### 数据库支持范围
 
-先复制对应模板到当前环境对应的运行时文件，再修改数据库段：
-
-```toml
-[database]
-type = "mysql"
-host = "your-mysql-host"
-port = 3306
-```
+当前可执行运行链路只支持 PostgreSQL。配置结构中曾保留过 MySQL 占位，但当前依赖、连接池和迁移链路都未提供可直接切换到 MySQL 的支持。
 
 ## API 端点
 
@@ -326,4 +319,4 @@ Electricity Monitor Team
 
 ---
 
-**最后更新**: 2025-10-21
+**最后更新**: 2026-05-08

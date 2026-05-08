@@ -37,12 +37,9 @@ cargo run --bin migrate -- production --revert
 ```bash
 # 仅安装 PostgreSQL 支持
 cargo install diesel_cli --no-default-features --features postgres
-
-# 如需 MySQL 支持
-cargo install diesel_cli --no-default-features --features postgres,mysql
 ```
 
-只有生成新迁移、手动执行 `diesel migration list` 或刷新 `schema.rs` 时才需要 Diesel CLI；`cargo run --bin migrate` 和 release 包内的 `/app/migrate` 不需要它。
+当前仓库只启用 PostgreSQL 运行链路；MySQL 不是可直接切换的支持目标。只有生成新迁移、手动执行 `diesel migration list` 或刷新 `schema.rs` 时才需要 Diesel CLI；`cargo run --bin migrate` 和 release 包内的 `/app/migrate` 不需要它。
 
 ### 2. 配置数据库连接
 
@@ -144,22 +141,16 @@ cargo run --bin migrate
 cargo run --bin migrate -- production
 ```
 
-### 4. 验证Schema生成
+### 4. 手动刷新 schema
 
-迁移成功后，Diesel会自动更新 `src/infrastructure/database/schema.rs`：
+运行 `cargo run --bin migrate` 只会更新目标数据库，不会改写源码里的 `src/infrastructure/database/schema.rs`。如果本次迁移改变了表结构，迁移跑通后需要单独设置 `DATABASE_URL` 并刷新 schema：
 
-```rust
-diesel::table! {
-    users (id) {
-        id -> Uuid,
-        username -> Varchar,
-        email -> Varchar,
-        password_hash -> Varchar,
-        created_at -> Timestamp,
-        updated_at -> Timestamp,
-    }
-}
+```bash
+export DATABASE_URL="postgres://<user>:<password>@<host>:<port>/<database>"
+diesel print-schema > src/infrastructure/database/schema.rs
 ```
+
+Windows 原生环境使用 `$env:DATABASE_URL = "postgres://..."` 后执行同一条 `diesel print-schema` 命令。
 
 ## 迁移管理
 
@@ -300,14 +291,7 @@ cargo install diesel_cli --no-default-features --features postgres
 **问题**: 运行迁移后 `schema.rs` 没有更新
 
 **解决**:
-检查 `diesel.toml` 配置：
-```toml
-[print_schema]
-file = "src/infrastructure/database/schema.rs"
-
-[migrations_directory]
-dir = "migrations"
-```
+这是预期行为：内嵌迁移只负责更新数据库，不会自动改写源码。确认迁移已跑通后，设置 `DATABASE_URL`，再执行 `diesel print-schema > src/infrastructure/database/schema.rs`。`diesel.toml` 中的 `[print_schema] file = "src/infrastructure/database/schema.rs"` 只告诉 Diesel CLI 写入位置，不会让 `migrate` 二进制自动刷新 schema。
 
 ## 环境变量说明
 

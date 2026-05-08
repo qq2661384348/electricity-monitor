@@ -68,7 +68,7 @@ powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1
 ## 技术栈概览
 
 **Web框架**: Axum 0.8 + Tokio + Tower  
-**数据库**: Diesel 2.2 + diesel-async + PostgreSQL  
+**数据库**: Diesel 2.3 + diesel-async 0.7 + PostgreSQL
 **性能优化**: sonic-rs (SIMD加速JSON) + mimalloc (高性能内存分配器)  
 **认证**: JWT + bcrypt  
 **配置**: TOML分层配置  
@@ -180,7 +180,7 @@ cargo install diesel_cli --no-default-features --features postgres
 - PR / 手动质量门禁：`.github/workflows/ci.yml`
 - 工作流：`.github/workflows/docker-build.yml`
 - 镜像构建：`deploy/Dockerfile`
-- artifact deployment：local environment使用 `gh` 触发 Actions、下载 artifact、read private configuration from the deployment environment并通过 `ssh <server>` 上传到 `<release-root>`；中转脚本属于out-of-repository private file，不纳入仓库，`deploy/relay-deploy*.sh` 已被 `.gitignore` 忽略
+- artifact 部署契约：在 GitHub Actions 中触发 `.github/workflows/docker-build.yml`，下载 release artifact，上传到 `<server>` 的 `<release-root>/<git-tag>`，在服务器准备 `.env` 与 `secrets/` 后执行 release 包内 `deploy.sh` / `smoke.sh`
 - 运行时配置：工作流会先将 `config/production.toml.example` 复制为 `config/production.toml` 再构建镜像
 - 生产模板中的 `cors.allowed_origins`、`auth.refresh_cookie_secure`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`public_site.domain`、`public_site.port` 和 `admin.default_qq_number` 必须在发布前补成真实生产值；`qq_bot.bearer_token` 和 `email.smtp_password` 生产环境必须通过 secret file 注入
 - release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
@@ -188,7 +188,7 @@ cargo install diesel_cli --no-default-features --features postgres
 - 服务器只执行 `docker load` 和 `docker compose`，不会从外部 registry 拉取镜像；`deploy.sh` 会在 `docker compose up` 前检查 app、PostgreSQL 和 Redis 镜像是否已离线可用
 - release compose 服务包含 `postgres`、`redis`、一次性 `migrate` 和 `app`，默认绑定 `127.0.0.1:11450`
 - release 应用容器默认设置 `MIMALLOC_PURGE_DELAY=0` 与 `MIMALLOC_PURGE_DECOMMITS=1`，配合流式后台批处理降低长跑服务的 RSS 高水位
-- artifact deployment默认把数据放在 `<release-root>/data/postgres` 与 `<release-root>/data/redis`
+- PostgreSQL / Redis 持久数据目录通过 release `.env` 中的 `POSTGRES_DATA_DIR` 与 `REDIS_DATA_DIR` 配置；生产部署建议使用 release 目录之外的稳定 `<data-root>`
 - smoke 契约：`deploy/smoke.targets`，由 `tests/runtime/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用，包含端点、必需文件与统一响应安全头
 - release manifest：artifact 内的 `release/release-manifest.json`
 - 本地 Docker 调试：`deploy/build.sh`、`deploy/docker-compose.local.yml`
@@ -196,7 +196,7 @@ cargo install diesel_cli --no-default-features --features postgres
 - 前端行为测试：在 `frontend/` 目录执行 `bun run test`，由 `Vitest + Testing Library + MSW` 驱动并纳入 `.github/workflows/ci.yml`
 - `cargo audit -q` 已纳入 `.github/workflows/ci.yml` 阻断门禁
 1. 准备并推送发布 tag。
-2. 使用out-of-repository deployment automation或手动在 GitHub Actions 中触发发布工作流并指定 `git_tag`。
+2. 在 GitHub Actions 中触发发布工作流并指定 `git_tag`，下载 release artifact 后上传到目标服务器。
 3. 下载 `electricity-monitor-app-release-<git-tag>`；首次部署或基础镜像变更时，再下载并解压 `electricity-monitor-infra-images-<git-tag>` 到同一个 release 父目录。
 4. 如果手动部署，在服务器解压后准备 `.env` 与 `secrets/` 中的 Compose secrets 文件，并把数据库、JWT、QQ token 和 SMTP 授权码 secret file 权限收紧到仅 owner 可读写。
 5. 执行 release 包中的 `deploy.sh`，必要时再执行 `smoke.sh`；smoke 会继续校验运行时端点、必需文件与统一响应安全头。
