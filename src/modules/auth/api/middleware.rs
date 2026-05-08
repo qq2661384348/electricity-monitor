@@ -1,5 +1,5 @@
 use axum::{
-    extract::Request,
+    extract::{Request, State},
     http::{header, StatusCode},
     middleware::Next,
     response::Response,
@@ -9,9 +9,14 @@ use crate::{
     config::AppConfig,
     middleware::auth::UserContext,
     modules::auth::{application::resolve_actor, domain::Actor},
+    state::AppState,
 };
 
-pub async fn auth_middleware(mut req: Request, next: Next) -> Result<Response, StatusCode> {
+pub async fn auth_middleware(
+    State(state): State<AppState>,
+    mut req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
     let auth_header = req
         .headers()
         .get(header::AUTHORIZATION)
@@ -23,7 +28,7 @@ pub async fn auth_middleware(mut req: Request, next: Next) -> Result<Response, S
     }
 
     let token = &auth_header[7..];
-    let actor = resolve_actor(token, AppConfig::global())?;
+    let actor = resolve_actor(token, AppConfig::global(), &state).await?;
 
     if let Some(claims) = actor.claims().cloned() {
         req.extensions_mut().insert(claims);

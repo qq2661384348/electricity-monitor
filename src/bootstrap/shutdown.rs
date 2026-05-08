@@ -4,9 +4,12 @@ use axum::Router;
 
 pub async fn serve(listener_addr: SocketAddr, app: Router) -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(listener_addr).await?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(wait_for_shutdown_signal())
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(wait_for_shutdown_signal())
+    .await?;
     Ok(())
 }
 

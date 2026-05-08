@@ -16,12 +16,12 @@ use crate::state::AppState;
 ///
 /// # 权限要求
 /// 所有端点需要管理员权限
-pub fn routes() -> Router<AppState> {
+pub fn routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/fetch", post(handlers::trigger_fetch))
         .route("/refresh-cache", post(handlers::refresh_cache))
         .route("/status", get(handlers::get_status))
         // 注意：route_layer从下往上执行
         .route_layer(middleware::from_fn(require_admin))
-        .route_layer(middleware::from_fn(auth_middleware))
+        .route_layer(middleware::from_fn_with_state(state, auth_middleware))
 }

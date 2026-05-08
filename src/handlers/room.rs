@@ -18,6 +18,10 @@ use crate::modules::room::{application::RoomAccessUseCase, domain::RoomActor};
 use crate::state::AppState;
 use crate::utils::hash::calculate_roompath_hash;
 
+const MIN_PAGE_LIMIT: i64 = 1;
+const MAX_PAGE_LIMIT: i64 = 100;
+const MAX_PAGE_OFFSET: i64 = 10_000;
+
 /// 创建房间请求
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateRoomRequest {
@@ -63,6 +67,26 @@ pub struct PaginationQuery {
 
 fn default_limit() -> i64 {
     20
+}
+
+impl PaginationQuery {
+    fn validate(&self) -> Result<()> {
+        if !(MIN_PAGE_LIMIT..=MAX_PAGE_LIMIT).contains(&self.limit) {
+            return Err(AppError::BadRequest(format!(
+                "limit必须在{}到{}之间",
+                MIN_PAGE_LIMIT, MAX_PAGE_LIMIT
+            )));
+        }
+
+        if !(0..=MAX_PAGE_OFFSET).contains(&self.offset) {
+            return Err(AppError::BadRequest(format!(
+                "offset必须在0到{}之间",
+                MAX_PAGE_OFFSET
+            )));
+        }
+
+        Ok(())
+    }
 }
 
 /// 房间响应
@@ -240,6 +264,8 @@ pub async fn list_rooms(
     Extension(user_ctx): Extension<UserContext>,
     Query(pagination): Query<PaginationQuery>,
 ) -> Result<Json<Vec<RoomResponse>>> {
+    pagination.validate()?;
+
     let actor = RoomActor::from_user_context(&user_ctx)?;
     let use_case = RoomAccessUseCase::from_state(&state);
     let rooms = use_case

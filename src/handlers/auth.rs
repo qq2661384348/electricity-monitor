@@ -3,7 +3,7 @@
 //! 处理用户认证相关的HTTP请求
 
 use axum::{
-    extract::State,
+    extract::{ConnectInfo, State},
     http::{
         header::{self, HeaderMap, HeaderValue},
         StatusCode,
@@ -14,6 +14,7 @@ use axum::{
 use chrono::Utc;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 
 use crate::config::AppConfig;
 use crate::domain::models::{LOGIN_PROVIDER_EMAIL, LOGIN_PROVIDER_QQ};
@@ -334,10 +335,11 @@ fn build_user_info(user: crate::domain::models::User) -> UserInfo {
 /// POST /auth/send-verification-code
 pub async fn send_verification_code(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    peer: Option<Extension<ConnectInfo<SocketAddr>>>,
     Json(req): Json<SendVerificationCodeRequest>,
 ) -> Result<(StatusCode, Json<serde_json::Value>)> {
     let identity = req.identity()?;
+    let peer_addr = peer.map(|Extension(ConnectInfo(addr))| addr);
 
     tracing::info!(
         login_provider = identity.provider(),
@@ -346,7 +348,7 @@ pub async fn send_verification_code(
         "收到发送验证码请求"
     );
 
-    enforce_send_code_pre_captcha_limits(&state, &headers).await?;
+    enforce_send_code_pre_captcha_limits(&state, peer_addr).await?;
 
     let captcha_token = req
         .captcha_token
@@ -434,7 +436,10 @@ pub async fn send_verification_code(
     ))
 }
 
-async fn enforce_send_code_pre_captcha_limits(state: &AppState, headers: &HeaderMap) -> Result<()> {
+async fn enforce_send_code_pre_captcha_limits(
+    state: &AppState,
+    peer_addr: Option<SocketAddr>,
+) -> Result<()> {
     let global_allowed = state
         .rate_limiter
         .check_custom_window(
@@ -451,7 +456,7 @@ async fn enforce_send_code_pre_captcha_limits(state: &AppState, headers: &Header
         ));
     }
 
-    if let Some(client_key) = client_rate_limit_key(headers) {
+    if let Some(client_key) = client_rate_limit_key(peer_addr) {
         let client_allowed = state
             .rate_limiter
             .check_custom_window(
@@ -496,14 +501,10 @@ async fn enforce_send_code_destination_limit(
     Ok(())
 }
 
-fn client_rate_limit_key(headers: &HeaderMap) -> Option<String> {
-    ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"]
-        .iter()
-        .filter_map(|name| headers.get(*name))
-        .filter_map(|value| value.to_str().ok())
-        .map(|value| value.split(',').next().unwrap_or(value).trim())
-        .find(|value| !value.is_empty())
-        .map(|value| value.to_string())
+fn client_rate_limit_key(peer_addr: Option<SocketAddr>) -> Option<String> {
+    // 当前没有受信代理配置；不能把 X-Forwarded-* 当作客户端身份。
+    // 使用连接层 peer IP，缺失时跳过客户端维度，保留全局和目标维度限流。
+    peer_addr.map(|addr| format!("peer-ip:{}", addr.ip()))
 }
 
 /// 验证并登录

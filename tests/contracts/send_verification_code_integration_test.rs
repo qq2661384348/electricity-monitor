@@ -1,10 +1,14 @@
 #[path = "../support/mod.rs"]
 mod support;
 
-use std::sync::{Arc, OnceLock};
+use std::{
+    net::SocketAddr,
+    sync::{Arc, OnceLock},
+};
 
 use axum::{
     body::{to_bytes, Body},
+    extract::ConnectInfo,
     extract::State,
     http::{header, Request, StatusCode},
     routing::post,
@@ -218,6 +222,35 @@ async fn redis_code_for_identity(
     conn.get(&key).await.expect("读取 Redis 验证码失败")
 }
 
+async fn send_email_code_with_peer_and_forwarded_for(
+    app: &Router,
+    state: &electricity_monitor_backend::state::AppState,
+    email: &str,
+    captcha_token: &str,
+    peer_addr: SocketAddr,
+    forwarded_for: &str,
+) -> axum::response::Response {
+    seed_captcha_token(state, captcha_token).await;
+
+    let mut request = Request::builder()
+        .method("POST")
+        .uri("/api/auth/send-verification-code")
+        .header(header::CONTENT_TYPE, "application/json")
+        .header("x-forwarded-for", forwarded_for)
+        .body(Body::from(
+            serde_json::json!({
+                "login_mode": "email",
+                "identifier": email,
+                "captcha_token": captcha_token,
+            })
+            .to_string(),
+        ))
+        .expect("构造邮箱发送验证码请求失败");
+    request.extensions_mut().insert(ConnectInfo(peer_addr));
+
+    app.clone().oneshot(request).await.expect("请求执行失败")
+}
+
 #[tokio::test]
 async fn send_verification_code_mocked_qq_api_covers_success_and_user_not_friend() {
     let _guard = test_mutex().lock().await;
@@ -397,5 +430,57 @@ async fn send_verification_code_rate_limits_same_destination_before_delivery() {
         sent_codes.len(),
         3,
         "目标限流命中后不应继续触达 SMTP 发送器"
+    );
+}
+
+#[tokio::test]
+async fn send_verification_code_client_limit_uses_peer_address_not_forwarded_headers() {
+    let _guard = test_mutex().lock().await;
+    ensure_mock_qq_server().await;
+    let email_sender = Arc::new(MockEmailSender::default());
+    let test_app =
+        create_test_app_with_email_sender(Some(email_sender.clone() as Arc<dyn EmailDelivery>))
+            .await;
+    clear_auth_send_code_rate_limits(&test_app.state).await;
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("系统时间异常")
+        .as_millis();
+    let peer_addr: SocketAddr = "203.0.113.10:52100".parse().expect("测试 peer 地址应合法");
+
+    for attempt in 0..10 {
+        let email = format!("peer-limit-{timestamp}-{attempt}@example.com");
+        let captcha_token = format!("captcha-token-peer-limit-{timestamp}-{attempt}");
+        let response = send_email_code_with_peer_and_forwarded_for(
+            &test_app.app,
+            &test_app.state,
+            &email,
+            &captcha_token,
+            peer_addr,
+            &format!("198.51.100.{attempt}"),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    let denied_email = format!("peer-limit-{timestamp}-denied@example.com");
+    let denied_token = format!("captcha-token-peer-limit-{timestamp}-denied");
+    let denied_response = send_email_code_with_peer_and_forwarded_for(
+        &test_app.app,
+        &test_app.state,
+        &denied_email,
+        &denied_token,
+        peer_addr,
+        "198.51.100.200",
+    )
+    .await;
+
+    assert_eq!(denied_response.status(), StatusCode::TOO_MANY_REQUESTS);
+    let sent_codes = email_sender.verification_codes.lock().await;
+    assert_eq!(
+        sent_codes.len(),
+        10,
+        "客户端限流命中后不应继续触达 SMTP 发送器"
     );
 }

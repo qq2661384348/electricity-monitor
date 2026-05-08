@@ -17,6 +17,7 @@ use electricity_monitor_backend::{
         models::Room,
         services::{RoomData, RoomPathTree},
     },
+    infrastructure::repositories::UserRepository,
     state::AppState,
     utils::hash::calculate_roompath_hash,
 };
@@ -313,6 +314,63 @@ async fn refresh_token_cookie_cannot_access_protected_routes_as_bearer() {
 
     let response = get_with_bearer(&test_app.app, "/api/auth/me", &refresh_token).await;
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn disabled_user_old_access_token_is_rejected() {
+    let test_app = create_test_app().await;
+    let login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "654321",
+    )
+    .await;
+    let user_repo = UserRepository::new(test_app.state.db_pool.clone());
+    let user_id = uuid::Uuid::parse_str(&login.user.id).expect("登录响应用户 ID 应为 UUID");
+    user_repo
+        .update_active_status(user_id, false)
+        .await
+        .expect("测试应能停用用户");
+
+    let response = get_with_bearer(&test_app.app, "/api/auth/me", &login.access_token).await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn downgraded_user_old_admin_access_token_loses_admin_authorization() {
+    let test_app = create_test_app().await;
+    let login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "654321",
+    )
+    .await;
+    let user_repo = UserRepository::new(test_app.state.db_pool.clone());
+    let user_id = uuid::Uuid::parse_str(&login.user.id).expect("登录响应用户 ID 应为 UUID");
+    user_repo
+        .update_role(user_id, "admin")
+        .await
+        .expect("测试应能临时提升用户角色");
+
+    let refresh_response =
+        post_with_cookie(&test_app.app, "/api/auth/refresh", &login.refresh_cookie).await;
+    assert_eq!(refresh_response.status(), StatusCode::OK);
+    let refreshed: Value = read_json(refresh_response).await;
+    assert_eq!(refreshed["user"]["role"], "admin");
+    let old_admin_access_token = refreshed["access_token"]
+        .as_str()
+        .expect("refresh 响应应包含 access token")
+        .to_string();
+
+    user_repo
+        .update_role(user_id, "user")
+        .await
+        .expect("测试应能降权用户");
+
+    let response = get_with_bearer(&test_app.app, "/api/status", &old_admin_access_token).await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -628,6 +686,32 @@ async fn user_needs_binding_before_reading_room_path_details() {
     )
     .await;
     delete_room(&test_app.state, room.id).await;
+}
+
+#[tokio::test]
+async fn room_list_rejects_invalid_pagination_parameters() {
+    let test_app = create_test_app().await;
+    let login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "654321",
+    )
+    .await;
+
+    for uri in [
+        "/api/rooms?limit=-1",
+        "/api/rooms?limit=101",
+        "/api/rooms?offset=-1",
+        "/api/rooms?offset=10001",
+    ] {
+        let response = get_with_bearer(&test_app.app, uri, &login.access_token).await;
+        assert_eq!(
+            response.status(),
+            StatusCode::BAD_REQUEST,
+            "invalid pagination should be rejected for {uri}"
+        );
+    }
 }
 
 #[tokio::test]
