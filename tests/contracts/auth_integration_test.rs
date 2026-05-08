@@ -14,9 +14,10 @@ use tower::ServiceExt;
 
 use electricity_monitor_backend::{
     domain::{
-        models::Room,
-        services::{RoomData, RoomPathTree},
+        models::{NewRoomPath, Room},
+        services::RoomPathTree,
     },
+    infrastructure::repositories::RoomRepository,
     state::AppState,
     utils::hash::calculate_roompath_hash,
 };
@@ -34,12 +35,10 @@ use support::{
 
 async fn rebuild_path_tree_for_room(state: &AppState, room: &Room) {
     state
-        .update_path_tree(RoomPathTree::build_from_rooms(&[RoomData {
-            roomid: room.roomid,
-            roompaths: vec![room.primary_roompath.clone()],
-            primary_roompath: room.primary_roompath.clone(),
-            path_count: 1,
-        }]))
+        .update_path_tree(RoomPathTree::build_from_path_entries(vec![(
+            room.roomid,
+            room.primary_roompath.clone(),
+        )]))
         .await;
 }
 
@@ -620,6 +619,116 @@ async fn user_needs_binding_before_reading_room_path_details() {
     let room_detail: Value = read_json(bound_by_path).await;
     assert_eq!(room_detail["roomid"].as_i64(), Some(room.roomid as i64));
     assert_eq!(room_detail["electricity_fee"].as_f64(), Some(25.0));
+
+    let _ = delete_with_bearer(
+        &test_app.app,
+        &format!("/api/bindings/{binding_id}"),
+        &login.access_token,
+    )
+    .await;
+    delete_room(&test_app.state, room.id).await;
+}
+
+#[tokio::test]
+async fn additional_room_paths_resolve_through_path_tree_and_path_lookup() {
+    let test_app = create_test_app().await;
+    let room = seed_room(&test_app.state).await;
+    let repository = RoomRepository::new(test_app.state.db_pool.clone());
+    let additional_path = format!("测试/额外路径/{}/别名房间", room.roomid);
+
+    repository
+        .add_additional_paths(vec![NewRoomPath::new(
+            room.roomid,
+            additional_path.clone(),
+            calculate_roompath_hash(&additional_path),
+            "别名房间".to_string(),
+        )])
+        .await
+        .expect("预置额外房间路径失败");
+    repository
+        .update_has_additional_paths(room.roomid, true)
+        .await
+        .expect("更新额外路径标记失败");
+
+    let path_entries = repository
+        .find_all_active_path_entries()
+        .await
+        .expect("查询路径树条目失败");
+    test_app
+        .state
+        .update_path_tree(RoomPathTree::build_from_path_entries(path_entries))
+        .await;
+
+    let login = login_with_seeded_code(
+        &test_app.app,
+        &test_app.state,
+        &unique_qq_number(),
+        "444444",
+    )
+    .await;
+
+    let create_response = post_json_with_bearer(
+        &test_app.app,
+        "/api/bindings",
+        &login.access_token,
+        serde_json::json!({
+            "roomid": room.roomid,
+            "notification_enabled": false,
+        }),
+    )
+    .await;
+    assert_eq!(create_response.status(), StatusCode::CREATED);
+    let created_binding: Value = read_json(create_response).await;
+    let binding_id = created_binding["id"]
+        .as_str()
+        .expect("绑定 ID 应为字符串")
+        .to_string();
+
+    let (parent_path, leaf_name) = additional_path
+        .rsplit_once('/')
+        .expect("额外路径应包含父级与房间名");
+    let path_tree_response = get_with_bearer(
+        &test_app.app,
+        &format!(
+            "/api/rooms/path-tree?parent={}",
+            urlencoding::encode(parent_path)
+        ),
+        &login.access_token,
+    )
+    .await;
+    assert_eq!(path_tree_response.status(), StatusCode::OK);
+    let path_tree: Value = read_json(path_tree_response).await;
+    let leaf = path_tree["children"]
+        .as_array()
+        .and_then(|children| {
+            children
+                .iter()
+                .find(|child| child["name"] == Value::String(leaf_name.to_string()))
+        })
+        .expect("路径树应包含 room_paths 表中的额外路径叶子节点");
+    assert_eq!(leaf["roomid"].as_i64(), Some(room.roomid as i64));
+
+    let encoded_path = urlencoding::encode(&additional_path);
+    let by_path = get_with_bearer(
+        &test_app.app,
+        &format!("/api/rooms/by-path?path={encoded_path}"),
+        &login.access_token,
+    )
+    .await;
+    assert_eq!(by_path.status(), StatusCode::OK);
+    let room_detail: Value = read_json(by_path).await;
+    assert_eq!(room_detail["roomid"].as_i64(), Some(room.roomid as i64));
+
+    let hash = calculate_roompath_hash(&additional_path);
+    let by_hash = get_with_bearer(
+        &test_app.app,
+        &format!("/api/rooms/by-hash?hash={hash}&path={encoded_path}"),
+        &login.access_token,
+    )
+    .await;
+    assert_eq!(by_hash.status(), StatusCode::OK);
+    let room_detail: Value = read_json(by_hash).await;
+    assert_eq!(room_detail["roomid"].as_i64(), Some(room.roomid as i64));
 
     let _ = delete_with_bearer(
         &test_app.app,

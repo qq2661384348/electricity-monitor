@@ -462,21 +462,45 @@ impl RoomRepository {
             .map_err(AppError::Database)
     }
 
-    /// 查询路径树初始化所需的最小活跃房间字段。
+    /// 查询路径树初始化所需的最小活跃路径字段。
     ///
-    /// 路径树启动构建只需要 roomid 和 primary_roompath。不要在这里加载完整
-    /// `Room`，否则冷启动会把电费、阈值、时间戳、来源等无关字段和字符串
-    /// 一并搬进 Rust 堆，放大容器启动 RSS 高水位。
+    /// 路径树只需要 roomid 和 roompath。这里一次性读取活跃房间主路径，再批量读取
+    /// 这些 roomid 对应的额外路径，避免为 1:N 路径逐房间查询，也避免加载完整
+    /// `Room` 放大冷启动和手动同步后的堆占用。
     pub async fn find_all_active_path_entries(&self) -> Result<Vec<(i32, String)>> {
         let mut conn = self.get_conn().await?;
 
-        rooms::table
+        let mut path_entries = rooms::table
             .filter(rooms::is_active.eq(true))
             .select((rooms::roomid, rooms::primary_roompath))
             .order_by(rooms::created_at.desc())
             .load::<(i32, String)>(&mut conn)
             .await
-            .map_err(AppError::Database)
+            .map_err(AppError::Database)?;
+
+        if path_entries.is_empty() {
+            return Ok(path_entries);
+        }
+
+        let active_roomids = path_entries
+            .iter()
+            .map(|(roomid, _)| *roomid)
+            .collect::<Vec<_>>();
+
+        const BATCH_SIZE: usize = 1000;
+        for chunk in active_roomids.chunks(BATCH_SIZE) {
+            let additional_entries = room_paths::table
+                .filter(room_paths::roomid.eq_any(chunk))
+                .select((room_paths::roomid, room_paths::roompath))
+                .order_by((room_paths::roomid.asc(), room_paths::roompath.asc()))
+                .load::<(i32, String)>(&mut conn)
+                .await
+                .map_err(AppError::Database)?;
+
+            path_entries.extend(additional_entries);
+        }
+
+        Ok(path_entries)
     }
 
     /// 根据roompath查找房间
@@ -975,7 +999,7 @@ impl RoomRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::models::{NewRoom, NewRoomSyncLog};
+    use crate::domain::models::{NewRoom, NewRoomPath, NewRoomSyncLog};
     use crate::infrastructure::database::create_pool;
     use chrono::Utc;
 
@@ -1065,6 +1089,66 @@ mod tests {
         assert_eq!(found.id, created.id);
         assert_eq!(found.roomid, roomid);
         assert_eq!(found.room_name, "查询测试房间");
+
+        let _ = repo.delete(created.id).await;
+    }
+
+    #[tokio::test]
+    async fn test_find_all_active_path_entries_includes_additional_paths() {
+        let Some(pool) = setup_test_pool().await else {
+            return;
+        };
+        let repo = RoomRepository::new(pool);
+        let roomid = unique_roomid();
+        let primary_roompath = format!("测试/主路径/{}", roomid);
+        let additional_roompath = format!("测试/额外路径/{}", roomid);
+
+        let created = repo
+            .create(NewRoom {
+                roomid,
+                electricity_fee: 12.5,
+                threshold: 80.0,
+                room_name: "路径树测试房间".to_string(),
+                primary_roompath: primary_roompath.clone(),
+                primary_roompath_hash: crate::utils::hash::calculate_roompath_hash(
+                    &primary_roompath,
+                ),
+                has_additional_paths: true,
+                is_active: true,
+                source_type: "test".to_string(),
+                external_id: None,
+                last_synced_at: None,
+                last_recovered_at: None,
+            })
+            .await
+            .expect("预置测试房间失败");
+
+        repo.add_additional_paths(vec![NewRoomPath::new(
+            roomid,
+            additional_roompath.clone(),
+            crate::utils::hash::calculate_roompath_hash(&additional_roompath),
+            format!("路径树测试房间-{roomid}"),
+        )])
+        .await
+        .expect("预置额外路径失败");
+
+        let entries = repo
+            .find_all_active_path_entries()
+            .await
+            .expect("查询路径树条目失败");
+
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry == &(roomid, primary_roompath.clone())),
+            "路径树条目应包含活跃房间主路径"
+        );
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry == &(roomid, additional_roompath.clone())),
+            "路径树条目应包含 room_paths 中的额外路径"
+        );
 
         let _ = repo.delete(created.id).await;
     }
