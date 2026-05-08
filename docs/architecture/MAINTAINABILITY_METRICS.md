@@ -4,9 +4,9 @@
 
 | 指标 | 当前值 | 证据 |
 | --- | --- | --- |
-| Rust test pass count | 111 passed | `cargo test` |
-| Auth integration smoke | 5 passed | `cargo test --test auth_integration_test` |
-| Frontend architecture lint | passing | `bun run lint`, `scripts/check-architecture.ps1` |
+| Rust tests | 以最新本地或 CI 执行结果为准 | `docs/guides/TESTING.md` |
+| Auth integration smoke | 以最新本地或 CI 执行结果为准 | `cargo test --test auth_integration_test` |
+| Frontend architecture lint | 以最新本地或 CI 执行结果为准 | `bun run lint`, `scripts/check-architecture.ps1` |
 | Remaining optimized mainlines | 0 | `docs/architecture/DUAL_IMPLEMENTATION_LEDGER.md` |
 | Frontend generated assets tracked by git | 0 | `.gitignore` + `static/.gitkeep` |
 

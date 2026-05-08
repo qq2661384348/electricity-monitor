@@ -6,7 +6,7 @@
 
 ### 目标
 
-- 不在personal development environment上构建生产镜像
+- 不在个人开发环境中构建生产镜像
 - 不在服务器上从源码重新编译
 - 服务器只负责 `docker load`、镜像离线可用性检查、`docker compose up`、健康检查与失败回滚
 
@@ -110,23 +110,19 @@ deploy/
 - `deploy/Dockerfile.dockerignore` 用于约束镜像构建上下文
 - CI 直接构建 `linux/amd64` 镜像，避免本地与线上重复构建
 
-## artifact deployment
+## Artifact 部署契约
 
-out-of-repository deployment automation不纳入仓库，不跟随 commit / push。仓库只维护 release artifact 与服务器侧 `deploy.sh` 的稳定契约；out-of-repository private script可以按需命名为 `deploy/relay-deploy.local.sh`，该路径已被 `.gitignore` 忽略。
+公开文档只描述可复用的 release artifact 部署契约。环境专用上传自动化、SSH host alias、固定服务器目录和从开发配置派生生产 secret 的流程不属于仓库公开真源，应保存在仓库外或 git ignored runbook 中。
 
-local environment中转流程为：
+通用部署流程为：
 
-1. 使用 `gh workflow run` 触发 `.github/workflows/docker-build.yml`。
-2. 等待 Actions 完成并用 `gh run download` 下载 `electricity-monitor-app-release-<git-tag>`；首次部署或基础镜像变更时，再下载 `electricity-monitor-infra-images-<git-tag>`。
-3. read private configuration from the deployment environment，生成远端 `.env` 和 secret files；私密值不会写回仓库。
-4. 通过 `ssh/scp` 上传到 `<release-root>`。
-5. 在远端解压到 `<release-root>/releases/<git-tag>/release`。
-6. 把数据目录固定到 `<release-root>/data/postgres` 与 `<release-root>/data/redis`。
-7. 执行 release 包内 `deploy.sh` 和 `smoke.sh`，成功后更新 `<release-root>/current` 软链。
-
-默认 SSH 目标是 `ali`，默认绑定端口是 `127.0.0.1:11450`。脚本不配置反向代理，也不会要求服务器直接访问 Docker 外部镜像站点。
-
-中转脚本要求 tag 已经存在于本地和 `origin`；发布前需要先完成 commit、tag 和 push。若只想上传并生成远端配置，不立即改容器状态，可以让out-of-repository private script只执行到解压、写入 `.env` 和安装 secret files 为止，不调用远端 `deploy.sh`。
+1. 触发 `.github/workflows/docker-build.yml`，并指定 `git_tag`。
+2. 下载 `electricity-monitor-app-release-<git-tag>`；首次部署或基础镜像变更时，再下载 `electricity-monitor-infra-images-<git-tag>`。
+3. 将 artifact 上传到 `<server>` 的 `<release-root>/<git-tag>`。
+4. 在服务器解压 app release 包；如需 infra images，将 infra 包解压到同一个 release 父目录以合并 `release/images/`。
+5. 在服务器从 `.env.example` 准备 `.env`，并在 `secrets/` 下创建数据库、JWT、QQ token 和 SMTP 授权码 secret files。生产 secret 应来自部署控制面或运维密钥源，不从开发环境配置派生。
+6. 执行 release 包内 `deploy.sh` 和 `smoke.sh`。
+7. 如部署环境需要固定当前版本指针，由外部发布流程维护 `<current-release-symlink>`。
 
 ## 手动服务器部署
 
@@ -139,15 +135,15 @@ local environment中转流程为：
 ### 2. 解压发布包
 
 ```bash
-mkdir -p <release-root>/releases/<git-tag>
-tar -xzf release-<git-tag>.tar.gz -C <release-root>/releases/<git-tag>
-cd <release-root>/releases/<git-tag>/release
+mkdir -p <release-root>/<git-tag>
+tar -xzf release-<git-tag>.tar.gz -C <release-root>/<git-tag>
+cd <release-root>/<git-tag>/release
 ```
 
 如果需要加载 infra 包，先在同一个 release 父目录解压：
 
 ```bash
-tar -xzf infra-images-<git-tag>.tar.gz -C <release-root>/releases/<git-tag>
+tar -xzf infra-images-<git-tag>.tar.gz -C <release-root>/<git-tag>
 ```
 
 该命令会把 PostgreSQL / Redis 镜像归档合并到 `release/images/`。日常 app-only 发布可以跳过这一步，前提是服务器已经存在 `.env` 中声明的 `POSTGRES_IMAGE_REF` 和 `REDIS_IMAGE_REF`。
@@ -175,8 +171,8 @@ vim .env
 对应的宿主机 secret 文件必须在部署前收紧到仅 owner 可读写，例如 `chmod 600 ./secrets/*`。SMTP 授权码使用 `APP_EMAIL_SMTP_PASSWORD_SECRET_FILE` 指向的宿主机文件提供，容器内固定挂载为 `/run/secrets/app_email_smtp_password`。`deploy.sh` 会把 secret owner 切到 `APP_RUNTIME_UID/GID`，因为应用镜像以非 root 用户运行，不能读取 root-only 的 Compose file secret。
 如果使用稳定 release 目录之外的数据路径，设置：
 
-- `POSTGRES_DATA_DIR=<release-root>/data/postgres`
-- `REDIS_DATA_DIR=<release-root>/data/redis`
+- `POSTGRES_DATA_DIR=<data-root>/postgres`
+- `REDIS_DATA_DIR=<data-root>/redis`
 
 可按需覆盖：
 
@@ -263,7 +259,7 @@ chmod +x smoke.sh
 
 - PostgreSQL：`.env` 中的 `POSTGRES_DATA_DIR`
 - Redis：`.env` 中的 `REDIS_DATA_DIR`
-- artifact deployment默认使用 `<release-root>/data/postgres` 和 `<release-root>/data/redis`
+- 生产部署建议把数据目录放在 release 目录之外的稳定 `<data-root>` 下，例如 `<data-root>/postgres` 与 `<data-root>/redis`
 - `deploy.sh` 会按 `.env` 中的 `POSTGRES_DATA_UID/GID` 与 `REDIS_DATA_UID/GID` 修正 bind mount 目录属主，避免 root 创建的数据目录导致 PostgreSQL 或 Redis 容器无法初始化。
 
 ### 健康检查

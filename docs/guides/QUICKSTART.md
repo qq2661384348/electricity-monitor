@@ -62,7 +62,7 @@ bash scripts/backend-checks.sh
 
 ## Windows 原生快速启动
 
-Windows 原生开发需要 PostgreSQL、Redis 和 Rust 工具链。PostgreSQL 如果不在标准安装路径，请通过用户环境变量设置 `POSTGRES_HOME` 或 `PQ_LIB_DIR`，不要把local environment私有路径写回 `.cargo/config.toml`。只有生成新迁移或手动刷新 schema 时才需要 Diesel CLI。
+Windows 原生开发需要 PostgreSQL、Redis 和 Rust 工具链。PostgreSQL 如果不在标准安装路径，请通过用户环境变量设置 `POSTGRES_HOME` 或 `PQ_LIB_DIR`，不要把个人机器上的绝对路径写回 `.cargo/config.toml`。只有生成新迁移或手动刷新 schema 时才需要 Diesel CLI。
 
 ```powershell
 Copy-Item config/development.toml.example config/development.toml
@@ -132,7 +132,7 @@ pub async fn get_user(
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/health", get(handlers::health_check))
-        .route("/users/:id", get(handlers::get_user))  // 新增
+        .route("/users/{id}", get(handlers::get_user))  // 新增
 }
 ```
 

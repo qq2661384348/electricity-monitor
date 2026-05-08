@@ -2,8 +2,8 @@
 type: procedural
 status: verified
 scope: 部署与 release 流程
-updated_at: 2026-05-07
-verified_at: 2026-05-07
+updated_at: 2026-05-08
+verified_at: 2026-05-08
 sources:
   - .gitignore
   - .github/workflows/docker-build.yml
@@ -13,7 +13,7 @@ sources:
   - deploy/README.release.md
   - deploy/release.env.example
   - deploy/smoke.targets
-summary: 生产发布主线、拆分 release 产物、local environment中转边界、服务器职责和共享部署契约
+summary: 生产发布主线、拆分 release 产物、公开 artifact 部署契约、服务器职责和共享部署契约
 ---
 
 # Electricity Monitor 部署与 release 契约
@@ -41,14 +41,14 @@ summary: 生产发布主线、拆分 release 产物、local environment中转边
 
 - `deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`、`deploy/smoke.sh`、`deploy/smoke.targets`、`deploy/README.release.md` 负责 release 包模板。
 - `deploy/build.sh` 与 `deploy/docker-compose.local.yml` 只用于本地 Docker 调试，不是生产发布主线。
-- out-of-repository deployment automation属于out-of-repository private file，不纳入仓库和公开发布；仓库 `.gitignore` 忽略 `deploy/relay-deploy*.sh`。
-- artifact deployment默认使用 `ssh <server>` 上传到 `<release-root>`，release 版本目录为 `<release-root>/releases/<tag>`，持久数据目录为 `<release-root>/data/postgres` 与 `<release-root>/data/redis`。
+- 公开文档只描述 GitHub Actions artifact 到 `<server>`、`<release-root>`、`deploy.sh` / `smoke.sh` 的通用部署契约；环境专用上传自动化应保存在仓库外或 git ignored runbook 中，不记录主机别名、固定服务器路径或从开发配置派生生产 secret 的流程。
+- release 解压根目录、当前版本指针和持久数据目录统一以 `<release-root>`、`<current-release-symlink>` 与 `<data-root>` 表达；实际值由部署环境通过 `.env` 和外部发布流程决定。
 - release artifact 拆分为 `electricity-monitor-app-release-<tag>` 与 `electricity-monitor-infra-images-<tag>`；日常发布只下载 app 包，首次部署或 PostgreSQL / Redis 镜像变更时再下载 infra 包。
 - 服务器只执行 `docker load`，不从外部 registry 拉取镜像；`deploy.sh` 会在 `docker compose up` 前显式检查 `APP_IMAGE_REF`、`POSTGRES_IMAGE_REF` 与 `REDIS_IMAGE_REF` 已离线可用，缺失时 fail-fast。
 - release compose 服务拓扑为 `postgres`、`redis`、一次性 `migrate` 和 `app`，默认端口绑定为 `127.0.0.1:11450 -> app:8000`，不包含反向代理配置。
 - release 默认应用日志级别为 `warn`；公网服务器如需临时排障可通过 `.env` 的 `APP__LOGGING__LEVEL` 提高日志详细度，排障结束后应恢复为 `warn`。
 - release 默认设置 `MIMALLOC_PURGE_DELAY=0` 与 `MIMALLOC_PURGE_DECOMMITS=1`；全量电费抓取等后台批处理释放对象后，应尽快把空闲物理页归还给宿主机，降低长跑容器 RSS 高水位。
-- release `deploy.sh` 会显式设置 PostgreSQL / Redis bind mount 数据目录属主；local environment中转或 root shell 创建的 root-only 数据目录不能直接交给容器使用。
+- release `deploy.sh` 会显式设置 PostgreSQL / Redis bind mount 数据目录属主；手动上传或 root shell 创建的 root-only 数据目录不能直接交给容器使用。
 - `migrate` 二进制使用编译期内嵌 migrations，目标环境运行迁移不需要安装 `diesel_cli`。
 - release 部署脚本会对 `APP_DATABASE_PASSWORD_SECRET_FILE`、`APP_JWT_SECRET_SECRET_FILE`、`APP_QQ_BOT_BEARER_TOKEN_SECRET_FILE`、`APP_EMAIL_SMTP_PASSWORD_SECRET_FILE` 做 owner-only 权限校验；group / other 有权限位时直接失败。
 - release 部署脚本随后会把 secret owner 切到 `APP_RUNTIME_UID/GID`，因为应用镜像以非 root 用户运行，Docker Compose file secret 在本地 compose 模式下会保留宿主机文件权限。

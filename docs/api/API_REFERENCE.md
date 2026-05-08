@@ -397,45 +397,9 @@ curl -H "Authorization: Bearer <access-token>" \
 
 ## 房间管理
 
-### 创建房间 ⚠️ 破坏性变更
+### 创建房间
 
-**端点**: `POST /api/rooms`  
-**认证**: 无需认证（建议添加）  
-**描述**: 创建新房间记录
-
-**⚠️ 重要变更**: 从v1.1开始，`primary_roompath`字段为**必填**
-
-#### 请求体
-
-```json
-{
-  "roomid": 123,
-  "room_name": "桂林/雁山/05栋/0501",
-  "primary_roompath": "桂林/雁山/05栋/0501",
-  "threshold": 100.0,
-  "electricity_fee": 0.0
-}
-```
-
-#### 响应示例
-
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "roomid": 123,
-  "room_name": "桂林/雁山/05栋/0501",
-  "primary_roompath": "桂林/雁山/05栋/0501",
-  "primary_roompath_hash": 1234567890,
-  "has_additional_paths": false,
-  "is_active": true,
-  "source_type": "manual",
-  "threshold": 100.0,
-  "electricity_fee": 0.0,
-  "send_flag": false,
-  "created_at": "2025-11-12T10:30:00",
-  "updated_at": "2025-11-12T10:30:00"
-}
-```
+当前公开路由不提供 `POST /api/rooms`。房间记录由后台同步服务或仓储内部流程维护；调用方不要按旧文档构造公开创建请求。
 
 ---
 
@@ -553,12 +517,19 @@ curl -H "Authorization: Bearer <access-token>" \
 ### 手动触发同步
 
 **端点**: `POST /api/rooms/sync`  
-**认证**: 无需认证（建议添加）  
+**认证**: 需要管理员 access token Bearer 认证
 **描述**: 手动触发房间数据同步任务
 
 #### 请求体
 
 无需请求体
+
+#### 请求示例
+
+```bash
+curl -X POST -H "Authorization: Bearer <admin-access-token>" \
+  http://localhost:8000/api/rooms/sync
+```
 
 #### 响应示例 (202 Accepted)
 
@@ -575,7 +546,7 @@ curl -H "Authorization: Bearer <access-token>" \
 ### 查询同步状态
 
 **端点**: `GET /api/rooms/sync/status/{job_id}`  
-**认证**: 无需认证  
+**认证**: 需要管理员 access token Bearer 认证
 **描述**: 查询同步任务执行状态
 
 #### 路径参数
@@ -583,6 +554,13 @@ curl -H "Authorization: Bearer <access-token>" \
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | job_id | UUID | 同步任务ID |
+
+#### 请求示例
+
+```bash
+curl -H "Authorization: Bearer <admin-access-token>" \
+  http://localhost:8000/api/rooms/sync/status/7c9e6679-7425-40de-944b-e07fc1f90ae7
+```
 
 #### 响应示例
 
@@ -618,8 +596,15 @@ curl -H "Authorization: Bearer <access-token>" \
 ### 查询同步历史
 
 **端点**: `GET /api/rooms/sync/history`  
-**认证**: 无需认证  
+**认证**: 需要管理员 access token Bearer 认证
 **描述**: 查询最近的同步历史记录（默认10条）
+
+#### 请求示例
+
+```bash
+curl -H "Authorization: Bearer <admin-access-token>" \
+  http://localhost:8000/api/rooms/sync/history
+```
 
 #### 响应示例
 
@@ -648,7 +633,7 @@ curl -H "Authorization: Bearer <access-token>" \
 ### 查询房间所有路径
 
 **端点**: `GET /api/rooms/{roomid}/paths`  
-**认证**: 无需认证  
+**认证**: 需要管理员 access token Bearer 认证
 **描述**: 查询房间的主路径和所有额外路径
 
 #### 路径参数
@@ -656,6 +641,13 @@ curl -H "Authorization: Bearer <access-token>" \
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | roomid | integer | 房间业务ID |
+
+#### 请求示例
+
+```bash
+curl -H "Authorization: Bearer <admin-access-token>" \
+  http://localhost:8000/api/rooms/123/paths
+```
 
 #### 响应示例
 

@@ -1,7 +1,7 @@
 # 技术债务清单
 
-> **文档更新日期**: 2026-04-03  
-> **真源说明**: 本文档顶部的“当前维护性债务”部分是当前真源；后续历史统计章节仅作为阶段性快照参考，不再代表当前仓库事实。
+> **文档更新日期**: 2026-05-08
+> **真源说明**: 本文档顶部的“当前维护性债务”部分是当前真源；后续历史统计章节仅作为阶段性快照参考，不再代表当前仓库事实，也不能作为当前 API、权限、测试或部署契约的依据。
 
 ---
 
@@ -19,7 +19,7 @@
 - `src/infrastructure/repositories/room_repository.rs` 仍然是超大仓储，职责未按变化原因拆开。
 - `src/handlers/room.rs`、`src/handlers/binding.rs` 仍存在 handler 直接实例化 repository 的旧路径。
 - `CacheManager` 已接入主链路，但其覆盖面仍有限，尚未完全吸收后台更新失效与更多读路径。
-- git 历史里仍有待单独处理的疑似敏感信息：旧的未按环境命名的运行时配置路径下，`qq_bot.bearer_token` 曾在 `9` 个历史提交中出现非占位符形态值。
+- 历史敏感信息问题按安全流程处置；公开债务清单不记录 secret 类型、出现次数或历史定位线索。
 - 发布链已补 manifest / deploy-result，但真实 Linux Docker 主机上的回滚演练仍未完成。
 
 ### 已完成但不再作为债务的事项
@@ -197,7 +197,7 @@ impl ElectricityFetcherService {
 **生产配置**:
 - ✅ **电费数据源API**: 已配置生产API URL（`https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid=`）
 - ✅ **响应解析**: ElectricityParser已实现完整的JSON响应解析
-- ✅ **无需认证**: API为公开接口，无需API Key或Token
+- ✅ **认证边界**: 此处为历史快照描述；当前外部数据源与内部接口权限以运行时配置和 API 参考文档为准
 
 ### 2. 通知服务 (NotificationService)
 **状态**: ✅ 框架完成 | ⚠️ 通知模块未实现（优先级降低）
@@ -302,7 +302,7 @@ impl RoomSyncService {
 - ✅ **API URL**: `https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid=`
 - ✅ **响应格式**: JSON `{"BS":"1","Msg":"成功","total":0,"component":[{"Name":"状态","Value":"正常"},{"Name":"剩余","Value":"67.66"}],"url":null}`
 - ✅ **解析器**: ElectricityParser支持正常值、负值、房间不存在等情况，自动提取"剩余"字段的Value
-- ✅ **认证方式**: 无需认证（公开API）
+- ✅ **认证边界**: 此处为历史快照描述；当前外部数据源与内部接口权限以运行时配置和 API 参考文档为准
 
 **当前配置**:
 ```toml

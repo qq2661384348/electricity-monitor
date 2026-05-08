@@ -2,8 +2,8 @@
 type: procedural
 status: verified
 scope: 测试与质量门禁
-updated_at: 2026-05-06
-verified_at: 2026-05-06
+updated_at: 2026-05-08
+verified_at: 2026-05-08
 sources:
   - docs/guides/TESTING.md
   - .github/workflows/ci.yml
@@ -33,7 +33,7 @@ summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执�
 
 ## 前端与依赖审计入口
 
-- 在 `frontend/` 目录执行 `bun run test`、`bun run lint`、`bun run build:prod`、`bun run check:bundle`。
+- 在 `frontend/` 目录执行 `bun run test`、`bun run lint`、`bun run build:prod`、`bun run check:bundle`；`check:bundle` 依赖 `build:prod` 生成的 `frontend/dist/`。
 - 在 `frontend/` 目录执行 `bun audit` 做前端依赖审计。
 - 在仓库根目录执行 `cargo audit -q` 做 Rust 依赖审计。
 - 在仓库根目录执行 `cargo clippy --all-targets -- -D warnings` 做后端代码质量阻断检查。
@@ -61,7 +61,7 @@ summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执�
 
 - `backend-tests`：准备本地 PostgreSQL / Redis、复制开发模板、执行迁移、后端关键回归与 `cargo clippy --all-targets -- -D warnings`。
 - `backend-external-tests`：仅在手动 workflow 且显式开启时执行真实外部测试。
-- `frontend-quality`：在 `frontend/` 中执行 `bun install --frozen-lockfile`、`bun run lint`、`bun audit`、`bun run build:prod`、`bun run check:bundle`。
+- `frontend-quality`：在 `frontend/` 中执行 `bun install --frozen-lockfile`、`bun run lint`、`bun audit`、`bun run build:prod`、`bun run check:bundle`，其中 bundle 检查分析上一步生成的 `frontend/dist/`。
 - `frontend-tests`：在 `frontend/` 中执行 `bun install --frozen-lockfile`、`bun run test`。
 - `dependency-audit`：执行 `cargo audit -q`，上传审计 artifact 并写入 workflow summary；当前为阻断项。
 - `architecture-guard`：执行 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。

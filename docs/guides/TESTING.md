@@ -8,7 +8,7 @@
 - 认证契约测试：`cargo test --test auth_integration_test`
 - runtime / readiness 契约测试：`cargo test --test release_readiness_test`
 - 前端行为测试：在 `frontend/` 目录执行 `bun run test`
-- 前端质量检查：在 `frontend/` 目录执行 `bun run lint`、`bun run build:prod`、`bun run check:bundle`
+- 前端质量检查：在 `frontend/` 目录执行 `bun run lint`、`bun run build:prod`、`bun run check:bundle`；`check:bundle` 依赖 `build:prod` 生成的 `frontend/dist/`
 - 架构守护：`powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`
 - Linux 后端统一自检：`bash scripts/backend-checks.sh`
 - Windows 后端统一自检：`powershell -ExecutionPolicy Bypass -File scripts/backend-checks.ps1`
@@ -66,6 +66,7 @@ cargo test --lib
 cd frontend
 bun run test
 bun run lint
+bun run build:prod
 bun run check:bundle
 bun audit
 cd ..
@@ -78,6 +79,7 @@ cargo test --lib
 cd frontend
 bun run test
 bun run lint
+bun run build:prod
 bun run check:bundle
 bun audit
 cd ..
@@ -232,7 +234,7 @@ cargo test --lib
   - 运行 `bun run lint`
   - 运行 `bun audit`
   - 运行 `bun run build:prod`
-  - 运行 `bun run check:bundle`
+  - 运行 `bun run check:bundle`，分析上一步生成的 `frontend/dist/`
 - `frontend-tests`
   - 执行 `bun install --frozen-lockfile`
   - 运行 `bun run test`
