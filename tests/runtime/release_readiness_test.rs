@@ -132,6 +132,8 @@ fn release_packaging_splits_app_and_infra_artifacts() {
         .expect("应能读取 release workflow");
     let deploy_script =
         fs::read_to_string(repo_root.join("deploy/deploy.sh")).expect("应能读取 deploy.sh");
+    let release_env = fs::read_to_string(repo_root.join("deploy/release.env.example"))
+        .expect("应能读取 release env 示例");
 
     assert!(
         workflow.contains("electricity-monitor-app-release-${{ inputs.git_tag }}"),
@@ -146,8 +148,20 @@ fn release_packaging_splits_app_and_infra_artifacts() {
         "workflow 必须生成可解压合并到 release/images 的 infra 包"
     );
     assert!(
+        workflow.contains("\"app_archive_file\": \"${app_archive}.gz\"")
+            && workflow.contains("\"app_archive_sha256\": \"${app_archive_sha256}\"")
+            && workflow.contains("\"app_image_digest\": \"${app_image_digest}\""),
+        "release manifest 必须记录 app 镜像归档文件名、归档 SHA256 和镜像摘要"
+    );
+    assert!(
         deploy_script.contains("assert_required_images_available"),
         "deploy.sh 必须在 docker compose up 前检查所有运行镜像已离线可用"
+    );
+    assert!(
+        deploy_script.contains("verify_release_archives")
+            && deploy_script.contains("sha256sum")
+            && deploy_script.contains("assert_required_image_digests"),
+        "deploy.sh 必须校验 release manifest 中的归档 SHA256 和加载后的镜像摘要"
     );
     assert!(
         deploy_script.contains("部署脚本不会从外部 registry 拉取镜像"),
@@ -159,11 +173,50 @@ fn release_packaging_splits_app_and_infra_artifacts() {
     );
     assert!(
         deploy_script.contains("up -d --no-recreate postgres redis"),
-        "依赖容器必须原地启动，不能在日常 app 发布中重建 PostgreSQL / Redis"
+        "依赖容器默认必须原地启动，不能在日常 app 发布中重建 PostgreSQL / Redis"
+    );
+    assert!(
+        deploy_script.contains("DEPLOY_RECREATE_BASE_SERVICES")
+            && deploy_script.contains("up -d --force-recreate postgres redis")
+            && release_env.contains("DEPLOY_RECREATE_BASE_SERVICES=false"),
+        "基础服务镜像升级必须通过显式门禁重建 PostgreSQL / Redis，避免误以为 no-recreate 已切换镜像"
     );
     assert!(
         !deploy_script.contains("docker rename"),
         "Compose 管理的容器不能通过 docker rename 备份，否则 Compose 会继续按 service label 识别旧容器"
+    );
+}
+
+#[test]
+fn local_docker_compose_uses_loopback_dependencies_without_self_connecting() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let local_compose = fs::read_to_string(repo_root.join("deploy/docker-compose.local.yml"))
+        .expect("应能读取本地 Docker Compose");
+    let build_script =
+        fs::read_to_string(repo_root.join("deploy/build.sh")).expect("应能读取本地 Docker 脚本");
+
+    assert!(
+        local_compose.contains("postgres:16-alpine")
+            && local_compose.contains("127.0.0.1:15432:5432")
+            && local_compose.contains("APP__DATABASE__HOST=127.0.0.1")
+            && local_compose.contains("APP__DATABASE__PORT=15432"),
+        "本地 Docker 调试必须提供本地 PostgreSQL，并让 app 连接到宿主机回环端口而不是容器自身 127.0.0.1:5432"
+    );
+    assert!(
+        local_compose.contains("127.0.0.1:16379:6379")
+            && local_compose.contains("APP__REDIS__HOST=127.0.0.1")
+            && local_compose.contains("APP__REDIS__PORT=16379"),
+        "本地 Docker 调试必须让 Redis 同样走宿主机回环端口，保持 development 本地依赖约束"
+    );
+    assert!(
+        local_compose.contains("network_mode: host")
+            && local_compose.contains("APP__SERVER__PORT=11450")
+            && local_compose.contains("http://127.0.0.1:11450/api/health"),
+        "app 容器必须显式使用 host network 和 11450 健康检查，避免端口映射与 development 回环语义漂移"
+    );
+    assert!(
+        build_script.contains("http://127.0.0.1:11450"),
+        "本地 Docker 脚本输出的访问地址必须与 compose 中的 app 端口保持一致"
     );
 }
 
