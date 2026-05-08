@@ -44,6 +44,7 @@ summary: Electricity Monitor 项目记忆系统总入口
 
 ## 最近重要变化
 
+- 2026-05-08：review findings 修复后，受保护接口会按数据库当前用户状态和角色重校验 access token；验证码发送客户端来源限流只使用连接层 peer IP，不信任转发头；release 部署会校验归档 SHA256、镜像摘要，并通过 `DEPLOY_RECREATE_BASE_SERVICES` 显式门禁基础服务重建。
 - 2026-05-07：release artifact 拆分为 app release 与 infra images；日常发布只传 app 包，首次部署或 PostgreSQL / Redis 镜像变更时再传 infra 包。服务器通过 Compose 管理 `postgres`、`redis`、一次性 `migrate` 和 `app`；公开文档只保留通用 artifact 部署契约，环境专用上传自动化不写入仓库真源。
 - 2026-05-06：登录与通知链路扩展为 QQ / 邮箱双模式；账号数据按 `login_provider` 隔离，邮箱登录本轮固定普通用户，邮箱通知复用 SMTP 邮件模块。
 - 2026-04-17：`memory/` 从自定义主题编号结构切换到 `project-memory` 默认主干。

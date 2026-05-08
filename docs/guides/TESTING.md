@@ -21,9 +21,9 @@
 ### 后端
 
 - `src/**`：单元测试与少量带环境门槛的基础设施测试
-- `tests/contracts/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me`、`/api/auth/refresh`、`/api/bindings` CRUD、未登录绑定拒绝、越权访问与管理员个人绑定契约，同时覆盖 refresh cookie 轮换、refresh token 误用为 Bearer、access token 误用为 refresh、logout 清理 cookie、发送登录验证码必须携带一次性 captcha token、QQ 与邮箱账号绑定隔离、邮箱登录固定普通用户角色、普通用户无需绑定码即可绑定房间、未绑定用户不能读取房间路径详情
+- `tests/contracts/auth_integration_test.rs`：真实 `/api/auth/verify-and-login` 登录链、`/api/auth/me`、`/api/auth/refresh`、`/api/bindings` CRUD、未登录绑定拒绝、越权访问与管理员个人绑定契约，同时覆盖 refresh cookie 轮换、refresh token 误用为 Bearer、access token 误用为 refresh、logout 清理 cookie、发送登录验证码必须携带一次性 captcha token、QQ 与邮箱账号绑定隔离、邮箱登录固定普通用户角色、停用用户旧 access token 被拒绝、降权用户旧 admin access token 失去管理员授权、普通用户无需绑定码即可绑定房间、未绑定用户不能读取房间路径详情、额外 room path 可通过路径树和 by-path/by-hash 解析、房间列表分页参数边界
 - `tests/runtime/release_readiness_test.rs`：读取 `deploy/smoke.targets`，校验 health / db health / 静态入口、必需文件、统一响应安全头契约，并覆盖 `/api/public-config` 只暴露非敏感运行时配置
-- `tests/contracts/send_verification_code_integration_test.rs`：通过本地 mock NapCat HTTP API 覆盖 `/api/auth/send-verification-code` 的 QQ 成功发送与 `USER_NOT_FRIEND` 分支，通过 mock EmailDelivery 覆盖邮箱验证码发送；测试会直接种入一次性 captcha token，避免依赖第三方验证码服务
+- `tests/contracts/send_verification_code_integration_test.rs`：通过本地 mock NapCat HTTP API 覆盖 `/api/auth/send-verification-code` 的 QQ 成功发送与 `USER_NOT_FRIEND` 分支，通过 mock EmailDelivery 覆盖邮箱验证码发送；测试会直接种入一次性 captcha token，避免依赖第三方验证码服务，并覆盖伪造 `X-Forwarded-For` 不应绕过同一 peer IP 客户端限流
 - `tests/support/`：共享 app factory、登录 fixture、seed helper、smoke 契约读取
 - `tests/infra/`：环境型独立 test target 的预留分层；当前目录中记录了仍在源码内的 infra 覆盖位置
 

@@ -8,7 +8,7 @@
 
 - 不在个人开发环境中构建生产镜像
 - 不在服务器上从源码重新编译
-- 服务器只负责 `docker load`、镜像离线可用性检查、`docker compose up`、健康检查与失败回滚
+- 服务器只负责归档 SHA256 校验、`docker load`、镜像摘要校验、镜像离线可用性检查、`docker compose up`、健康检查与失败回滚
 
 ### 发布产物
 
@@ -79,7 +79,7 @@ deploy/
 4. 使用 `deploy/Dockerfile` 在 GitHub Actions Linux runner 中构建 `linux/amd64` Docker 镜像
 5. 导出应用、PostgreSQL 和 Redis 镜像，保证服务器无需从外部 registry 拉取运行镜像
 6. 复制 `deploy/smoke.targets` 作为 release smoke 契约文件
-7. 生成 `release-manifest.json`，写入 tag、git SHA、镜像 digest 与归档校验值
+7. 生成 `release-manifest.json`，写入 tag、git SHA、镜像 digest、归档文件名与归档 SHA256
 8. 组装 app release 包，只携带应用镜像和部署脚本
 9. 组装 infra images 包，只携带 PostgreSQL / Redis 镜像
 10. 上传为两个 GitHub Actions artifact：
@@ -197,15 +197,16 @@ chmod +x deploy.sh
 1. 校验 `docker` / `docker compose` / `gzip` / `curl`
 2. 校验 `.env` 中声明的 secret file 存在且权限已收紧到仅 owner 可读写
 3. 读取 `release-manifest.json` 并校验 `APP_IMAGE_REF`
-4. 加载 `images/` 下的镜像归档
-5. 检查 `APP_IMAGE_REF`、`POSTGRES_IMAGE_REF` 与 `REDIS_IMAGE_REF` 对应镜像是否已离线可用；缺失时直接失败，不触发外部 registry 拉取
-6. 为当前应用镜像打 `rollback-<timestamp>` 标签
-7. 使用 `compose.yaml` 启动 PostgreSQL 和 Redis
-8. 通过应用镜像中的内嵌 `migrate` 二进制执行数据库迁移
-9. 启动新版本应用容器
-10. 对 `GET /api/health` 做重试健康检查
-11. 将本次部署结果写入 `deploy-result.json`
-12. 若启动、迁移或健康检查失败，则自动回滚容器
+4. 校验 manifest 声明的归档 SHA256，拒绝未知归档、缺失归档或摘要不一致的 release 包
+5. 加载 `images/` 下的镜像归档，并校验加载后的 app / PostgreSQL / Redis 镜像摘要
+6. 检查 `APP_IMAGE_REF`、`POSTGRES_IMAGE_REF` 与 `REDIS_IMAGE_REF` 对应镜像是否已离线可用；缺失时直接失败，不触发外部 registry 拉取
+7. 为当前应用镜像打 `rollback-<timestamp>` 标签
+8. 使用 `compose.yaml` 启动 PostgreSQL 和 Redis；日常发布默认不重建基础服务，基础镜像摘要变化时必须显式设置 `DEPLOY_RECREATE_BASE_SERVICES=true`
+9. 通过应用镜像中的内嵌 `migrate` 二进制执行数据库迁移
+10. 启动新版本应用容器
+11. 对 `GET /api/health` 做重试健康检查
+12. 将本次部署结果写入 `deploy-result.json`
+13. 若启动、迁移或健康检查失败，则自动回滚容器
 
 ### 5. 执行 smoke 检查
 
@@ -285,13 +286,13 @@ chmod +x smoke.sh
 
 ## 发布身份记录
 
-- `release-manifest.json`：由 GitHub Actions 生成，记录 `git_tag`、`git_sha`、app 镜像 digest、app 归档 SHA256、PostgreSQL / Redis 镜像身份、infra artifact 名称、infra 归档 SHA256 和前端静态资源校验值。
+- `release-manifest.json`：由 GitHub Actions 生成，记录 `git_tag`、`git_sha`、app 镜像 digest、app 归档文件名与 SHA256、PostgreSQL / Redis 镜像身份、infra artifact 名称、infra 归档文件名与 SHA256 和前端静态资源校验值。服务器侧 `deploy.sh` 会据此校验归档完整性和加载后的镜像摘要。
 - `deploy-result.json`：由服务器侧 `deploy.sh` 生成，记录本次部署状态、使用的 manifest 身份信息和健康检查目标。
 
 ## 本地调试说明
 
 仓库中的 `deploy/build.sh` 和 `deploy/docker-compose.local.yml` 仍可用于本地 Docker 调试，但它们不再是推荐的生产发布主线。
 
-`deploy/build.sh` 在检测到缺少 `config/development.toml` 时，会自动从 `config/development.toml.example` 复制一份本地运行时配置；后续仍需把其中的数据库密码改成当前本地 PostgreSQL 的真实密码或非空开发值，并填写 `qq_bot.api_url`、`qq_bot.public_qq_number`、`qq_bot.bearer_token`、`public_site.domain` 与 `public_site.port`。
+`deploy/build.sh` 在检测到缺少 `config/development.toml` 时，会自动从 `config/development.toml.example` 复制一份本地运行时配置；本地 Compose 会覆盖数据库、Redis 和必要公开运行时值。离开 Compose 直接运行后端时，仍需按模板补齐对应开发配置。
 
 生产发布主线以 GitHub Actions artifact 为准。

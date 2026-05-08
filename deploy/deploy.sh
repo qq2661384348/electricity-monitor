@@ -110,9 +110,9 @@ prepare_data_directories() {
 
     mkdir -p "${POSTGRES_DATA_DIR}" "${REDIS_DATA_DIR}"
 
-    # release 使用 bind mount 而不是 Docker named volume，以保证服务器数据
-    # 固定落在 <release-root> 下。显式设置容器用户 UID，
-    # 避免out-of-repository deployment automation用 owner-only umask 创建 root:root 目录后导致服务无法初始化。
+    # release 使用 bind mount 而不是 Docker named volume，以保证持久数据目录
+    # 由部署环境显式决定。显式设置容器用户 UID，避免外部发布流程创建
+    # root-only 目录后导致服务无法初始化。
     chown -R "${POSTGRES_DATA_UID}:${POSTGRES_DATA_GID}" "${POSTGRES_DATA_DIR}"
     chown -R "${REDIS_DATA_UID}:${REDIS_DATA_GID}" "${REDIS_DATA_DIR}"
     chmod 700 "${POSTGRES_DATA_DIR}" "${REDIS_DATA_DIR}"

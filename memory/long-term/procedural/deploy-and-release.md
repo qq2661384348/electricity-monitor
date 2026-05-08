@@ -35,7 +35,7 @@ summary: 生产发布主线、拆分 release 产物、公开 artifact 部署契�
 3. CI 在构建镜像前把 `config/production.toml.example` 复制为工作区内的 `config/production.toml`，并保持 `config/` 下只存在这一个运行时 TOML。
 4. app release 包固定包含应用镜像、`compose.yaml`、`deploy.sh`、`smoke.sh`、`smoke.targets`、`.env.example`、`README.md` 和 `release-manifest.json`。
 5. infra images 包固定包含 PostgreSQL 与 Redis 镜像归档；首次部署、服务器缺少基础镜像或基础镜像版本变更时，将 infra 包解压到同一个 release 父目录以合并 `release/images/`。
-6. 服务器加载包内镜像、校验 `release-manifest.json`、确认 app / PostgreSQL / Redis 镜像均已离线可用、挂载 secret files、执行 `docker compose` 原地启动 PostgreSQL / Redis、运行一次性 `migrate`、启动应用、做健康检查、写出 `deploy-result.json`，并在失败时用旧应用镜像标签回滚 `electricity-app`。
+6. 服务器校验 manifest 声明的归档 SHA256，加载镜像并比对 app / PostgreSQL / Redis 镜像摘要，确认镜像均已离线可用，挂载 secret files，执行 `docker compose` 原地启动 PostgreSQL / Redis、运行一次性 `migrate`、启动应用、做健康检查、写出 `deploy-result.json`，并在失败时用旧应用镜像标签回滚 `electricity-app`。
 
 ## 共享部署契约
 
@@ -45,6 +45,8 @@ summary: 生产发布主线、拆分 release 产物、公开 artifact 部署契�
 - release 解压根目录、当前版本指针和持久数据目录统一以 `<release-root>`、`<current-release-symlink>` 与 `<data-root>` 表达；实际值由部署环境通过 `.env` 和外部发布流程决定。
 - release artifact 拆分为 `electricity-monitor-app-release-<tag>` 与 `electricity-monitor-infra-images-<tag>`；日常发布只下载 app 包，首次部署或 PostgreSQL / Redis 镜像变更时再下载 infra 包。
 - 服务器只执行 `docker load`，不从外部 registry 拉取镜像；`deploy.sh` 会在 `docker compose up` 前显式检查 `APP_IMAGE_REF`、`POSTGRES_IMAGE_REF` 与 `REDIS_IMAGE_REF` 已离线可用，缺失时 fail-fast。
+- `deploy.sh` 会校验 release manifest 中声明的 app / infra 归档 SHA256，并在 `docker load` 后比对 app / PostgreSQL / Redis 镜像摘要；未知归档、缺失归档或摘要不一致都必须 fail-fast。
+- 日常发布默认不重建 PostgreSQL / Redis；基础服务当前容器镜像 ID 与 release 目标镜像 ID 不一致时必须 fail-fast。只有确认数据库备份和停机窗口后，才允许通过 `DEPLOY_RECREATE_BASE_SERVICES=true` 显式重建基础服务容器。
 - release compose 服务拓扑为 `postgres`、`redis`、一次性 `migrate` 和 `app`，默认端口绑定为 `127.0.0.1:11450 -> app:8000`，不包含反向代理配置。
 - release 默认应用日志级别为 `warn`；公网服务器如需临时排障可通过 `.env` 的 `APP__LOGGING__LEVEL` 提高日志详细度，排障结束后应恢复为 `warn`。
 - release 默认设置 `MIMALLOC_PURGE_DELAY=0` 与 `MIMALLOC_PURGE_DECOMMITS=1`；全量电费抓取等后台批处理释放对象后，应尽快把空闲物理页归还给宿主机，降低长跑容器 RSS 高水位。

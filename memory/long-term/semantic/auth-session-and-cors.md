@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 鉴权会话、CORS 与管理员提升规则
-updated_at: 2026-05-07
-verified_at: 2026-05-07
+updated_at: 2026-05-08
+verified_at: 2026-05-08
 sources:
   - src/handlers/auth.rs
   - src/handlers/binding.rs
@@ -14,6 +14,7 @@ sources:
   - src/domain/models/user.rs
   - src/infrastructure/repositories/user_repository.rs
   - src/modules/auth/api/middleware.rs
+  - src/modules/auth/application/actor_resolver.rs
   - src/modules/room/application/mod.rs
   - src/handlers/path_tree.rs
   - src/config/cors.rs
@@ -29,11 +30,12 @@ summary: JWT 类型边界、cookie 会话契约、验证码发送配额、CORS �
 - `src/middleware/auth.rs` 仅保留兼容 facade / `UserContext` 投影，不应重新变成主逻辑入口。
 - 登录身份显式区分 `login_provider=qq|email`；`users.qq_number` 和 `users.email` 按渠道互斥，`user_room_bindings.user_id` 继续作为账号数据隔离边界。
 - `/api/auth/send-verification-code` 必须先消费 `/api/captcha/verify` 签发的一次性 `captcha_token`，缺失、过期或重复使用时不得调用 QQ 机器人或 SMTP 邮件发送器发送验证码。
-- `/api/auth/send-verification-code` 使用 Redis 固定窗口配额限制公开发送入口：发送前先检查全局配额和可识别客户端来源配额，消费 captcha 后再检查 `provider:identifier` 目标配额；触发配额时返回 429，不继续调用 QQ 或 SMTP。
-- 客户端来源配额按 `CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For` 提取，生产反向代理必须清洗外部伪造头，否则该层只能作为应用侧补充防线。
+- `/api/auth/send-verification-code` 使用 Redis 固定窗口配额限制公开发送入口：发送前先检查全局配额和连接层 peer IP 配额，消费 captcha 后再检查 `provider:identifier` 目标配额；触发配额时返回 429，不继续调用 QQ 或 SMTP。
+- 当前应用层没有受信代理配置，客户端来源配额不再信任 `CF-Connecting-IP`、`X-Real-IP`、`X-Forwarded-For` 等可伪造转发头；如需真实公网客户端粒度，应在边缘层完成限流，或先引入明确的 trusted proxy 配置。
 - `/api/captcha/verify` 签发的 `captcha_token` 有效期由 `captcha.token_expire_seconds` 控制；登录验证码长度和 Redis 有效期分别由 `verification.code_length` 与 `verification.expire_seconds` 控制，Redis key 必须带 `qq` / `email` 渠道前缀避免跨模式混淆。
 - `/api/auth/verify-and-login` 只接受与 `verification.code_length` 完全一致的数字验证码，不应在前端或后端继续硬编码 6 位长度。
 - JWT claims 显式区分 `token_kind=access|refresh`；受保护接口只接受 access token，`/api/auth/refresh` 只接受 refresh token。
+- 受保护接口解析 access token 后会通过 `ActorResolver` 重新读取当前用户记录；`is_active=false` 的旧 token 返回 401，角色授权以数据库当前 `role` 为准，降权后的旧 admin access token 不再拥有管理员权限。
 - JWT `sub` 使用 `provider:identifier` 形式，避免 QQ 号与邮箱地址在不同登录渠道下同值混淆。
 - `src/handlers/auth.rs` 负责签发 access token、轮换 refresh cookie 与 logout 清理 cookie 的 HTTP 契约；不要在其他 handler 重新实现这套逻辑。
 - `/api/bindings` 以当前登录账号为个人绑定主体；创建绑定必须通过 access token Bearer 认证，但普通用户和管理员账号都不再需要额外绑定码。

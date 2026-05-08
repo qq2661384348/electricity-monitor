@@ -28,7 +28,7 @@
 **设计原则**:
 1. ✅ **仓库配置可迁移**: 不把 `C:\...`、`/home/...` 等机器私有路径写入版本控制
 2. ✅ **Linux 使用系统包**: 通过 `libpq-dev`、`libssl-dev`、`pkg-config` 提供编译依赖
-3. ✅ **Windows 使用local environment环境变量**: 非标准安装路径通过用户环境变量指定
+3. ✅ **Windows 使用用户环境变量**: 非标准安装路径通过用户环境变量指定
 4. ✅ **Docker 独立静态构建**: 镜像构建走 `static-build` feature，不依赖开发机路径
 
 ---

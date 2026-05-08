@@ -53,7 +53,7 @@ ensure_runtime_config() {
     [ -f "${template}" ] || error "缺少开发模板配置: ${template}"
     cp "${template}" "${runtime_config}"
     warn "检测到缺少 config/development.toml，已从 config/development.toml.example 复制本地运行时配置。"
-    warn "本地 Docker Compose 会覆盖数据库、Redis 和必要公开运行时值；若离开 Compose 直接 cargo run，仍需按模板填写真实local environment配置。"
+    warn "本地 Docker Compose 会覆盖数据库、Redis 和必要公开运行时值；若离开 Compose 直接 cargo run，仍需按模板填写真实开发配置。"
 }
 
 # 检查 Docker

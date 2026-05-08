@@ -59,7 +59,7 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
     restart: unless-stopped
-    # development 环境只允许local environment数据库 / Redis 地址。app 使用 host network，
+    # development 环境只允许本地数据库 / Redis 地址。app 使用 host network，
     # 再访问本 compose 暴露到 127.0.0.1 的 PostgreSQL / Redis 端口，避免
     # 容器内的 127.0.0.1 被误解成 app 容器自身。
     network_mode: host
@@ -68,7 +68,7 @@ services:
       - APP_ENV=development
       - APP__SERVER__HOST=0.0.0.0
       - APP__SERVER__PORT=11450
-      # PostgreSQL / Redis 通过 host network 访问本 compose 映射出的local environment端口
+      # PostgreSQL / Redis 通过 host network 访问本 compose 映射出的本地端口
       - APP__DATABASE__HOST=127.0.0.1
       - APP__DATABASE__PORT=15432
       - APP__DATABASE__USERNAME=postgres
@@ -76,7 +76,7 @@ services:
       - APP__DATABASE__DATABASE=electricity_dev
       - APP__REDIS__HOST=127.0.0.1
       - APP__REDIS__PORT=16379
-      # 这些默认值只用于让本地容器完成启动；真实发送能力仍取决于local environment NapCat。
+      # 这些默认值只用于让本地容器完成启动；真实发送能力仍取决于开发环境中的 NapCat。
       - APP__QQ_BOT__API_URL=http://127.0.0.1:3000/send_private_msg
       - APP__QQ_BOT__PUBLIC_QQ_NUMBER=100000001
       - APP__QQ_BOT__BEARER_TOKEN=local-dev-qq-bot-token

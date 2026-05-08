@@ -46,7 +46,7 @@
 - PR / 手动质量门禁以 `.github/workflows/ci.yml` 为准。
 - release artifact 内的 `release-manifest.json` 是发布包身份真源，`deploy-result.json` 是服务器侧部署结果记录。
 - release `.env` 是生产非敏感运行时值、mimalloc 内存释放参数和 secret file 路径真源，包括 CORS、QQ 机器人发送地址、公开站点域名/端口、管理员 QQ、数据库/JWT/QQ/SMTP secret file 路径；生产配置模板不写入真实 secret 原文。
-- release artifact 拆分为 app release 和 infra images；日常发布只需要 app 包，首次部署或 PostgreSQL / Redis 镜像变更时再解压 infra 包。服务器不从外部 registry 拉取镜像，默认通过 Docker Compose 管理 `postgres`、`redis`、一次性 `migrate` 和 `app`。
+- release artifact 拆分为 app release 和 infra images；日常发布只需要 app 包，首次部署或 PostgreSQL / Redis 镜像变更时再解压 infra 包。服务器不从外部 registry 拉取镜像，会校验归档 SHA256 与镜像摘要，默认通过 Docker Compose 管理 `postgres`、`redis`、一次性 `migrate` 和 `app`。
 - 公开文档只记录通用 release artifact 部署契约；环境专用上传自动化、SSH host alias 和固定服务器路径不作为项目真源。
 - `deploy/smoke.targets` 是 readiness test 与 release smoke 共用的检查目标真源，包含端点、必需文件与统一响应安全头。
 - `deploy/build.sh` 与 `deploy/docker-compose.local.yml` 仅用于本地 Docker 调试。

@@ -6,6 +6,7 @@ updated_at: 2026-05-08
 verified_at: 2026-05-08
 sources:
   - src/modules/auth/api/middleware.rs
+  - src/modules/auth/application/actor_resolver.rs
   - src/handlers/auth.rs
   - src/handlers/binding.rs
   - src/domain/services/rate_limiter.rs
@@ -20,6 +21,7 @@ sources:
   - src/modules/room/application/mod.rs
   - src/infrastructure/repositories/room_repository.rs
   - src/domain/services/room_path_tree.rs
+  - src/modules/room_sync/application/mod.rs
 summary: 后端鉴权、验证码限流、房间授权、缓存、通知域、后台批处理、启动内存优化和模块化迁移接缝
 ---
 
@@ -33,9 +35,10 @@ summary: 后端鉴权、验证码限流、房间授权、缓存、通知域、�
 - `src/handlers/auth.rs` 当前承接双登录模式的 HTTP 兼容入口：`login_mode=qq|email` + `identifier` 为新契约，`qq_number` 和 `email` 只作为兼容字段。
 - `UserRepository` 负责按 `login_provider` 隔离 QQ 与邮箱账号，避免 handler 直接绕过 provider 维度查询用户。
 - JWT claims 现在显式区分 `token_kind=access|refresh`；受保护接口只接受 access token，`/api/auth/refresh` 只接受 refresh token。
+- 认证中间件解析 access token 后必须重新读取当前用户记录，停用状态和角色授权以数据库当前值为准；不要重新退回只信任 JWT 旧 claims 的授权模型。
 - refresh token 只通过 `Set-Cookie` / `Cookie` 往返，JSON 响应不再包含 refresh token 字段。
 - `src/handlers/auth.rs` 负责签发 access token、轮换 refresh cookie 与 logout 清理 cookie 的 HTTP 契约；不要在其他 handler 重新实现这套逻辑。
-- `src/domain/services/rate_limiter.rs` 是认证公开入口的 Redis 固定窗口配额接缝；`send-verification-code` 在这里复用全局、客户端来源和目标维度限流，不应在 handler 内自行拼接 Redis 限流 key。
+- `src/domain/services/rate_limiter.rs` 是认证公开入口的 Redis 固定窗口配额接缝；`send-verification-code` 在这里复用全局、连接层 peer IP 和目标维度限流，不应在 handler 内自行拼接 Redis 限流 key，也不能信任未配置受信代理的转发头。
 
 ## 缓存接缝
 
@@ -72,5 +75,9 @@ summary: 后端鉴权、验证码限流、房间授权、缓存、通知域、�
 ## 启动内存接缝
 
 - 启动阶段不应再对全量 active room 执行 `warm_cache`，也不应再维护 10 秒刷新一次的 `flagged_rooms_cache`。
-- 路径树初始化只允许查询 `roomid + primary_roompath` 这类最小字段，再由 `RoomPathTree::build_from_primary_paths` 构建索引；不要先把完整 `Room` 与 `RoomData` 全量搬进内存。
+- 路径树初始化只允许查询 `roomid + roompath` 这类最小路径条目，主路径和 `room_paths` 额外路径都必须进入 `RoomPathTree::build_from_path_entries`；不要先把完整 `Room` 与 `RoomData` 全量搬进内存。
 - `/api/rooms/flagged` 现在按请求查询数据库并做权限过滤，不再依赖后台常驻 flagged 房间缓存。
+
+## 房间同步接缝
+
+- 手动房间同步在单应用进程内通过运行中 job registry 复用正在执行的 `job_id`，避免重复点击或并发请求启动多个手动同步任务；多进程部署仍应视为仓库外调度边界。

@@ -33,7 +33,8 @@ chmod +x deploy.sh
 
 部署完成后，脚本会在当前 release 目录内写出 `deploy-result.json`，用于记录已部署的 tag、SHA 和镜像摘要。
 `deploy.sh` 会在真正启动容器前校验 secret file 是否存在且权限已收紧到仅 owner 可读写。
-`deploy.sh` 还会在 `docker compose up` 前检查应用、PostgreSQL 和 Redis 镜像是否已离线可用；缺少 infra 镜像时会直接失败，不会让服务器尝试从外部 registry 拉取镜像。
+`deploy.sh` 还会在 `docker compose up` 前校验 manifest 声明的归档 SHA256、加载后的镜像摘要，并检查应用、PostgreSQL 和 Redis 镜像是否已离线可用；缺少 infra 镜像时会直接失败，不会让服务器尝试从外部 registry 拉取镜像。
+日常发布默认不重建 PostgreSQL / Redis；如果基础服务镜像摘要发生变化，脚本会 fail-fast。只有确认数据库备份和停机窗口后，才应设置 `DEPLOY_RECREATE_BASE_SERVICES=true` 重建基础服务容器。
 `smoke.sh` 会读取 `smoke.targets`，因此 smoke 检查目标、必需文件和统一响应安全头都与本地 readiness test 保持同一份契约真源。
 
 ## 运行契约

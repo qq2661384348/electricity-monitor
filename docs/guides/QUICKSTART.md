@@ -15,7 +15,7 @@ sudo apt-get install -y build-essential libpq-dev libssl-dev pkg-config postgres
 
 ### 2. 准备本地 PostgreSQL 和 Redis
 
-确保 PostgreSQL 和 Redis 可以通过local environment地址访问：
+确保 PostgreSQL 和 Redis 可以通过本地地址访问：
 
 ```bash
 pg_isready -h 127.0.0.1 -p 5432 -U postgres

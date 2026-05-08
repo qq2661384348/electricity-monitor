@@ -185,8 +185,9 @@ cargo install diesel_cli --no-default-features --features postgres
 - 生产模板中的 `cors.allowed_origins`、`auth.refresh_cookie_secure`、`qq_bot.api_url`、`qq_bot.public_qq_number`、`public_site.domain`、`public_site.port` 和 `admin.default_qq_number` 必须在发布前补成真实生产值；`qq_bot.bearer_token` 和 `email.smtp_password` 生产环境必须通过 secret file 注入
 - release 模板：`deploy/compose.release.yml`、`deploy/release.env.example`、`deploy/deploy.sh`
 - GitHub Actions 会拆分产出 app release artifact 与 infra images artifact；日常发布只需要上传 app 包，首次部署或 PostgreSQL / Redis 镜像版本变更时再把 infra 包解压到同一 release 目录
-- 服务器只执行 `docker load` 和 `docker compose`，不会从外部 registry 拉取镜像；`deploy.sh` 会在 `docker compose up` 前检查 app、PostgreSQL 和 Redis 镜像是否已离线可用
+- 服务器只执行 `docker load` 和 `docker compose`，不会从外部 registry 拉取镜像；`deploy.sh` 会在启动前校验 release manifest 中声明的归档 SHA256、加载后的镜像摘要，并检查 app、PostgreSQL 和 Redis 镜像是否已离线可用
 - release compose 服务包含 `postgres`、`redis`、一次性 `migrate` 和 `app`，默认绑定 `127.0.0.1:11450`
+- 日常发布默认不重建 PostgreSQL / Redis；基础服务镜像摘要变化时脚本会 fail-fast，只有显式设置 `DEPLOY_RECREATE_BASE_SERVICES=true` 才会重建基础服务容器
 - release 应用容器默认设置 `MIMALLOC_PURGE_DELAY=0` 与 `MIMALLOC_PURGE_DECOMMITS=1`，配合流式后台批处理降低长跑服务的 RSS 高水位
 - PostgreSQL / Redis 持久数据目录通过 release `.env` 中的 `POSTGRES_DATA_DIR` 与 `REDIS_DATA_DIR` 配置；生产部署建议使用 release 目录之外的稳定 `<data-root>`
 - smoke 契约：`deploy/smoke.targets`，由 `tests/runtime/release_readiness_test.rs` 与 `deploy/smoke.sh` 共用，包含端点、必需文件与统一响应安全头

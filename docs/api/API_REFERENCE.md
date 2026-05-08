@@ -144,6 +144,8 @@ curl http://localhost:8000/api/public-config
 - access token：通过 JSON 响应返回，由前端只保存在内存中，并以 `Authorization: Bearer <token>` 调用受保护接口
 - refresh token：只通过 HTTPOnly Cookie `refresh_token` 下发，不出现在 JSON 响应里
 
+受保护接口会在 access token 通过签名和类型校验后重新读取当前用户记录；已停用用户的旧 access token 会返回 `401 Unauthorized`，用户角色以数据库当前值为准，已降权用户持有的旧管理员 access token 不再通过管理员接口。
+
 ### 发送验证码
 
 **端点**: `POST /api/auth/send-verification-code`  
@@ -174,7 +176,7 @@ QQ 登录：
 }
 ```
 
-> `identifier` 是统一登录标识。QQ 登录会兼容旧字段 `qq_number`，邮箱登录会兼容字段 `email`。`captcha_token` 为必填项，且只能使用一次。缺失、过期或重复使用都会被拒绝，服务端不会继续调用 QQ 机器人或 SMTP 邮件发送器。服务端还会在发送前后执行 Redis 固定窗口限流，覆盖全局发送量、客户端标识和目标登录标识；超限时返回 429，且不会继续触达 QQ 机器人或 SMTP。
+> `identifier` 是统一登录标识。QQ 登录会兼容旧字段 `qq_number`，邮箱登录会兼容字段 `email`。`captcha_token` 为必填项，且只能使用一次。缺失、过期或重复使用都会被拒绝，服务端不会继续调用 QQ 机器人或 SMTP 邮件发送器。服务端还会在发送前后执行 Redis 固定窗口限流，覆盖全局发送量、连接层 peer IP 和目标登录标识；当前应用层不会信任 `X-Forwarded-*` 这类可伪造转发头。超限时返回 429，且不会继续触达 QQ 机器人或 SMTP。
 
 #### 响应示例
 
@@ -403,6 +405,23 @@ curl -H "Authorization: Bearer <access-token>" \
 
 ---
 
+### 查询房间列表
+
+**端点**: `GET /api/rooms?limit={limit}&offset={offset}`
+**认证**: 需要 access token Bearer 认证
+**描述**: 分页查询房间列表。管理员可查询所有房间；普通用户只能查询已绑定房间。
+
+#### 查询参数
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| limit | number | 可选，默认 `20`，必须在 `1..=100` |
+| offset | number | 可选，默认 `0`，必须在 `0..=10000` |
+
+无效分页参数会返回 `400 Bad Request`，不会继续把负数或过大窗口传入仓储查询。
+
+---
+
 ### 根据roomid查询房间 ⚠️ 破坏性变更
 
 **端点**: `GET /api/rooms/by-roomid/{roomid}`
@@ -518,7 +537,7 @@ curl -H "Authorization: Bearer <access-token>" \
 
 **端点**: `POST /api/rooms/sync`  
 **认证**: 需要管理员 access token Bearer 认证
-**描述**: 手动触发房间数据同步任务
+**描述**: 手动触发房间数据同步任务。同一应用进程内已有手动同步任务运行时，会返回正在运行任务的 `job_id`，不会重复启动第二个手动同步任务。
 
 #### 请求体
 
