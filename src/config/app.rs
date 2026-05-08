@@ -237,7 +237,7 @@ impl AppConfig {
                 || config.database.password == DEVELOPMENT_DATABASE_PASSWORD_PLACEHOLDER
             {
                 return Err(ConfigError::Message(format!(
-                    "development 环境要求在 {} 中显式设置 database.password。请先从 {} 复制生成运行时配置，再把数据库密码改成当前local environment PostgreSQL 的真实密码。",
+                    "development 环境要求在 {} 中显式设置 database.password。请先从 {} 复制生成运行时配置，再把数据库密码改成当前本地 PostgreSQL 的真实密码。",
                     Self::runtime_config_path(DEFAULT_ENVIRONMENT).display(),
                     Self::suggested_template_path(DEFAULT_ENVIRONMENT).display()
                 )));
@@ -1132,7 +1132,7 @@ mod tests {
         let err = AppConfig::load_for_environment_with_source("development", Some(env))
             .expect_err("development 环境的占位密码应直接失败");
 
-        assert!(err.to_string().contains("当前local environment PostgreSQL 的真实密码"));
+        assert!(err.to_string().contains("当前本地 PostgreSQL 的真实密码"));
     }
 
     #[test]

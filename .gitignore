@@ -31,7 +31,7 @@ Thumbs.db
 config/development.toml
 config/production.toml
 
-# local environment私有部署中转脚本，不纳入仓库与公开发布
+# 本地私有部署中转脚本，不纳入仓库与公开发布
 deploy/relay-deploy*.sh
 
 # 日志文件

@@ -6,7 +6,7 @@
 
 ## 2. 已确认信息
 
-- 参考项目邮件模块提供 SMTP 发送、重试、邮箱校验和验证码模板能力；OpenSpec 不记录local environment绝对路径。
+- 参考项目邮件模块提供 SMTP 发送、重试、邮箱校验和验证码模板能力；OpenSpec 不记录本地绝对路径。
 - 用户提供的非敏感配置默认值包括 `smtp.qq.com`、`465`、`cogniaegis@qq.com`、`smtp_use_tls=true`、`from_name=CogniAegis`、`timeout=30`、`max_retries=3`、`retry_delay=2`。
 - 用户提供的 SMTP password 是真实 secret，按当前项目规则不能写入 tracked 模板或工件。
 - 当前项目配置真源是 `src/config/app.rs`、`config/*.toml.example`、生产 release secret 链路和 `memory/long-term/semantic/config-and-environments.md`。

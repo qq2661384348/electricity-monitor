@@ -10,7 +10,7 @@
 
 - 运行时配置加载顺序固定为环境命名 TOML 后叠加 `APP__<SECTION>__<KEY>` 环境变量。
 - 生产敏感配置必须通过 `*_FILE` 链路注入，不在 `*.toml.example`、`.env.example` 或文档中保存真实 secret。
-- `config/development.toml` 是本地忽略文件，不能把用户local environment配置作为仓库真源改写。
+- `config/development.toml` 是本地忽略文件，不能把用户本地配置作为仓库真源改写。
 
 ## B-003 当前部署链路
 
@@ -20,7 +20,7 @@
 
 ## B-004 参考项目邮件模块
 
-参考模块来自用户提供的既有 Python 项目邮件实现；OpenSpec 只记录可复用能力，不记录local environment绝对路径，避免面向开源协作时泄露开发环境细节。
+参考模块来自用户提供的既有 Python 项目邮件实现；OpenSpec 只记录可复用能力，不记录本地绝对路径，避免面向开源协作时泄露开发环境细节。
 
 - `sender.py`：支持 SMTP SSL、SMTP + STARTTLS、发件人显示名、收件人邮箱校验、异步封装、重试、普通邮件、模板邮件、验证码邮件和批量发送。
 - `templates.py`：用模板缓存渲染 `register/login/reset/bind/unbind` 五类验证码邮件，模板内容以 `Subject:` 行拆分主题和正文。

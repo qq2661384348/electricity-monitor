@@ -17,7 +17,7 @@
 # 平台；如果这里写入 Windows 路径，Linux 构建会尝试读取 C:\... 并失败。
 #
 # Windows 原生开发如果 PostgreSQL 或 OpenSSL 不在标准路径，请在用户环境变量
-# 或当前 shell 中设置 POSTGRES_HOME、PQ_LIB_DIR、OPENSSL_DIR 等local environment私有值。
+# 或当前 shell 中设置 POSTGRES_HOME、PQ_LIB_DIR、OPENSSL_DIR 等本地私有值。
 #
 # Linux 开发应通过系统包提供 libpq/openssl，例如：
 #   apt-get install -y libpq-dev libssl-dev pkg-config postgresql-client redis-tools
