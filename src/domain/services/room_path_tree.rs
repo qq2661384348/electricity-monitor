@@ -165,23 +165,24 @@ impl RoomPathTree {
 
     /// 从最小活跃房间路径数据构建路径树。
     ///
-    /// 启动路径树只需要 `(roomid, primary_roompath)`。不要先把完整 `Room`
-    /// 或 `RoomData` 组装成临时大向量，否则启动期会白白放大堆分配和页保留。
-    pub fn build_from_primary_paths<I, P>(rooms: I) -> Self
+    /// 路径树只需要 `(roomid, roompath)` 条目。调用方可以同时传入主路径和
+    /// `room_paths` 里的额外路径，这样 1:N 路径才能进入 path-tree/by-path/by-hash
+    /// 索引；不要先把完整 `Room` 组装成临时大向量。
+    pub fn build_from_path_entries<I, P>(rooms: I) -> Self
     where
         I: IntoIterator<Item = (i32, P)>,
         P: AsRef<str>,
     {
         let mut mutable_root = MutablePathNode::new(String::new(), false);
         let mut hash_map = HashIndex::new();
-        let mut room_count = 0usize;
+        let mut path_entry_count = 0usize;
 
         tracing::info!("开始构建路径树");
 
         for room in rooms {
             let (roomid, path) = room;
             let path = path.as_ref();
-            room_count += 1;
+            path_entry_count += 1;
             let parts: Vec<&str> = path.split(PATH_SEPARATOR).collect();
 
             if parts.is_empty() {
@@ -218,8 +219,8 @@ impl RoomPathTree {
         let total_rooms = root.count_rooms();
 
         tracing::info!(
-            "路径树构建完成：输入房间数={}，总节点数={}，总房间数={}，哈希索引={}",
-            room_count,
+            "路径树构建完成：输入路径数={}，总节点数={}，总路径叶子数={}，哈希索引={}",
+            path_entry_count,
             total_nodes,
             total_rooms,
             hash_map.len()
@@ -231,6 +232,18 @@ impl RoomPathTree {
             last_updated: Arc::new(RwLock::new(chrono::Utc::now().naive_utc())),
             hash_index: Arc::new(RwLock::new(hash_map)),
         }
+    }
+
+    /// 从主路径条目构建路径树。
+    ///
+    /// 保留这个入口是为了兼容已有启动检查和调用点；新代码如果同时拥有主路径
+    /// 与额外路径，应优先调用 `build_from_path_entries`，避免遗漏 1:N 路径。
+    pub fn build_from_primary_paths<I, P>(rooms: I) -> Self
+    where
+        I: IntoIterator<Item = (i32, P)>,
+        P: AsRef<str>,
+    {
+        Self::build_from_path_entries(rooms)
     }
 
     /// 从爬虫数据构建路径树
@@ -252,11 +265,19 @@ impl RoomPathTree {
     /// let tree = RoomPathTree::build_from_rooms(&rooms);
     /// ```
     pub fn build_from_rooms(rooms: &[RoomData]) -> Self {
-        Self::build_from_primary_paths(
-            rooms
-                .iter()
-                .map(|room| (room.roomid, room.primary_roompath.as_str())),
-        )
+        let mut path_entries = Vec::new();
+
+        for room in rooms {
+            if room.roompaths.is_empty() {
+                path_entries.push((room.roomid, room.primary_roompath.as_str()));
+            } else {
+                for path in &room.roompaths {
+                    path_entries.push((room.roomid, path.as_str()));
+                }
+            }
+        }
+
+        Self::build_from_path_entries(path_entries)
     }
 
     /// 逐层查询子节点
@@ -488,6 +509,51 @@ mod tests {
             )
             .await,
             Some(102)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_build_from_path_entries_indexes_additional_paths() {
+        let primary_path = "箭盘校区/北区12栋/三楼/B12313";
+        let additional_path = "东环校区/南区5栋/二楼/A201";
+        let tree = RoomPathTree::build_from_path_entries(vec![
+            (101, primary_path),
+            (101, additional_path),
+        ]);
+
+        assert_eq!(tree.find_roomid_by_path(primary_path).await, Some(101));
+        assert_eq!(tree.find_roomid_by_path(additional_path).await, Some(101));
+        assert_eq!(
+            tree.find_roomid_by_hash(calculate_roompath_hash(additional_path), additional_path)
+                .await,
+            Some(101)
+        );
+
+        let children = tree.query_children("东环校区/南区5栋/二楼").await.unwrap();
+        assert_eq!(children.len(), 1);
+        assert_eq!(children[0].name, "A201");
+        assert_eq!(children[0].roomid, Some(101));
+    }
+
+    #[tokio::test]
+    async fn test_build_from_rooms_indexes_all_roompaths() {
+        let primary_path = "箭盘校区/北区12栋/三楼/B12313";
+        let additional_path = "东环校区/南区5栋/二楼/A201";
+        let rooms = vec![RoomData {
+            roomid: 101,
+            roompaths: vec![primary_path.to_string(), additional_path.to_string()],
+            primary_roompath: primary_path.to_string(),
+            path_count: 2,
+        }];
+
+        let tree = RoomPathTree::build_from_rooms(&rooms);
+
+        assert_eq!(tree.find_roomid_by_path(primary_path).await, Some(101));
+        assert_eq!(tree.find_roomid_by_path(additional_path).await, Some(101));
+        assert_eq!(
+            tree.find_roomid_by_hash(calculate_roompath_hash(additional_path), additional_path)
+                .await,
+            Some(101)
         );
     }
 
