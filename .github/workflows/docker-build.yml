@@ -139,6 +139,7 @@ jobs:
             "git_sha": "${git_sha}",
             "app_image_ref": "${IMAGE_NAME}:${GIT_TAG}",
             "app_image_digest": "${app_image_digest}",
+            "app_archive_file": "${app_archive}.gz",
             "app_archive_sha256": "${app_archive_sha256}",
             "postgres_image_ref": "${POSTGRES_IMAGE}",
             "postgres_image_digest": "${postgres_image_digest}",
@@ -169,9 +170,11 @@ jobs:
             "git_tag": "${GIT_TAG}",
             "postgres_image_ref": "${POSTGRES_IMAGE}",
             "postgres_image_digest": "${postgres_image_digest}",
+            "postgres_archive_file": "${postgres_archive}.gz",
             "postgres_archive_sha256": "${postgres_archive_sha256}",
             "redis_image_ref": "${REDIS_IMAGE}",
             "redis_image_digest": "${redis_image_digest}",
+            "redis_archive_file": "${redis_archive}.gz",
             "redis_archive_sha256": "${redis_archive_sha256}",
             "artifact_created_at": "${created_at}"
           }

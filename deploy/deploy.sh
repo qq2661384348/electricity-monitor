@@ -19,6 +19,7 @@ ENV_FILE="${SCRIPT_DIR}/.env"
 ENV_EXAMPLE_FILE="${SCRIPT_DIR}/.env.example"
 IMAGES_DIR="${SCRIPT_DIR}/images"
 MANIFEST_FILE="${SCRIPT_DIR}/release-manifest.json"
+INFRA_MANIFEST_FILE="${SCRIPT_DIR}/infra-manifest.json"
 DEPLOY_RESULT_FILE="${SCRIPT_DIR}/deploy-result.json"
 BACKUP_TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 POSTGRES_DATA_UID="${POSTGRES_DATA_UID:-70}"
@@ -33,8 +34,17 @@ MANIFEST_GIT_TAG=""
 MANIFEST_GIT_SHA=""
 MANIFEST_APP_IMAGE_REF=""
 MANIFEST_APP_IMAGE_DIGEST=""
+MANIFEST_APP_ARCHIVE_FILE=""
+MANIFEST_APP_ARCHIVE_SHA256=""
 MANIFEST_POSTGRES_IMAGE_REF=""
+MANIFEST_POSTGRES_IMAGE_DIGEST=""
+MANIFEST_POSTGRES_ARCHIVE_FILE=""
+MANIFEST_POSTGRES_ARCHIVE_SHA256=""
 MANIFEST_REDIS_IMAGE_REF=""
+MANIFEST_REDIS_IMAGE_DIGEST=""
+MANIFEST_REDIS_ARCHIVE_FILE=""
+MANIFEST_REDIS_ARCHIVE_SHA256=""
+DEPENDENCY_RECREATE_REASON=""
 
 require_command() {
     command -v "$1" >/dev/null 2>&1 || error "缺少命令: $1"
@@ -43,8 +53,10 @@ require_command() {
 check_prerequisites() {
     require_command docker
     require_command gzip
+    require_command sha256sum
     require_command curl
     require_command stat
+    require_command awk
     docker info >/dev/null 2>&1 || error "Docker 守护进程未运行"
     docker compose version >/dev/null 2>&1 || error "当前环境缺少 docker compose 插件"
 
@@ -106,13 +118,59 @@ prepare_data_directories() {
     chmod 700 "${POSTGRES_DATA_DIR}" "${REDIS_DATA_DIR}"
 }
 
+is_truthy() {
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|y|on) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 read_manifest_value() {
     local key="$1"
+    local file="${2:-${MANIFEST_FILE}}"
+    if [ ! -f "${file}" ]; then
+        return 0
+    fi
+
+    sed -n -E 's/^[[:space:]]*"'${key}'"[[:space:]]*:[[:space:]]*"([^"]*)".*$/\1/p' "${file}" | head -n 1
+}
+
+read_manifest_infra_archive_value() {
+    local image_name="$1"
+    local key="$2"
+
     if [ ! -f "${MANIFEST_FILE}" ]; then
         return 0
     fi
 
-    sed -n -E 's/^[[:space:]]*"'${key}'"[[:space:]]*:[[:space:]]*"([^"]*)".*$/\1/p' "${MANIFEST_FILE}" | head -n 1
+    awk -v image_name="${image_name}" -v key="${key}" '
+        $0 ~ "\"" image_name "\"[[:space:]]*:" {
+            in_image = 1
+            next
+        }
+        in_image && $0 ~ "}" {
+            exit
+        }
+        in_image && $0 ~ "\"" key "\"[[:space:]]*:" {
+            value = $0
+            sub("^[[:space:]]*\"" key "\"[[:space:]]*:[[:space:]]*\"", "", value)
+            sub("\".*$", "", value)
+            print value
+            exit
+        }
+    ' "${MANIFEST_FILE}"
+}
+
+derive_app_archive_file() {
+    local image_name=""
+
+    if [ -z "${MANIFEST_GIT_TAG}" ] || [ -z "${MANIFEST_APP_IMAGE_REF}" ]; then
+        return 0
+    fi
+
+    image_name="${MANIFEST_APP_IMAGE_REF%:*}"
+    image_name="${image_name##*/}"
+    printf '%s-%s-linux-amd64.tar.gz\n' "${image_name}" "${MANIFEST_GIT_TAG}"
 }
 
 load_manifest() {
@@ -125,8 +183,27 @@ load_manifest() {
     MANIFEST_GIT_SHA="$(read_manifest_value git_sha)"
     MANIFEST_APP_IMAGE_REF="$(read_manifest_value app_image_ref)"
     MANIFEST_APP_IMAGE_DIGEST="$(read_manifest_value app_image_digest)"
+    MANIFEST_APP_ARCHIVE_FILE="$(read_manifest_value app_archive_file)"
+    MANIFEST_APP_ARCHIVE_SHA256="$(read_manifest_value app_archive_sha256)"
     MANIFEST_POSTGRES_IMAGE_REF="$(read_manifest_value postgres_image_ref)"
+    MANIFEST_POSTGRES_IMAGE_DIGEST="$(read_manifest_value postgres_image_digest)"
+    MANIFEST_POSTGRES_ARCHIVE_FILE="$(read_manifest_infra_archive_value postgres file)"
+    MANIFEST_POSTGRES_ARCHIVE_SHA256="$(read_manifest_infra_archive_value postgres sha256)"
     MANIFEST_REDIS_IMAGE_REF="$(read_manifest_value redis_image_ref)"
+    MANIFEST_REDIS_IMAGE_DIGEST="$(read_manifest_value redis_image_digest)"
+    MANIFEST_REDIS_ARCHIVE_FILE="$(read_manifest_infra_archive_value redis file)"
+    MANIFEST_REDIS_ARCHIVE_SHA256="$(read_manifest_infra_archive_value redis sha256)"
+
+    if [ -z "${MANIFEST_APP_ARCHIVE_FILE}" ]; then
+        MANIFEST_APP_ARCHIVE_FILE="$(derive_app_archive_file)"
+    fi
+
+    if [ -f "${INFRA_MANIFEST_FILE}" ]; then
+        MANIFEST_POSTGRES_ARCHIVE_FILE="${MANIFEST_POSTGRES_ARCHIVE_FILE:-$(read_manifest_value postgres_archive_file "${INFRA_MANIFEST_FILE}")}"
+        MANIFEST_POSTGRES_ARCHIVE_SHA256="${MANIFEST_POSTGRES_ARCHIVE_SHA256:-$(read_manifest_value postgres_archive_sha256 "${INFRA_MANIFEST_FILE}")}"
+        MANIFEST_REDIS_ARCHIVE_FILE="${MANIFEST_REDIS_ARCHIVE_FILE:-$(read_manifest_value redis_archive_file "${INFRA_MANIFEST_FILE}")}"
+        MANIFEST_REDIS_ARCHIVE_SHA256="${MANIFEST_REDIS_ARCHIVE_SHA256:-$(read_manifest_value redis_archive_sha256 "${INFRA_MANIFEST_FILE}")}"
+    fi
 
     info "读取 release manifest: tag=${MANIFEST_GIT_TAG:-unknown}, git_sha=${MANIFEST_GIT_SHA:-unknown}, app_image_ref=${MANIFEST_APP_IMAGE_REF:-unknown}"
 }
@@ -171,6 +248,7 @@ load_env() {
     : "${DEPLOY_HEALTHCHECK_URL:=http://127.0.0.1:${APP_HOST_PORT}/api/health}"
     : "${DEPLOY_HEALTHCHECK_RETRIES:=20}"
     : "${DEPLOY_HEALTHCHECK_INTERVAL:=3}"
+    : "${DEPLOY_RECREATE_BASE_SERVICES:=false}"
     : "${APP_IMAGE_REF:?APP_IMAGE_REF 未配置}"
     : "${APP_DATABASE_PASSWORD_SECRET_FILE:?APP_DATABASE_PASSWORD_SECRET_FILE 未配置}"
     : "${APP_JWT_SECRET_SECRET_FILE:?APP_JWT_SECRET_SECRET_FILE 未配置}"
@@ -220,10 +298,77 @@ load_env() {
     fi
 }
 
+is_expected_archive_file() {
+    local archive_file="$1"
+
+    [ -n "${MANIFEST_APP_ARCHIVE_FILE}" ] && [ "${archive_file}" = "${MANIFEST_APP_ARCHIVE_FILE}" ] && return 0
+    [ -n "${MANIFEST_POSTGRES_ARCHIVE_FILE}" ] && [ "${archive_file}" = "${MANIFEST_POSTGRES_ARCHIVE_FILE}" ] && return 0
+    [ -n "${MANIFEST_REDIS_ARCHIVE_FILE}" ] && [ "${archive_file}" = "${MANIFEST_REDIS_ARCHIVE_FILE}" ] && return 0
+
+    return 1
+}
+
+assert_archive_is_expected() {
+    local archive="$1"
+    local archive_file=""
+
+    if [ ! -f "${MANIFEST_FILE}" ]; then
+        return 0
+    fi
+
+    archive_file="$(basename "${archive}")"
+    if ! is_expected_archive_file "${archive_file}"; then
+        error "发现 release manifest 未声明的镜像归档: ${archive_file}。请移除未知归档或重新生成 release artifact。"
+    fi
+}
+
+verify_archive_sha256() {
+    local archive="$1"
+    local expected_sha256="$2"
+    local purpose="$3"
+    local actual_sha256=""
+
+    [ -n "${expected_sha256}" ] || return 0
+    [ -f "${archive}" ] || error "release manifest 要求的 ${purpose} 镜像归档不存在: ${archive}"
+
+    actual_sha256="$(sha256sum "${archive}" | awk '{print $1}')"
+    if [ "${actual_sha256}" != "${expected_sha256}" ]; then
+        error "${purpose} 镜像归档 SHA256 不一致: $(basename "${archive}")，actual=${actual_sha256}，expected=${expected_sha256}"
+    fi
+
+    info "已校验 ${purpose} 镜像归档 SHA256: $(basename "${archive}")"
+}
+
+verify_optional_archive_sha256() {
+    local archive_file="$1"
+    local expected_sha256="$2"
+    local purpose="$3"
+    local archive_path=""
+
+    [ -n "${archive_file}" ] || return 0
+    [ -n "${expected_sha256}" ] || return 0
+
+    archive_path="${IMAGES_DIR}/${archive_file}"
+    if [ -f "${archive_path}" ]; then
+        verify_archive_sha256 "${archive_path}" "${expected_sha256}" "${purpose}"
+    fi
+}
+
+verify_release_archives() {
+    if [ -n "${MANIFEST_APP_ARCHIVE_SHA256}" ]; then
+        [ -n "${MANIFEST_APP_ARCHIVE_FILE}" ] || error "release manifest 缺少 app 镜像归档文件名，无法校验 app_archive_sha256"
+        verify_archive_sha256 "${IMAGES_DIR}/${MANIFEST_APP_ARCHIVE_FILE}" "${MANIFEST_APP_ARCHIVE_SHA256}" "app"
+    fi
+
+    verify_optional_archive_sha256 "${MANIFEST_POSTGRES_ARCHIVE_FILE}" "${MANIFEST_POSTGRES_ARCHIVE_SHA256}" "postgres"
+    verify_optional_archive_sha256 "${MANIFEST_REDIS_ARCHIVE_FILE}" "${MANIFEST_REDIS_ARCHIVE_SHA256}" "redis"
+}
+
 load_images() {
     local loaded=0
 
     while IFS= read -r -d '' archive; do
+        assert_archive_is_expected "${archive}"
         info "加载镜像归档: $(basename "${archive}")"
         gzip -dc "${archive}" | docker load >/dev/null
         loaded=$((loaded + 1))
@@ -250,6 +395,26 @@ assert_required_images_available() {
     assert_image_available "${REDIS_IMAGE_REF}" "redis"
 }
 
+assert_image_digest() {
+    local image_ref="$1"
+    local expected_digest="$2"
+    local purpose="$3"
+    local actual_digest=""
+
+    [ -n "${expected_digest}" ] || return 0
+
+    actual_digest="$(docker image inspect "${image_ref}" --format '{{.Id}}')" || error "读取离线镜像摘要失败: ${image_ref} (${purpose})"
+    if [ "${actual_digest}" != "${expected_digest}" ]; then
+        error "离线镜像摘要与 release manifest 不一致: ${image_ref} (${purpose})，actual=${actual_digest}，expected=${expected_digest}"
+    fi
+}
+
+assert_required_image_digests() {
+    assert_image_digest "${APP_IMAGE_REF}" "${MANIFEST_APP_IMAGE_DIGEST}" "app"
+    assert_image_digest "${POSTGRES_IMAGE_REF}" "${MANIFEST_POSTGRES_IMAGE_DIGEST}" "postgres"
+    assert_image_digest "${REDIS_IMAGE_REF}" "${MANIFEST_REDIS_IMAGE_DIGEST}" "redis"
+}
+
 capture_app_rollback_image() {
     local image_id=""
 
@@ -261,8 +426,57 @@ capture_app_rollback_image() {
     fi
 }
 
+append_dependency_recreate_reason() {
+    local purpose="$1"
+    local container_name="$2"
+    local current_image_id="$3"
+    local target_image_id="$4"
+
+    DEPENDENCY_RECREATE_REASON="${DEPENDENCY_RECREATE_REASON}
+- ${purpose}: container=${container_name}, current=${current_image_id}, target=${target_image_id}"
+}
+
+collect_dependency_recreate_reason() {
+    local container_name="$1"
+    local image_ref="$2"
+    local purpose="$3"
+    local current_image_id=""
+    local target_image_id=""
+
+    if ! docker container inspect "${container_name}" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    current_image_id="$(docker inspect -f '{{.Image}}' "${container_name}")"
+    target_image_id="$(docker image inspect "${image_ref}" --format '{{.Id}}')" || error "读取目标镜像摘要失败: ${image_ref} (${purpose})"
+
+    if [ "${current_image_id}" != "${target_image_id}" ]; then
+        append_dependency_recreate_reason "${purpose}" "${container_name}" "${current_image_id}" "${target_image_id}"
+    fi
+}
+
+collect_dependency_recreate_reasons() {
+    DEPENDENCY_RECREATE_REASON=""
+    collect_dependency_recreate_reason "${POSTGRES_CONTAINER_NAME}" "${POSTGRES_IMAGE_REF}" "PostgreSQL"
+    collect_dependency_recreate_reason "${REDIS_CONTAINER_NAME}" "${REDIS_IMAGE_REF}" "Redis"
+}
+
 start_dependencies() {
     info "启动 PostgreSQL 和 Redis"
+    collect_dependency_recreate_reasons
+
+    if [ -n "${DEPENDENCY_RECREATE_REASON}" ]; then
+        if ! is_truthy "${DEPLOY_RECREATE_BASE_SERVICES}"; then
+            printf '%s\n' "${DEPENDENCY_RECREATE_REASON}" >&2
+            error "检测到 PostgreSQL / Redis 现有容器镜像与当前 release 目标镜像不一致。默认 app-only 发布使用 --no-recreate，不会切换基础服务镜像；若这是计划内基础镜像升级，请先确认数据库备份和停机窗口，再设置 DEPLOY_RECREATE_BASE_SERVICES=true 后重跑。"
+        fi
+
+        warn "DEPLOY_RECREATE_BASE_SERVICES=true，正在重建 PostgreSQL / Redis 以切换基础镜像。请确认已完成数据库备份。"
+        printf '%s\n' "${DEPENDENCY_RECREATE_REASON}" >&2
+        docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d --force-recreate postgres redis
+        return 0
+    fi
+
     docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d --no-recreate postgres redis
 }
 
@@ -337,8 +551,10 @@ main() {
     load_manifest
     prepare_env_file
     load_env
+    verify_release_archives
     load_images
     assert_required_images_available
+    assert_required_image_digests
 
     capture_app_rollback_image
 

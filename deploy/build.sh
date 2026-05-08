@@ -53,7 +53,7 @@ ensure_runtime_config() {
     [ -f "${template}" ] || error "缺少开发模板配置: ${template}"
     cp "${template}" "${runtime_config}"
     warn "检测到缺少 config/development.toml，已从 config/development.toml.example 复制本地运行时配置。"
-    warn "继续本地 Docker 调试前，请先把 ${runtime_config} 中的数据库密码改成当前local environment PostgreSQL 的真实密码。"
+    warn "本地 Docker Compose 会覆盖数据库、Redis 和必要公开运行时值；若离开 Compose 直接 cargo run，仍需按模板填写真实local environment配置。"
 }
 
 # 检查 Docker
@@ -104,8 +104,8 @@ cmd_up() {
     echo ""
     success "服务已启动"
     echo ""
-    info "访问地址: http://0.0.0.0:11450"
-    info "健康检查: http://0.0.0.0:11450/api/health"
+    info "访问地址: http://127.0.0.1:11450"
+    info "健康检查: http://127.0.0.1:11450/api/health"
     echo ""
     info "查看日志: ./deploy/build.sh logs"
     info "停止服务: ./deploy/build.sh down"
@@ -202,7 +202,7 @@ cmd_help() {
     echo "  up              启动服务（构建 + 运行）"
     echo "  down            停止服务"
     echo "  restart         重启服务"
-    echo "  logs [SERVICE]  查看日志（app 或 redis）"
+    echo "  logs [SERVICE]  查看日志（app、postgres 或 redis）"
     echo "  status          查看服务状态"
     echo "  export [FILE]   导出镜像为 tar 文件"
     echo "  clean           清理未使用的镜像"
