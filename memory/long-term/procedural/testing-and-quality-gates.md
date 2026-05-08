@@ -55,7 +55,7 @@ summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执�
 ## readiness / smoke 契约
 
 - `deploy/smoke.targets` 是本地 readiness test 与 release smoke 共用的检查目标真源。
-- 共享检查目标包含 `/api/health`、`/api/health/db`、`/`、`release-manifest.json`、`deploy-result.json` 与一组统一响应安全头。
+- 共享检查目标包含 `/api/health`、`/api/health/db`、`/`、`release-manifest.json`、`deploy-result.json` 与一组统一响应安全头；CSP 中的验证码 origin 必须跟随 `captcha.api_url`，不能和公开运行时配置漂移。
 - `tests/runtime/release_readiness_test.rs` 额外覆盖 `/api/public-config`，确保公开运行时配置响应带统一安全头，暴露登录模式可用性，且不暴露完整 `qq_bot` 配置、bearer token 或 SMTP 授权码；同时约束 release manifest 必须包含归档 SHA256 / 镜像摘要、本地 Compose 依赖端口和基础服务重建门禁。
 - 如果修改健康检查路径、静态入口或 release 产物文件名，必须先更新 `deploy/smoke.targets`，再同步测试、脚本与文档。
 

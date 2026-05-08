@@ -54,6 +54,7 @@ summary: JWT 类型边界、cookie 会话契约、验证码发送配额、CORS �
 - `cors.allowed_origins` 使用逗号分隔字符串维护前端 Origin 白名单，便于通过 `APP__CORS__ALLOWED_ORIGINS` 覆盖。
 - 后端 CORS 以配置驱动白名单和 `allow_credentials(true)` 为准，不应回退到全局开放。
 - `production` 环境会拒绝空白、`localhost` 或模板占位值形式的 `cors.allowed_origins`。
+- `Content-Security-Policy` 的 `connect-src` 必须从当前 `captcha.api_url` 派生验证码 origin，避免前端公开运行时配置和浏览器安全头漂移；release smoke 在 `.env` 显式覆盖 `APP__CAPTCHA__API_URL` 时会同步调整期望头。
 
 ## 管理员提升规则
 

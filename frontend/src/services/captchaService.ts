@@ -2,7 +2,7 @@
  * 第三方验证码服务
  * 
  * 采用"客户端直连获取、网关代理校验"架构
- * 第三方API: https://v2.xxapi.cn/api/captcha
+ * 默认第三方API来自公开运行时配置，不能在前端流程中另行硬编码。
  */
 
 import axios from 'axios';

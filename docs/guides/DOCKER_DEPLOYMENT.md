@@ -224,7 +224,7 @@ chmod +x smoke.sh
 - `smoke.targets` 中声明的 `deploy-result.json`
 - `smoke.targets` 中声明的统一响应安全头
 
-本地 `tests/runtime/release_readiness_test.rs` 与 release 包内 `smoke.sh` 读取同一份 `smoke.targets`，避免两边各自硬编码检查目标。
+本地 `tests/runtime/release_readiness_test.rs` 与 release 包内 `smoke.sh` 读取同一份 `smoke.targets`，避免两边各自硬编码检查目标。如果 `.env` 显式覆盖 `APP__CAPTCHA__API_URL`，`smoke.sh` 会按该 URL 派生 CSP 的验证码 origin 期望值。
 
 ## 运行时约定
 

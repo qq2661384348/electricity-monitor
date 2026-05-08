@@ -40,7 +40,44 @@ load_targets() {
     . "${TARGETS_FILE}"
     set +a
 
+    override_captcha_csp_header
     load_required_headers
+}
+
+override_captcha_csp_header() {
+    local api_url="${APP__CAPTCHA__API_URL:-}"
+    local captcha_origin=""
+    local scheme=""
+    local rest=""
+    local authority=""
+
+    [ -n "${api_url}" ] || return 0
+
+    case "${api_url}" in
+        https://*)
+            scheme="https"
+            rest="${api_url#https://}"
+            ;;
+        http://*)
+            scheme="http"
+            rest="${api_url#http://}"
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    authority="${rest%%[/?#]*}"
+    [ -n "${authority}" ] || return 0
+    captcha_origin="${scheme}://${authority}"
+
+    case "${captcha_origin}" in
+        *[[:space:]]*|*\'*|*\"*|*\\*|*';'*|*'@'*)
+            return 0
+            ;;
+    esac
+
+    SMOKE_REQUIRED_HEADER__CONTENT_SECURITY_POLICY="default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.cn; font-src 'self' https://fonts.gstatic.cn data:; img-src 'self' data: blob:; connect-src 'self' ${captcha_origin}"
 }
 
 load_required_headers() {

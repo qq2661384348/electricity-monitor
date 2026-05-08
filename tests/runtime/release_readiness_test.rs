@@ -106,7 +106,12 @@ async fn public_config_exposes_only_non_sensitive_runtime_values() {
 
 #[tokio::test]
 async fn smoke_contract_tracks_release_artifact_files() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let targets = load_smoke_targets();
+    let smoke_script =
+        fs::read_to_string(repo_root.join("deploy/smoke.sh")).expect("应能读取 smoke.sh");
+    let security_headers = fs::read_to_string(repo_root.join("src/middleware/security_headers.rs"))
+        .expect("应能读取安全响应头中间件");
 
     assert!(
         smoke_targets_path().exists(),
@@ -122,6 +127,17 @@ async fn smoke_contract_tracks_release_artifact_files() {
     assert!(
         !targets.required_headers.is_empty(),
         "smoke 契约必须声明统一响应安全头"
+    );
+    assert!(
+        security_headers.contains("AppConfig::global().captcha.api_url")
+            && security_headers.contains("captcha_origin_from_api_url"),
+        "Content-Security-Policy 必须从 captcha.api_url 派生 connect-src origin，避免公开配置和 CSP 漂移"
+    );
+    assert!(
+        smoke_script.contains("override_captcha_csp_header")
+            && smoke_script.contains("APP__CAPTCHA__API_URL")
+            && smoke_script.contains("SMOKE_REQUIRED_HEADER__CONTENT_SECURITY_POLICY"),
+        "release smoke 必须在显式覆盖 captcha API URL 时同步调整 CSP 期望值"
     );
 }
 

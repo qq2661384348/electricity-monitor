@@ -39,5 +39,5 @@
 - `.env` 还必须显式填写 CORS、QQ 机器人发送配置、公开站点域名/端口和管理员 QQ；这些值不会写入 `production.toml.example`
 - release 部署前必须把 secret file 权限收紧到仅 owner 可读写；`deploy.sh` 会对权限过宽的文件直接 fail-fast
 - 服务器部署时会读取 `release-manifest.json`，并在 release 目录写出 `deploy-result.json`
-- `smoke.targets` 是本地 readiness test 与 release smoke 的共享契约真源，包含端点、必需文件与统一响应安全头
+- `smoke.targets` 是本地 readiness test 与 release smoke 的共享契约真源，包含端点、必需文件与统一响应安全头；`.env` 显式覆盖 `APP__CAPTCHA__API_URL` 时，`smoke.sh` 会同步派生 CSP 验证码 origin 期望值
 - 本目录中的本地调试脚本不改变生产发布主线，只作为开发/排障辅助
