@@ -1002,10 +1002,29 @@ mod tests {
     use crate::domain::models::{NewRoom, NewRoomPath, NewRoomSyncLog};
     use crate::infrastructure::database::create_pool;
     use chrono::Utc;
+    use std::collections::HashSet;
+    use std::sync::atomic::{AtomicI64, Ordering};
+
+    static ROOM_COUNTER: AtomicI64 = AtomicI64::new(0);
 
     fn unique_roomid() -> i64 {
-        let millis = Utc::now().timestamp_millis().rem_euclid(1_000_000);
-        900_000 + millis
+        // 数据库仓储测试会并行共享同一个测试库；时间戳只到毫秒会在同一进程内重复。
+        let millis = Utc::now().timestamp_millis();
+        let counter = ROOM_COUNTER.fetch_add(1, Ordering::Relaxed);
+
+        millis.saturating_mul(10_000).saturating_add(counter)
+    }
+
+    #[test]
+    fn unique_roomid_generates_unique_values_within_same_process() {
+        let generated: Vec<i64> = (0..64).map(|_| unique_roomid()).collect();
+        let unique: HashSet<i64> = generated.iter().copied().collect();
+
+        assert_eq!(
+            unique.len(),
+            generated.len(),
+            "测试 roomid 生成器在同一测试进程内不能重复"
+        );
     }
 
     async fn setup_test_pool() -> Option<DbPool> {
@@ -1026,14 +1045,16 @@ mod tests {
             return;
         };
         let repo = RoomRepository::new(pool.clone());
+        let roomid = unique_roomid();
+        let roompath = format!("测试/路径/{roomid}");
 
         let new_room = NewRoom {
-            roomid: 99999, // 使用特殊ID避免冲突
+            roomid,
             electricity_fee: 0.0,
             threshold: 100.0,
             room_name: "测试房间".to_string(),
-            primary_roompath: "测试/路径/99999".to_string(),
-            primary_roompath_hash: crate::utils::hash::calculate_roompath_hash("测试/路径/99999"),
+            primary_roompath: roompath.clone(),
+            primary_roompath_hash: crate::utils::hash::calculate_roompath_hash(&roompath),
             has_additional_paths: false,
             is_active: true,
             source_type: "test".to_string(),

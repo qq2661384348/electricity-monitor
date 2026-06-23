@@ -26,3 +26,4 @@ if ($errors.Count -gt 0) {
 }
 
 Write-Output 'Architecture checks passed.'
+exit 0
