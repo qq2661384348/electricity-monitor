@@ -68,7 +68,7 @@ impl RoomAccessUseCase {
     }
 
     #[instrument(skip(self, actor), fields(module = "room", use_case = "get_room_by_roomid", roomid = roomid))]
-    pub async fn get_room_by_roomid(&self, actor: &RoomActor, roomid: i32) -> Result<Room> {
+    pub async fn get_room_by_roomid(&self, actor: &RoomActor, roomid: i64) -> Result<Room> {
         let room = self
             .cache_manager
             .get_room(roomid)
@@ -189,7 +189,7 @@ impl RoomAccessUseCase {
         Ok(room)
     }
 
-    async fn ensure_room_access(&self, actor: &RoomActor, roomid: i32) -> Result<()> {
+    async fn ensure_room_access(&self, actor: &RoomActor, roomid: i64) -> Result<()> {
         if actor.is_admin {
             return Ok(());
         }
@@ -210,7 +210,7 @@ impl RoomAccessUseCase {
         Ok(())
     }
 
-    async fn bound_roomids(&self, actor: &RoomActor) -> Result<HashSet<i32>> {
+    async fn bound_roomids(&self, actor: &RoomActor) -> Result<HashSet<i64>> {
         let user_id = actor
             .user_id
             .ok_or(AppError::Unauthorized("未认证".to_string()))?;

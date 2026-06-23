@@ -84,7 +84,7 @@ pub struct NotificationCache {
     user_cache: Arc<RwLock<LruCache<Uuid, CachedItem<User>>>>,
 
     /// 绑定缓存 (roomid -> Vec<UserRoomBinding>)
-    binding_cache: Arc<RwLock<LruCache<i32, CachedItem<Vec<UserRoomBinding>>>>>,
+    binding_cache: Arc<RwLock<LruCache<i64, CachedItem<Vec<UserRoomBinding>>>>>,
 
     /// 缓存过期时间（TTL）
     ttl: Duration,
@@ -173,7 +173,7 @@ impl NotificationCache {
     /// # 返回
     /// - `Some(Vec<UserRoomBinding>)`: 缓存命中且未过期
     /// - `None`: 缓存未命中或已过期
-    pub async fn get_bindings(&self, roomid: i32) -> Option<Vec<UserRoomBinding>> {
+    pub async fn get_bindings(&self, roomid: i64) -> Option<Vec<UserRoomBinding>> {
         let mut cache = self.binding_cache.write().await;
 
         if let Some(cached) = cache.get(&roomid) {
@@ -195,13 +195,13 @@ impl NotificationCache {
     }
 
     /// 设置绑定缓存
-    pub async fn set_bindings(&self, roomid: i32, bindings: Vec<UserRoomBinding>) {
+    pub async fn set_bindings(&self, roomid: i64, bindings: Vec<UserRoomBinding>) {
         let mut cache = self.binding_cache.write().await;
         cache.put(roomid, CachedItem::new(bindings));
     }
 
     /// 批量设置绑定缓存
-    pub async fn set_bindings_batch(&self, bindings_map: HashMap<i32, Vec<UserRoomBinding>>) {
+    pub async fn set_bindings_batch(&self, bindings_map: HashMap<i64, Vec<UserRoomBinding>>) {
         let mut cache = self.binding_cache.write().await;
         for (roomid, bindings) in bindings_map {
             cache.put(roomid, CachedItem::new(bindings));
@@ -215,7 +215,7 @@ impl NotificationCache {
     }
 
     /// 使绑定缓存失效
-    pub async fn invalidate_bindings(&self, roomid: i32) {
+    pub async fn invalidate_bindings(&self, roomid: i64) {
         let mut cache = self.binding_cache.write().await;
         cache.pop(&roomid);
     }

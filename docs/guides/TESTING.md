@@ -178,13 +178,15 @@ cargo test --lib
 外部网络测试已从默认 infra 门禁中分离，避免 CI 因公网依赖失真。当前需要显式启用的外部测试包括：
 
 - `src/domain/services/room_sync/crawler/client.rs::test_fetch_room_tree`
+- `src/domain/services/room_sync/crawler/fetcher.rs::test_real_upay_room_tree_room_id_and_electricity_e2e`
 - `src/infrastructure/electricity/parser.rs::test_parse_real_api_response`
 
 这些链路当前采用“真实测试 + mock 测试”双轨：
 
 - 房间树：
   - 真实：`test_fetch_room_tree`
-  - mock：`test_fetch_room_tree_with_mock_server`、`test_fetch_tree_retries_until_success_with_mock_server`
+  - e2e：`test_real_upay_room_tree_room_id_and_electricity_e2e` 会真实串起 `GetRoomSchool -> GetRoomApart -> GetRoomList -> GetRoom`，并验证可以从房间树得到 `roomid` 后获取电费
+  - mock：`test_fetch_room_tree_with_mock_server`、`test_fetch_schools_retries_until_success_with_mock_server`
 - 电费抓取：
   - 真实：`test_parse_real_api_response`
   - mock：`test_fetch_batch_with_mock_server_filters_failures`

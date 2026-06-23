@@ -16,7 +16,8 @@ pub struct Room {
     pub id: Uuid,
 
     /// 房间ID（唯一业务标识）
-    pub roomid: i32,
+    #[serde(with = "crate::utils::roomid")]
+    pub roomid: i64,
 
     /// 当前电费
     pub electricity_fee: f32,
@@ -71,7 +72,8 @@ pub struct Room {
 #[diesel(table_name = rooms)]
 pub struct NewRoom {
     /// 房间ID
-    pub roomid: i32,
+    #[serde(deserialize_with = "crate::utils::roomid::deserialize")]
+    pub roomid: i64,
 
     /// 初始电费（默认0.0）
     #[serde(default)]

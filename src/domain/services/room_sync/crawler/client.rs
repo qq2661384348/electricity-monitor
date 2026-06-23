@@ -16,8 +16,11 @@ pub struct RoomClient {
     /// HTTP客户端
     client: Client,
 
-    /// API URL
+    /// API Base URL
     api_url: String,
+
+    /// 学校 / 商户 / 项目的业务标识
+    cid: String,
 
     /// 最大重试次数
     max_retries: u32,
@@ -42,67 +45,46 @@ impl RoomClient {
         Ok(Self {
             client,
             api_url: config.api_url.clone(),
+            cid: config.cid.clone(),
             max_retries: config.max_retries,
         })
     }
 
-    /// 获取房间树JSON数据（Level 1：校区列表）
-    ///
-    /// 带重试机制的HTTP POST请求
-    ///
-    /// # 返回
-    /// JSON字符串
-    ///
-    /// # 错误
-    /// - 网络请求失败
-    /// - 超时
-    /// - HTTP错误状态码
+    /// 获取校区列表 JSON 数据。
     pub async fn fetch_room_tree(&self) -> Result<String> {
-        let mut last_error = None;
-
-        for attempt in 1..=self.max_retries {
-            match self.try_fetch().await {
-                Ok(data) => {
-                    if attempt > 1 {
-                        tracing::info!("第{}次重试成功", attempt);
-                    }
-                    return Ok(data);
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "第{}次请求失败: {}, 剩余重试次数: {}",
-                        attempt,
-                        e,
-                        self.max_retries - attempt
-                    );
-                    last_error = Some(e);
-
-                    // 如果不是最后一次，等待后重试
-                    if attempt < self.max_retries {
-                        let delay = Duration::from_secs(2_u64.pow(attempt - 1)); // 指数退避
-                        tracing::info!("等待{:?}后重试...", delay);
-                        tokio::time::sleep(delay).await;
-                    }
-                }
-            }
-        }
-
-        // 重试循环至少执行一次，last_error必定存在
-        Err(last_error.expect("重试循环应该至少执行一次"))
+        self.fetch_schools().await
     }
 
-    /// 通用HTTP POST请求（支持参数化）
-    ///
-    /// # 参数
-    /// - `params`: URL编码的请求参数
-    ///
-    /// # 返回
-    /// JSON字符串
-    pub async fn fetch_tree(&self, params: &str) -> Result<String> {
+    pub async fn fetch_schools(&self) -> Result<String> {
+        self.fetch_with_retry("GetRoomSchool", vec![("cid", self.cid.clone())])
+            .await
+    }
+
+    pub async fn fetch_apartments(&self, school_id: &str) -> Result<String> {
+        self.fetch_with_retry(
+            "GetRoomApart",
+            vec![("cid", self.cid.clone()), ("sid", school_id.to_string())],
+        )
+        .await
+    }
+
+    pub async fn fetch_rooms(&self, apart_id: &str) -> Result<String> {
+        self.fetch_with_retry(
+            "GetRoomList",
+            vec![("cid", self.cid.clone()), ("apid", apart_id.to_string())],
+        )
+        .await
+    }
+
+    async fn fetch_with_retry(
+        &self,
+        endpoint: &str,
+        params: Vec<(&str, String)>,
+    ) -> Result<String> {
         let mut last_error = None;
 
         for attempt in 1..=self.max_retries {
-            match self.try_fetch_with_params(params).await {
+            match self.try_fetch_with_query(endpoint, &params).await {
                 Ok(data) => {
                     if attempt > 1 {
                         tracing::info!("第{}次重试成功", attempt);
@@ -129,25 +111,17 @@ impl RoomClient {
         Err(last_error.expect("重试循环应该至少执行一次"))
     }
 
-    /// 尝试单次请求（内部方法）
-    ///
-    /// 使用POST方法，参数格式为application/x-www-form-urlencoded
-    async fn try_fetch(&self) -> Result<String> {
-        // Level 1：获取校区列表
-        self.try_fetch_with_params("yzm=123&Id=000&level=1").await
-    }
-
-    /// 带参数的单次请求（私有方法）
-    async fn try_fetch_with_params(&self, params: &str) -> Result<String> {
+    /// 带参数的单次 GET 请求（私有方法）。
+    async fn try_fetch_with_query(
+        &self,
+        endpoint: &str,
+        params: &[(&str, String)],
+    ) -> Result<String> {
+        let url = format!("{}/{}", self.api_url.trim_end_matches('/'), endpoint);
         let response = self
             .client
-            .post(&self.api_url)
-            .header(
-                "Content-Type",
-                "application/x-www-form-urlencoded; charset=UTF-8",
-            )
-            .header("Accept", "application/json, text/javascript, */*; q=0.01")
-            .body(params.to_string())
+            .get(url)
+            .query(params)
             .send()
             .await
             .context("HTTP请求发送失败")?;
@@ -177,7 +151,8 @@ impl RoomClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{http::StatusCode, response::IntoResponse, routing::post, Router};
+    use axum::{extract::Query, http::StatusCode, response::IntoResponse, routing::get, Router};
+    use std::collections::HashMap;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -188,6 +163,7 @@ mod tests {
     fn test_client_creation() {
         let config = CrawlerConfig {
             api_url: "https://example.com/api".to_string(),
+            cid: "689885779152867328".to_string(),
             timeout_seconds: 30,
             connect_timeout_seconds: 10,
             max_retries: 3,
@@ -207,7 +183,8 @@ mod tests {
         }
 
         let config = CrawlerConfig {
-            api_url: "https://zywxhd02.gxust.edu.cn/Home/GetRoomTree".to_string(),
+            api_url: "https://upayadmin.gyruibo.cn/UpayManage/Home".to_string(),
+            cid: "689885779152867328".to_string(),
             timeout_seconds: 30,
             connect_timeout_seconds: 10,
             max_retries: 3,
@@ -262,10 +239,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_room_tree_with_mock_server() {
-        async fn handler() -> impl IntoResponse {
+        async fn handler(Query(query): Query<HashMap<String, String>>) -> impl IntoResponse {
+            assert_eq!(
+                query.get("cid").map(String::as_str),
+                Some("689885779152867328")
+            );
             (
                 StatusCode::OK,
-                "{\"BS\":\"1\",\"Msg\":\"成功\",\"total\":1}",
+                "{\"Total\":1,\"Data\":[{\"SchoolId\":\"1\",\"SchoolName\":\"东环校区\"}]}",
             )
         }
 
@@ -273,7 +254,7 @@ mod tests {
             .await
             .expect("启动房间树 mock server 失败");
         let addr = listener.local_addr().expect("获取房间树 mock 地址失败");
-        let app = Router::new().route("/room-tree", post(handler));
+        let app = Router::new().route("/GetRoomSchool", get(handler));
 
         tokio::spawn(async move {
             axum::serve(listener, app)
@@ -282,7 +263,8 @@ mod tests {
         });
 
         let config = CrawlerConfig {
-            api_url: format!("http://{addr}/room-tree"),
+            api_url: format!("http://{addr}"),
+            cid: "689885779152867328".to_string(),
             timeout_seconds: 30,
             connect_timeout_seconds: 10,
             max_retries: 3,
@@ -295,11 +277,11 @@ mod tests {
             .await
             .expect("mock 房间树请求应成功");
 
-        assert!(result.contains("\"BS\":\"1\""));
+        assert!(result.contains("\"SchoolName\":\"东环校区\""));
     }
 
     #[tokio::test]
-    async fn test_fetch_tree_retries_until_success_with_mock_server() {
+    async fn test_fetch_schools_retries_until_success_with_mock_server() {
         let attempts = Arc::new(AtomicUsize::new(0));
         let attempts_for_handler = Arc::clone(&attempts);
 
@@ -308,8 +290,8 @@ mod tests {
             .expect("启动房间树重试 mock server 失败");
         let addr = listener.local_addr().expect("获取房间树重试 mock 地址失败");
         let app = Router::new().route(
-            "/retry",
-            post(move || {
+            "/GetRoomSchool",
+            get(move || {
                 let attempts = Arc::clone(&attempts_for_handler);
                 async move {
                     let current = attempts.fetch_add(1, Ordering::Relaxed);
@@ -318,7 +300,7 @@ mod tests {
                     } else {
                         (
                             StatusCode::OK,
-                            "{\"BS\":\"1\",\"Msg\":\"成功\",\"total\":1}",
+                            "{\"Total\":1,\"Data\":[{\"SchoolId\":\"1\",\"SchoolName\":\"东环校区\"}]}",
                         )
                             .into_response()
                     }
@@ -333,7 +315,8 @@ mod tests {
         });
 
         let config = CrawlerConfig {
-            api_url: format!("http://{addr}/retry"),
+            api_url: format!("http://{addr}"),
+            cid: "689885779152867328".to_string(),
             timeout_seconds: 30,
             connect_timeout_seconds: 10,
             max_retries: 3,
@@ -341,12 +324,9 @@ mod tests {
         };
 
         let client = RoomClient::new(&config).expect("创建 RoomClient 失败");
-        let result = client
-            .fetch_tree("yzm=123&Id=000&level=1")
-            .await
-            .expect("重试后应成功");
+        let result = client.fetch_schools().await.expect("重试后应成功");
 
-        assert!(result.contains("\"BS\":\"1\""));
+        assert!(result.contains("\"SchoolName\":\"东环校区\""));
         assert_eq!(attempts.load(Ordering::Relaxed), 2);
     }
 }

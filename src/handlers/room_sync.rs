@@ -51,7 +51,7 @@ pub async fn trigger_sync(
 /// GET /api/rooms/{roomid}/paths
 pub async fn get_room_paths(
     State(state): State<AppState>,
-    Path(roomid): Path<i32>,
+    Path(roomid): Path<i64>,
 ) -> Result<Json<RoomPathsResponse>> {
     let aggregate = RoomSyncUseCase::from_state(&state)
         .get_room_paths(roomid)
@@ -87,7 +87,7 @@ pub async fn get_room_paths(
 /// 房间路径响应
 #[derive(Debug, Serialize)]
 pub struct RoomPathsResponse {
-    pub roomid: i32,
+    pub roomid: i64,
     pub primary_roompath: String,
     pub has_additional_paths: bool,
     pub additional_paths: Vec<PathInfo>,

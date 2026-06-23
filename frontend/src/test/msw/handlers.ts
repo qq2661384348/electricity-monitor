@@ -14,7 +14,7 @@ const defaultUser: User = {
 
 const defaultRoom: Room = {
   id: 'room-1',
-  roomid: 1001,
+  roomid: '1001',
   electricity_fee: 23.5,
   send_flag: false,
   threshold: 30,
@@ -153,7 +153,7 @@ export const handlers = [
   http.get('*/api/bindings', () => HttpResponse.json([defaultBinding])),
 
   http.post('*/api/bindings', async ({ request }) => {
-    const body = (await request.json()) as { roomid?: number };
+    const body = (await request.json()) as { roomid?: string };
 
     return HttpResponse.json(
       {

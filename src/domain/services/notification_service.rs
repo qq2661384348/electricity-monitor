@@ -245,7 +245,7 @@ impl NotificationService {
         tracing::info!("批量处理 {} 个房间通知", room_count);
 
         // 2. 提取所有roomid
-        let roomids: Vec<i32> = rooms.iter().map(|r| r.roomid).collect();
+        let roomids: Vec<i64> = rooms.iter().map(|r| r.roomid).collect();
 
         // 3. 批量查询所有房间的绑定关系（1次查询）
         let query_start = Instant::now();
@@ -290,7 +290,7 @@ impl NotificationService {
         }
 
         // 8. 按roomid分组绑定关系
-        let mut bindings_by_room: HashMap<i32, Vec<_>> = HashMap::new();
+        let mut bindings_by_room: HashMap<i64, Vec<_>> = HashMap::new();
         for binding in all_bindings {
             bindings_by_room
                 .entry(binding.roomid)

@@ -121,7 +121,7 @@ impl UserRoomBindingRepository {
     ///
     /// # 返回
     /// 该房间的所有用户绑定列表
-    pub async fn find_by_roomid(&self, roomid: i32) -> Result<Vec<UserRoomBinding>> {
+    pub async fn find_by_roomid(&self, roomid: i64) -> Result<Vec<UserRoomBinding>> {
         let mut conn = self.get_conn().await?;
 
         user_room_bindings::table
@@ -145,7 +145,7 @@ impl UserRoomBindingRepository {
     /// 用于通知服务查询需要发送通知的用户
     pub async fn find_active_bindings_by_roomid(
         &self,
-        roomid: i32,
+        roomid: i64,
     ) -> Result<Vec<UserRoomBinding>> {
         let mut conn = self.get_conn().await?;
 
@@ -170,7 +170,7 @@ impl UserRoomBindingRepository {
     pub async fn find_by_user_and_room(
         &self,
         user_id: Uuid,
-        roomid: i32,
+        roomid: i64,
     ) -> Result<Option<UserRoomBinding>> {
         let mut conn = self.get_conn().await?;
 
@@ -288,7 +288,7 @@ impl UserRoomBindingRepository {
     /// 用于批量通知服务
     pub async fn find_active_bindings_by_roomids(
         &self,
-        roomids: &[i32],
+        roomids: &[i64],
     ) -> Result<Vec<UserRoomBinding>> {
         if roomids.is_empty() {
             return Ok(Vec::new());
@@ -344,7 +344,7 @@ impl UserRoomBindingRepository {
     ///
     /// # 说明
     /// 用于房间删除（通常由数据库级联删除处理）
-    pub async fn delete_all_by_room(&self, roomid: i32) -> Result<usize> {
+    pub async fn delete_all_by_room(&self, roomid: i64) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
         let affected_rows =
@@ -379,7 +379,7 @@ impl UserRoomBindingRepository {
     pub async fn update_last_notified(
         &self,
         user_id: Uuid,
-        roomid: i32,
+        roomid: i64,
         time: NaiveDateTime,
     ) -> Result<usize> {
         let mut conn = self.get_conn().await?;
@@ -421,7 +421,7 @@ impl UserRoomBindingRepository {
     ///
     /// # 说明
     /// 用于在房间电费恢复且过了观察期后重置通知状态
-    pub async fn reset_last_notified(&self, user_id: Uuid, roomid: i32) -> Result<usize> {
+    pub async fn reset_last_notified(&self, user_id: Uuid, roomid: i64) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
         // 直接使用 DSL 设置 NULL，避免 AsChangeset 结构体的 None 跳过行为
@@ -457,7 +457,7 @@ impl UserRoomBindingRepository {
     ///
     /// # 说明
     /// 用于在房间电费恢复且过了观察期后批量重置该房间所有用户的通知状态
-    pub async fn reset_last_notified_by_roomid(&self, roomid: i32) -> Result<usize> {
+    pub async fn reset_last_notified_by_roomid(&self, roomid: i64) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
         // 直接使用 DSL 设置 NULL，避免 AsChangeset 结构体的 None 跳过行为
@@ -489,10 +489,10 @@ impl UserRoomBindingRepository {
     /// 用于服务器启动时从数据库恢复通知历史状态到内存
     pub async fn find_all_with_notification_history(
         &self,
-    ) -> Result<Vec<(Uuid, i32, NaiveDateTime)>> {
+    ) -> Result<Vec<(Uuid, i64, NaiveDateTime)>> {
         let mut conn = self.get_conn().await?;
 
-        let results: Vec<(Uuid, i32, Option<NaiveDateTime>)> = user_room_bindings::table
+        let results: Vec<(Uuid, i64, Option<NaiveDateTime>)> = user_room_bindings::table
             .filter(user_room_bindings::last_notified_at.is_not_null())
             .select((
                 user_room_bindings::user_id,
@@ -504,7 +504,7 @@ impl UserRoomBindingRepository {
             .map_err(AppError::Database)?;
 
         // 过滤掉 None 值（虽然 IS NOT NULL 已经过滤，但 Diesel 返回 Option）
-        let filtered: Vec<(Uuid, i32, NaiveDateTime)> = results
+        let filtered: Vec<(Uuid, i64, NaiveDateTime)> = results
             .into_iter()
             .filter_map(|(user_id, roomid, time_opt)| time_opt.map(|time| (user_id, roomid, time)))
             .collect();

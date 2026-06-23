@@ -90,7 +90,7 @@ impl RoomRepository {
     /// # 返回
     /// - `Some(Room)`: 找到房间
     /// - `None`: 房间不存在
-    pub async fn find_by_roomid(&self, roomid: i32) -> Result<Option<Room>> {
+    pub async fn find_by_roomid(&self, roomid: i64) -> Result<Option<Room>> {
         let mut conn = self.get_conn().await?;
 
         rooms::table
@@ -116,7 +116,7 @@ impl RoomRepository {
     /// # 安全限制
     /// - 单次查询最多1000个roomid，超过会自动分批
     /// - PostgreSQL IN子句理论上限约32767个参数
-    pub async fn find_by_roomids(&self, roomids: &[i32]) -> Result<Vec<Room>> {
+    pub async fn find_by_roomids(&self, roomids: &[i64]) -> Result<Vec<Room>> {
         if roomids.is_empty() {
             return Ok(Vec::new());
         }
@@ -170,7 +170,7 @@ impl RoomRepository {
     /// 房间列表
     pub async fn find_by_roomids_paged(
         &self,
-        roomids: &[i32],
+        roomids: &[i64],
         limit: i64,
         offset: i64,
     ) -> Result<Vec<Room>> {
@@ -228,7 +228,7 @@ impl RoomRepository {
     /// 用于电费插入服务，UPDATE覆盖旧值
     pub async fn update_electricity_fee_by_roomid(
         &self,
-        roomid: i32,
+        roomid: i64,
         electricity_fee: f32,
     ) -> Result<usize> {
         let mut conn = self.get_conn().await?;
@@ -271,7 +271,7 @@ impl RoomRepository {
     /// - 返回实际更新的行数
     pub async fn batch_update_electricity_fee(
         &self,
-        data: std::collections::HashMap<i32, f32>,
+        data: std::collections::HashMap<i64, f32>,
     ) -> Result<usize> {
         if data.is_empty() {
             tracing::debug!("批量更新跳过：数据为空");
@@ -446,18 +446,18 @@ impl RoomRepository {
     /// 查询所有活跃房间的roomid列表（用于缓存）
     ///
     /// # 返回
-    /// 活跃房间的roomid列表（i32）
+    /// 活跃房间的roomid列表（i64）
     ///
     /// # 说明
     /// - 只返回is_active=true的房间
     /// - 用于ElectricityFetcher的批量获取
-    pub async fn find_all_active_roomids(&self) -> Result<Vec<i32>> {
+    pub async fn find_all_active_roomids(&self) -> Result<Vec<i64>> {
         let mut conn = self.get_conn().await?;
 
         rooms::table
             .filter(rooms::is_active.eq(true))
             .select(rooms::roomid)
-            .load::<i32>(&mut conn)
+            .load::<i64>(&mut conn)
             .await
             .map_err(AppError::Database)
     }
@@ -467,14 +467,14 @@ impl RoomRepository {
     /// 路径树只需要 roomid 和 roompath。这里一次性读取活跃房间主路径，再批量读取
     /// 这些 roomid 对应的额外路径，避免为 1:N 路径逐房间查询，也避免加载完整
     /// `Room` 放大冷启动和手动同步后的堆占用。
-    pub async fn find_all_active_path_entries(&self) -> Result<Vec<(i32, String)>> {
+    pub async fn find_all_active_path_entries(&self) -> Result<Vec<(i64, String)>> {
         let mut conn = self.get_conn().await?;
 
         let mut path_entries = rooms::table
             .filter(rooms::is_active.eq(true))
             .select((rooms::roomid, rooms::primary_roompath))
             .order_by(rooms::created_at.desc())
-            .load::<(i32, String)>(&mut conn)
+            .load::<(i64, String)>(&mut conn)
             .await
             .map_err(AppError::Database)?;
 
@@ -493,7 +493,7 @@ impl RoomRepository {
                 .filter(room_paths::roomid.eq_any(chunk))
                 .select((room_paths::roomid, room_paths::roompath))
                 .order_by((room_paths::roomid.asc(), room_paths::roompath.asc()))
-                .load::<(i32, String)>(&mut conn)
+                .load::<(i64, String)>(&mut conn)
                 .await
                 .map_err(AppError::Database)?;
 
@@ -556,13 +556,13 @@ impl RoomRepository {
     /// - `roompath`: 实际路径（用于精确验证）
     ///
     /// # 返回
-    /// - `Some(i32)`: 找到的roomid
+    /// - `Some(i64)`: 找到的roomid
     /// - `None`: 路径不存在
     pub async fn find_roomid_by_additional_roompath(
         &self,
         hash: i64,
         roompath: &str,
-    ) -> Result<Option<i32>> {
+    ) -> Result<Option<i64>> {
         use crate::infrastructure::database::schema::room_paths;
 
         let mut conn = self.get_conn().await?;
@@ -585,7 +585,7 @@ impl RoomRepository {
     /// # 返回
     /// - `Some(RoomAggregate)`: 找到房间及其所有路径
     /// - `None`: 房间不存在
-    pub async fn find_room_with_all_paths(&self, roomid: i32) -> Result<Option<RoomAggregate>> {
+    pub async fn find_room_with_all_paths(&self, roomid: i64) -> Result<Option<RoomAggregate>> {
         let mut conn = self.get_conn().await?;
 
         // 查找房间
@@ -612,7 +612,7 @@ impl RoomRepository {
     ///
     /// # 返回
     /// 额外路径列表
-    pub async fn find_additional_paths(&self, roomid: i32) -> Result<Vec<RoomPath>> {
+    pub async fn find_additional_paths(&self, roomid: i64) -> Result<Vec<RoomPath>> {
         let mut conn = self.get_conn().await?;
 
         room_paths::table
@@ -634,7 +634,7 @@ impl RoomRepository {
     /// 更新的行数
     pub async fn update_primary_roompath(
         &self,
-        roomid: i32,
+        roomid: i64,
         new_primary_roompath: &str,
         new_hash: i64,
     ) -> Result<usize> {
@@ -659,7 +659,7 @@ impl RoomRepository {
     ///
     /// # 返回
     /// 删除的行数
-    pub async fn delete_additional_path(&self, roomid: i32, roompath: &str) -> Result<usize> {
+    pub async fn delete_additional_path(&self, roomid: i64, roompath: &str) -> Result<usize> {
         use crate::infrastructure::database::schema::room_paths;
 
         let mut conn = self.get_conn().await?;
@@ -684,7 +684,7 @@ impl RoomRepository {
     /// 更新的行数
     pub async fn update_has_additional_paths(
         &self,
-        roomid: i32,
+        roomid: i64,
         has_additional: bool,
     ) -> Result<usize> {
         let mut conn = self.get_conn().await?;
@@ -721,7 +721,7 @@ impl RoomRepository {
     ///
     /// # 返回
     /// 停用的房间数量
-    pub async fn deactivate_except(&self, active_roomids: &[i32]) -> Result<usize> {
+    pub async fn deactivate_except(&self, active_roomids: &[i64]) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
         diesel::update(
@@ -915,7 +915,7 @@ impl RoomRepository {
     /// # 说明
     /// 用于在房间电费恢复到阈值以上时持久化恢复时间，
     /// 防止服务器重启后防抖观察期逻辑失效
-    pub async fn update_last_recovered(&self, roomid: i32, time: NaiveDateTime) -> Result<usize> {
+    pub async fn update_last_recovered(&self, roomid: i64, time: NaiveDateTime) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
         let update = UpdateLastRecovered {
@@ -949,7 +949,7 @@ impl RoomRepository {
     ///
     /// # 说明
     /// 用于在房间恢复观察期结束后重置状态
-    pub async fn reset_last_recovered(&self, roomid: i32) -> Result<usize> {
+    pub async fn reset_last_recovered(&self, roomid: i64) -> Result<usize> {
         let mut conn = self.get_conn().await?;
 
         // 直接使用 DSL 设置 NULL，避免 AsChangeset 结构体的 None 跳过行为
@@ -974,10 +974,10 @@ impl RoomRepository {
     ///
     /// # 说明
     /// 用于服务器启动时从数据库恢复房间恢复时间状态到内存
-    pub async fn find_all_with_recovery_time(&self) -> Result<Vec<(i32, NaiveDateTime)>> {
+    pub async fn find_all_with_recovery_time(&self) -> Result<Vec<(i64, NaiveDateTime)>> {
         let mut conn = self.get_conn().await?;
 
-        let results: Vec<(i32, Option<NaiveDateTime>)> = rooms::table
+        let results: Vec<(i64, Option<NaiveDateTime>)> = rooms::table
             .filter(rooms::last_recovered_at.is_not_null())
             .select((rooms::roomid, rooms::last_recovered_at))
             .load(&mut conn)
@@ -985,7 +985,7 @@ impl RoomRepository {
             .map_err(AppError::Database)?;
 
         // 过滤掉 None 值
-        let filtered: Vec<(i32, NaiveDateTime)> = results
+        let filtered: Vec<(i64, NaiveDateTime)> = results
             .into_iter()
             .filter_map(|(roomid, time_opt)| time_opt.map(|time| (roomid, time)))
             .collect();
@@ -1003,9 +1003,9 @@ mod tests {
     use crate::infrastructure::database::create_pool;
     use chrono::Utc;
 
-    fn unique_roomid() -> i32 {
+    fn unique_roomid() -> i64 {
         let millis = Utc::now().timestamp_millis().rem_euclid(1_000_000);
-        900_000 + millis as i32
+        900_000 + millis
     }
 
     async fn setup_test_pool() -> Option<DbPool> {

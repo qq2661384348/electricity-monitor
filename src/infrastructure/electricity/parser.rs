@@ -1,12 +1,13 @@
 //! 电费数据解析器
 //!
-//! 使用高性能字符串搜索从 HTTP 响应中提取电费数值
+//! 从外部 HTTP 响应中提取电费数值。
 
 use super::error::Result;
+use serde_json::Value;
 
 /// 电费解析器
 ///
-/// 使用 `str::find()` 高效提取 JSON 响应中的 "Value" 字段
+/// 兼容新 Upay `Data[0].ResNum` 响应和旧 `component[].Value` 响应。
 pub struct ElectricityParser;
 
 impl ElectricityParser {
@@ -19,13 +20,16 @@ impl ElectricityParser {
     ///
     /// # 算法
     ///
-    /// 1. 快速检测 BS=-1（房间不存在）
-    /// 2. 使用 find() 定位 "Value" 字段
-    /// 3. 手动提取数值部分
-    /// 4. 简单验证数字格式
+    /// 1. 优先解析新 Upay JSON 响应中的 `Data[0].ResNum`
+    /// 2. 快速检测旧接口 BS=-1（房间不存在）
+    /// 3. 兼容旧接口 `"Name":"剩余"` 后面的 `"Value"` 字段
     pub fn parse(&self, raw_data: &str) -> Option<f32> {
+        if let Some(value) = self.parse_upay_res_num(raw_data) {
+            return Some(value);
+        }
+
         // 1. 快速检测 API 业务错误：{"BS":"-1","Msg":"失败",...}
-        if raw_data.contains(r#"\"BS\":\"-1\""#) {
+        if raw_data.contains(r#"\"BS\":\"-1\""#) || raw_data.contains(r#""BS":"-1""#) {
             return None;
         }
 
@@ -47,6 +51,27 @@ impl ElectricityParser {
         // 4. 解析为 f32
         value_str.parse::<f32>().ok()
     }
+
+    fn parse_upay_res_num(&self, raw_data: &str) -> Option<f32> {
+        let value = parse_json_value(raw_data)?;
+        let data = value.get("Data")?.as_array()?;
+        let first = data.first()?;
+        let res_num = first.get("ResNum")?;
+
+        if let Some(value) = res_num.as_str() {
+            return value.parse::<f32>().ok();
+        }
+
+        res_num.as_f64().map(|value| value as f32)
+    }
+}
+
+fn parse_json_value(raw_data: &str) -> Option<Value> {
+    let value: Value = serde_json::from_str(raw_data.trim()).ok()?;
+    if let Some(inner) = value.as_str() {
+        return serde_json::from_str(inner).ok();
+    }
+    Some(value)
 }
 
 impl Default for ElectricityParser {
@@ -83,6 +108,28 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_upay_res_num_response() {
+        let parser = ElectricityParser::new().unwrap();
+        let raw_data = r#"{
+            "Data": [
+                {
+                    "SchoolName": "文昌校区",
+                    "ApartName": "北区4栋公寓",
+                    "RoomID": "982318536531644416",
+                    "RoomName": "107",
+                    "ResNum": "73.80",
+                    "UsedNum": "0.00",
+                    "Updatedt": "2026-06-09 12:00:24"
+                }
+            ]
+        }"#;
+
+        let result = parser.parse(raw_data);
+
+        assert_eq!(result, Some(73.80));
+    }
+
+    #[test]
     fn test_parse_room_not_found() {
         let parser = ElectricityParser::new().unwrap();
         let raw_data =
@@ -98,7 +145,8 @@ mod tests {
             return;
         }
 
-        let api_url = "https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid=4330";
+        let api_url =
+            "https://upayadmin.gyruibo.cn/UpayManage/Home/GetRoom?roomid=982318536498089984";
 
         // 发起HTTP请求
         let client = reqwest::Client::builder()

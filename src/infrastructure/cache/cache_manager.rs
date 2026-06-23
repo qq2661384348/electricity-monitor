@@ -22,12 +22,12 @@ struct RoomLoader {
 }
 
 #[async_trait]
-impl DataLoader<i32, Room> for RoomLoader {
-    async fn load(&self, key: &i32) -> Result<Option<Room>> {
+impl DataLoader<i64, Room> for RoomLoader {
+    async fn load(&self, key: &i64) -> Result<Option<Room>> {
         self.repository.find_by_roomid(*key).await
     }
 
-    async fn load_batch(&self, keys: &[i32]) -> Result<Vec<(i32, Room)>> {
+    async fn load_batch(&self, keys: &[i64]) -> Result<Vec<(i64, Room)>> {
         let rooms = self.repository.find_by_roomids(keys).await?;
         Ok(rooms.into_iter().map(|r| (r.roomid, r)).collect())
     }
@@ -56,8 +56,8 @@ struct BindingLoader {
 }
 
 #[async_trait]
-impl DataLoader<i32, Vec<UserRoomBinding>> for BindingLoader {
-    async fn load(&self, key: &i32) -> Result<Option<Vec<UserRoomBinding>>> {
+impl DataLoader<i64, Vec<UserRoomBinding>> for BindingLoader {
+    async fn load(&self, key: &i64) -> Result<Option<Vec<UserRoomBinding>>> {
         let bindings = self.repository.find_active_bindings_by_roomid(*key).await?;
         Ok(if bindings.is_empty() {
             None
@@ -66,14 +66,14 @@ impl DataLoader<i32, Vec<UserRoomBinding>> for BindingLoader {
         })
     }
 
-    async fn load_batch(&self, keys: &[i32]) -> Result<Vec<(i32, Vec<UserRoomBinding>)>> {
+    async fn load_batch(&self, keys: &[i64]) -> Result<Vec<(i64, Vec<UserRoomBinding>)>> {
         let all_bindings = self
             .repository
             .find_active_bindings_by_roomids(keys)
             .await?;
 
         // 按roomid分组
-        let grouped: DashMap<i32, Vec<UserRoomBinding>> = DashMap::new();
+        let grouped: DashMap<i64, Vec<UserRoomBinding>> = DashMap::new();
         for binding in all_bindings {
             grouped.entry(binding.roomid).or_default().push(binding);
         }
@@ -141,13 +141,13 @@ impl Default for CacheManagerConfig {
 /// 统一缓存管理器
 pub struct CacheManager {
     /// Room缓存
-    room_cache: Arc<EntityCache<i32, Room>>,
+    room_cache: Arc<EntityCache<i64, Room>>,
     /// User缓存
     user_cache: Arc<EntityCache<Uuid, User>>,
     /// Binding缓存
-    binding_cache: Arc<EntityCache<i32, Vec<UserRoomBinding>>>,
+    binding_cache: Arc<EntityCache<i64, Vec<UserRoomBinding>>>,
     /// 电费数据缓存
-    electricity_cache: Arc<EntityCache<i32, f32>>,
+    electricity_cache: Arc<EntityCache<i64, f32>>,
     /// 数据加载器
     room_loader: Arc<RoomLoader>,
     user_loader: Arc<UserLoader>,
@@ -212,14 +212,14 @@ impl CacheManager {
     }
 
     /// 获取房间（带缓存）
-    pub async fn get_room(&self, roomid: i32) -> Result<Option<Room>> {
+    pub async fn get_room(&self, roomid: i64) -> Result<Option<Room>> {
         self.room_cache
             .get_or_load(roomid, self.room_loader.as_ref())
             .await
     }
 
     /// 批量获取房间
-    pub async fn get_rooms(&self, roomids: Vec<i32>) -> Result<Vec<(i32, Option<Room>)>> {
+    pub async fn get_rooms(&self, roomids: Vec<i64>) -> Result<Vec<(i64, Option<Room>)>> {
         self.room_cache
             .get_batch(roomids, self.room_loader.as_ref())
             .await
@@ -240,7 +240,7 @@ impl CacheManager {
     }
 
     /// 获取房间绑定（带缓存）
-    pub async fn get_room_bindings(&self, roomid: i32) -> Result<Option<Vec<UserRoomBinding>>> {
+    pub async fn get_room_bindings(&self, roomid: i64) -> Result<Option<Vec<UserRoomBinding>>> {
         self.binding_cache
             .get_or_load(roomid, self.binding_loader.as_ref())
             .await
@@ -249,15 +249,15 @@ impl CacheManager {
     /// 批量获取房间绑定
     pub async fn get_rooms_bindings(
         &self,
-        roomids: Vec<i32>,
-    ) -> Result<Vec<(i32, Option<Vec<UserRoomBinding>>)>> {
+        roomids: Vec<i64>,
+    ) -> Result<Vec<(i64, Option<Vec<UserRoomBinding>>)>> {
         self.binding_cache
             .get_batch(roomids, self.binding_loader.as_ref())
             .await
     }
 
     /// 获取电费（带缓存）
-    pub async fn get_electricity(&self, roomid: i32) -> Result<Option<f32>> {
+    pub async fn get_electricity(&self, roomid: i64) -> Result<Option<f32>> {
         self.electricity_cache
             .get_or_load(roomid, self.electricity_loader.as_ref())
             .await
@@ -266,20 +266,20 @@ impl CacheManager {
     /// 批量获取电费
     pub async fn get_electricity_batch(
         &self,
-        roomids: Vec<i32>,
-    ) -> Result<Vec<(i32, Option<f32>)>> {
+        roomids: Vec<i64>,
+    ) -> Result<Vec<(i64, Option<f32>)>> {
         self.electricity_cache
             .get_batch(roomids, self.electricity_loader.as_ref())
             .await
     }
 
     /// 设置电费缓存（用于更新后）
-    pub async fn set_electricity(&self, roomid: i32, electricity_fee: f32) -> Result<()> {
+    pub async fn set_electricity(&self, roomid: i64, electricity_fee: f32) -> Result<()> {
         self.electricity_cache.set(roomid, electricity_fee).await
     }
 
     /// 批量设置电费缓存
-    pub async fn set_electricity_batch(&self, data: Vec<(i32, f32)>) -> Result<()> {
+    pub async fn set_electricity_batch(&self, data: Vec<(i64, f32)>) -> Result<()> {
         for (roomid, electricity_fee) in data {
             self.electricity_cache.set(roomid, electricity_fee).await?;
         }
@@ -287,12 +287,12 @@ impl CacheManager {
     }
 
     /// 使电费缓存失效
-    pub async fn invalidate_electricity(&self, roomid: i32) -> Result<()> {
+    pub async fn invalidate_electricity(&self, roomid: i64) -> Result<()> {
         self.electricity_cache.invalidate(&roomid).await
     }
 
     /// 使房间缓存失效
-    pub async fn invalidate_room(&self, roomid: i32) -> Result<()> {
+    pub async fn invalidate_room(&self, roomid: i64) -> Result<()> {
         self.room_cache.invalidate(&roomid).await?;
         // 同时使相关电费缓存失效
         self.electricity_cache.invalidate(&roomid).await?;
@@ -305,12 +305,12 @@ impl CacheManager {
     }
 
     /// 使绑定缓存失效
-    pub async fn invalidate_binding(&self, roomid: i32) -> Result<()> {
+    pub async fn invalidate_binding(&self, roomid: i64) -> Result<()> {
         self.binding_cache.invalidate(&roomid).await
     }
 
     /// 预热缓存（用于启动时）
-    pub async fn warm_cache(&self, roomids: Vec<i32>) -> Result<()> {
+    pub async fn warm_cache(&self, roomids: Vec<i64>) -> Result<()> {
         tracing::info!("开始预热缓存，房间数: {}", roomids.len());
 
         // 并发预热

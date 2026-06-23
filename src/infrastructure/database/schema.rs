@@ -3,7 +3,7 @@
 diesel::table! {
     electricity_history (id) {
         id -> Uuid,
-        roomid -> Int4,
+        roomid -> Int8,
         electricity_fee -> Float4,
         recorded_at -> Timestamp,
         created_at -> Timestamp,
@@ -13,7 +13,7 @@ diesel::table! {
 diesel::table! {
     room_paths (id) {
         id -> Uuid,
-        roomid -> Int4,
+        roomid -> Int8,
         #[max_length = 255]
         roompath -> Varchar,
         roompath_hash -> Int8,
@@ -44,7 +44,7 @@ diesel::table! {
 diesel::table! {
     rooms (id) {
         id -> Uuid,
-        roomid -> Int4,
+        roomid -> Int8,
         electricity_fee -> Float4,
         send_flag -> Bool,
         threshold -> Float4,
@@ -70,7 +70,7 @@ diesel::table! {
     user_room_bindings (id) {
         id -> Uuid,
         user_id -> Uuid,
-        roomid -> Int4,
+        roomid -> Int8,
         notification_enabled -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,

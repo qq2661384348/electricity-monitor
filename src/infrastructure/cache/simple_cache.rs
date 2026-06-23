@@ -37,7 +37,7 @@ impl Default for SimpleCacheConfig {
 
 /// Room缓存
 pub struct RoomCache {
-    cache: MokaCache<i32, Option<Room>>,
+    cache: MokaCache<i64, Option<Room>>,
     repository: RoomRepository,
 }
 
@@ -53,7 +53,7 @@ impl RoomCache {
     }
 
     /// 获取房间（带缓存）
-    pub async fn get(&self, roomid: i32) -> Result<Option<Room>> {
+    pub async fn get(&self, roomid: i64) -> Result<Option<Room>> {
         // 尝试从缓存获取
         if let Some(cached) = self.cache.get(&roomid).await {
             return Ok(cached);
@@ -69,7 +69,7 @@ impl RoomCache {
     }
 
     /// 批量获取房间
-    pub async fn get_batch(&self, roomids: &[i32]) -> Result<Vec<Room>> {
+    pub async fn get_batch(&self, roomids: &[i64]) -> Result<Vec<Room>> {
         let mut results = Vec::new();
         let mut missing = Vec::new();
 
@@ -97,7 +97,7 @@ impl RoomCache {
     }
 
     /// 使缓存失效
-    pub async fn invalidate(&self, roomid: i32) {
+    pub async fn invalidate(&self, roomid: i64) {
         self.cache.invalidate(&roomid).await;
     }
 
@@ -191,7 +191,7 @@ impl UserCache {
 
 /// Binding缓存
 pub struct BindingCache {
-    cache: MokaCache<i32, Vec<UserRoomBinding>>,
+    cache: MokaCache<i64, Vec<UserRoomBinding>>,
     repository: UserRoomBindingRepository,
 }
 
@@ -207,7 +207,7 @@ impl BindingCache {
     }
 
     /// 获取房间绑定（带缓存）
-    pub async fn get_by_roomid(&self, roomid: i32) -> Result<Vec<UserRoomBinding>> {
+    pub async fn get_by_roomid(&self, roomid: i64) -> Result<Vec<UserRoomBinding>> {
         // 尝试从缓存获取
         if let Some(cached) = self.cache.get(&roomid).await {
             return Ok(cached);
@@ -226,7 +226,7 @@ impl BindingCache {
     }
 
     /// 批量获取房间绑定
-    pub async fn get_batch(&self, roomids: &[i32]) -> Result<Vec<UserRoomBinding>> {
+    pub async fn get_batch(&self, roomids: &[i64]) -> Result<Vec<UserRoomBinding>> {
         let mut results = Vec::new();
         let mut missing = Vec::new();
 
@@ -248,7 +248,7 @@ impl BindingCache {
 
             // 按roomid分组并缓存
             use std::collections::HashMap;
-            let mut grouped: HashMap<i32, Vec<UserRoomBinding>> = HashMap::new();
+            let mut grouped: HashMap<i64, Vec<UserRoomBinding>> = HashMap::new();
             for binding in all_bindings {
                 grouped
                     .entry(binding.roomid)
@@ -267,7 +267,7 @@ impl BindingCache {
     }
 
     /// 使缓存失效
-    pub async fn invalidate(&self, roomid: i32) {
+    pub async fn invalidate(&self, roomid: i64) {
         self.cache.invalidate(&roomid).await;
     }
 
@@ -304,7 +304,7 @@ impl SimpleCacheManager {
     }
 
     /// 预热缓存
-    pub async fn warm_up(&self, roomids: &[i32]) -> Result<()> {
+    pub async fn warm_up(&self, roomids: &[i64]) -> Result<()> {
         tracing::info!("开始预热缓存，房间数: {}", roomids.len());
 
         // 并发预热

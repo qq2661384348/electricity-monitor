@@ -40,7 +40,7 @@ impl RedisBatchWriter {
     ///
     /// # 错误
     /// Redis连接或写入失败
-    pub async fn batch_write(&self, data: &HashMap<i32, f32>) -> Result<usize> {
+    pub async fn batch_write(&self, data: &HashMap<i64, f32>) -> Result<usize> {
         if data.is_empty() {
             tracing::debug!("批量写入跳过：数据为空");
             return Ok(0);
@@ -159,7 +159,7 @@ impl RedisBatchWriter {
     ///
     /// # 说明
     /// 从Redis读取整个Hash
-    pub async fn batch_read(&self, timestamp: i64) -> Result<HashMap<i32, f32>> {
+    pub async fn batch_read(&self, timestamp: i64) -> Result<HashMap<i64, f32>> {
         let mut conn = self
             .pool
             .get()
@@ -177,7 +177,7 @@ impl RedisBatchWriter {
         // 转换类型：String → i32/f32
         let mut result = HashMap::new();
         for (roomid_str, fee_str) in hash {
-            if let (Ok(roomid), Ok(fee)) = (roomid_str.parse::<i32>(), fee_str.parse::<f32>()) {
+            if let (Ok(roomid), Ok(fee)) = (roomid_str.parse::<i64>(), fee_str.parse::<f32>()) {
                 result.insert(roomid, fee);
             } else {
                 tracing::warn!(

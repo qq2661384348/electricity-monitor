@@ -2,13 +2,15 @@
 type: semantic
 status: verified
 scope: 运行时配置与环境
-updated_at: 2026-05-06
-verified_at: 2026-05-06
+updated_at: 2026-06-23
+verified_at: 2026-06-23
 sources:
   - src/config/app.rs
   - src/config/captcha.rs
   - src/config/email.rs
+  - src/config/electricity_fetcher.rs
   - src/config/qq_bot.rs
+  - src/config/room_sync.rs
   - src/handlers/public_config.rs
   - config/development.toml.example
   - config/production.toml.example
@@ -57,6 +59,8 @@ summary: 运行时配置加载顺序、环境语义、关键依赖和 fail-fast 
 - `admin.default_qq_number` 同时用于管理员提升和前端支持引导，运行时必须是 5 到 20 位数字且不能保留占位值。
 - `[captcha]` 控制第三方图形验证码的 `api_url`、请求超时、一次性 `captcha_token` 有效期、验证码类型、宽高和难度；前端与后端校验代理通过 `/api/public-config` 共享这些非敏感参数，避免硬编码漂移。
 - `[verification]` 控制登录验证码长度、Redis 有效期和 key 前缀；验证码长度允许配置为 1 到 20 位数字，Redis key 会按 `qq` / `email` 登录渠道隔离。
+- `[room_sync.crawler]` 的 `api_url` 默认是 `https://upayadmin.gyruibo.cn/UpayManage/Home`，`cid` 默认是 `689885779152867328`；客户端会在该 base URL 下访问 `GetRoomSchool`、`GetRoomApart` 和 `GetRoomList`。
+- `[electricity_fetcher].api_url` 默认是 `https://upayadmin.gyruibo.cn/UpayManage/Home/GetRoom?roomid=`，配置校验仍要求以 `?roomid=` 结尾。
 
 ## 与测试相关的环境变量
 

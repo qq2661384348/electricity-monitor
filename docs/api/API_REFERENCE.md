@@ -435,7 +435,7 @@ curl -H "Authorization: Bearer <access-token>" \
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
-  "roomid": 123,
+  "roomid": "982318536498089984",
   "room_name": "桂林/雁山/05栋/0501",
   "primary_roompath": "桂林/雁山/05栋/0501",
   "has_additional_paths": true,
@@ -461,7 +461,7 @@ curl -H "Authorization: Bearer <access-token>" \
       "name": "0501",
       "is_leaf": true,
       "room_count": 1,
-      "roomid": 123
+      "roomid": "982318536498089984"
     }
   ],
   "current_level": 3,
@@ -481,7 +481,7 @@ curl -H "Authorization: Bearer <access-token>" \
 
 ```json
 {
-  "roomid": 123,
+  "roomid": "982318536498089984",
   "room_name": "0501",
   "electricity_fee": 85.5,
   "threshold": 100.0,
@@ -503,12 +503,12 @@ curl -H "Authorization: Bearer <access-token>" \
 
 ```json
 {
-  "roomid": 123,
+  "roomid": "982318536498089984",
   "notification_enabled": false
 }
 ```
 
-> 创建绑定仍需要 access token Bearer 认证；普通用户和管理员账号都不需要额外绑定码。
+> `roomid` 对外按字符串传输，避免新外部接口返回的 18 位 RoomID 在浏览器中超过 JavaScript 安全整数范围；后端仍兼容旧调用方提交数字。创建绑定仍需要 access token Bearer 认证；普通用户和管理员账号都不需要额外绑定码。
 
 #### 响应示例
 
@@ -516,7 +516,7 @@ curl -H "Authorization: Bearer <access-token>" \
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "user_id": "550e8400-e29b-41d4-a716-446655440000",
-  "roomid": 123,
+  "roomid": "982318536498089984",
   "notification_enabled": false,
   "created_at": "2026-05-05 12:00:00",
   "updated_at": "2026-05-05 12:00:00"
@@ -659,7 +659,7 @@ curl -H "Authorization: Bearer <admin-access-token>" \
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| roomid | integer | 房间业务ID |
+| roomid | string | 房间业务ID。路径参数仍是十进制数字文本，对外 JSON 按字符串返回 |
 
 #### 请求示例
 
@@ -672,7 +672,7 @@ curl -H "Authorization: Bearer <admin-access-token>" \
 
 ```json
 {
-  "roomid": 123,
+  "roomid": "982318536498089984",
   "primary_roompath": "桂林/雁山/05栋/0501",
   "additional_paths": [
     "桂林/雁山/05栋/05楼/0501",
@@ -760,3 +760,4 @@ curl -H "Authorization: Bearer eyJhbGc..." \
 - v1.1: 新增房间同步API（4个端点）
 - v1.1: CreateRoomRequest新增必填字段`primary_roompath`
 - v1.1: GET /api/rooms/by-roomid返回单对象（非数组）
+- v1.2: 外部 Upay RoomID 可能超过 JavaScript 安全整数范围，后端内部使用 `i64`，HTTP JSON 中的 `roomid` 统一按字符串返回

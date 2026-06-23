@@ -58,13 +58,13 @@ pub struct NotificationGate {
     ///
     /// 记录每个用户对每个房间的最后一次通知时间
     /// 使用 NaiveDateTime 支持持久化
-    notification_history: Arc<RwLock<HashMap<(Uuid, i32), NaiveDateTime>>>,
+    notification_history: Arc<RwLock<HashMap<(Uuid, i64), NaiveDateTime>>>,
 
     /// roomid -> 电费恢复时间
     ///
     /// 记录房间电费恢复到 >= threshold 的时间
     /// 使用 NaiveDateTime 支持持久化
-    room_recovery_time: Arc<RwLock<HashMap<i32, NaiveDateTime>>>,
+    room_recovery_time: Arc<RwLock<HashMap<i64, NaiveDateTime>>>,
 
     /// 防抖观察期
     ///
@@ -153,7 +153,7 @@ impl NotificationGate {
     /// 2. 如果未记录恢复时间，说明仍在预警状态，返回 false
     /// 3. 如果已记录恢复时间，计算距离现在的时长
     /// 4. 如果时长 >= debounce_period，返回 true；否则返回 false
-    async fn check_recovery_reset(&self, roomid: i32) -> bool {
+    async fn check_recovery_reset(&self, roomid: i64) -> bool {
         let recovery_map = self.room_recovery_time.read().await;
 
         match recovery_map.get(&roomid) {
@@ -181,7 +181,7 @@ impl NotificationGate {
     /// 在成功发送通知后调用此方法，记录发送时间
     /// **注意**: 此方法仅更新内存，不持久化到数据库
     /// 如需持久化，请使用 `mark_notified_persistent` 方法
-    pub async fn mark_notified(&self, user_id: Uuid, roomid: i32) {
+    pub async fn mark_notified(&self, user_id: Uuid, roomid: i64) {
         let now = Utc::now().naive_utc();
         let mut history = self.notification_history.write().await;
         history.insert((user_id, roomid), now);
@@ -208,7 +208,7 @@ impl NotificationGate {
     pub async fn mark_notified_persistent(
         &self,
         user_id: Uuid,
-        roomid: i32,
+        roomid: i64,
         binding_repo: &UserRoomBindingRepository,
     ) -> Result<()> {
         let now = Utc::now().naive_utc();
@@ -350,7 +350,7 @@ impl NotificationGate {
 
         // 1. 找出已过观察期的房间
         let mut recovery_map = self.room_recovery_time.write().await;
-        let expired_rooms: Vec<i32> = recovery_map
+        let expired_rooms: Vec<i64> = recovery_map
             .iter()
             .filter(|(_, recovery_time)| {
                 now.signed_duration_since(**recovery_time) >= debounce_chrono
@@ -406,7 +406,7 @@ impl NotificationGate {
             chrono::Duration::from_std(self.debounce_period).unwrap_or(chrono::Duration::hours(1));
 
         // 1. 找出已过观察期的房间
-        let expired_rooms: Vec<i32>;
+        let expired_rooms: Vec<i64>;
         {
             let recovery_map = self.room_recovery_time.read().await;
             expired_rooms = recovery_map
@@ -675,7 +675,7 @@ mod tests {
     use crate::domain::models::Room;
 
     /// 创建测试用房间
-    fn create_test_room(roomid: i32, electricity_fee: f32, threshold: f32) -> Room {
+    fn create_test_room(roomid: i64, electricity_fee: f32, threshold: f32) -> Room {
         Room {
             id: Uuid::new_v4(),
             roomid,

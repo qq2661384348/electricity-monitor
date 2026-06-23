@@ -9,10 +9,10 @@ use tokio::sync::RwLock;
 
 /// RoomId内存缓存
 ///
-/// 使用Arc<RwLock<Vec<i32>>>实现线程安全的读写锁
+/// 使用Arc<RwLock<Vec<i64>>>实现线程安全的读写锁
 pub struct RoomIdCache {
-    /// roomid缓存（Vec<i32>）
-    cache: Arc<RwLock<Vec<i32>>>,
+    /// roomid缓存（Vec<i64>）
+    cache: Arc<RwLock<Vec<i64>>>,
     /// 数据库连接池（用于刷新缓存）
     pool: DbPool,
 }
@@ -63,12 +63,12 @@ impl RoomIdCache {
     /// 获取所有roomid
     ///
     /// # 返回
-    /// roomid列表的克隆（Vec<i32>）
+    /// roomid列表的克隆（Vec<i64>）
     ///
     /// # 说明
     /// - 使用读锁，支持并发读取
     /// - 返回克隆，避免锁持有时间过长
-    pub async fn get_all(&self) -> Vec<i32> {
+    pub async fn get_all(&self) -> Vec<i64> {
         self.cache.read().await.clone()
     }
 
@@ -99,7 +99,7 @@ mod tests {
     #[test]
     fn test_roomid_cache_struct() {
         // 测试结构体可以正常构造（编译时验证）
-        // RoomIdCache { cache: Arc<RwLock<Vec<i32>>>, pool: DbPool }
+        // RoomIdCache { cache: Arc<RwLock<Vec<i64>>>, pool: DbPool }
         // Arc: 8 bytes, DbPool (Arc内部): 8 bytes = 16 bytes total
         assert_eq!(std::mem::size_of::<RoomIdCache>(), 16);
     }

@@ -17,7 +17,8 @@ pub struct RoomPath {
     pub id: Uuid,
 
     /// 房间ID（外键，关联rooms.roomid）
-    pub roomid: i32,
+    #[serde(with = "crate::utils::roomid")]
+    pub roomid: i64,
 
     /// 房间路径（唯一标识）
     pub roompath: String,
@@ -43,7 +44,8 @@ pub struct RoomPath {
 #[diesel(table_name = room_paths)]
 pub struct NewRoomPath {
     /// 房间ID
-    pub roomid: i32,
+    #[serde(deserialize_with = "crate::utils::roomid::deserialize")]
+    pub roomid: i64,
 
     /// 房间路径
     pub roompath: String,
@@ -65,7 +67,7 @@ fn default_source_type() -> String {
 
 impl NewRoomPath {
     /// 创建新的RoomPath实例
-    pub fn new(roomid: i32, roompath: String, roompath_hash: i64, room_name: String) -> Self {
+    pub fn new(roomid: i64, roompath: String, roompath_hash: i64, room_name: String) -> Self {
         Self {
             roomid,
             roompath,

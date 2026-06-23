@@ -30,7 +30,7 @@ impl ElectricityCacheLoader {
 }
 
 #[async_trait]
-impl DataLoader<i32, f32> for ElectricityCacheLoader {
+impl DataLoader<i64, f32> for ElectricityCacheLoader {
     /// 加载单个房间的电费
     ///
     /// # 参数
@@ -39,7 +39,7 @@ impl DataLoader<i32, f32> for ElectricityCacheLoader {
     /// # 返回
     /// - `Some(f32)`: 电费值
     /// - `None`: 房间不存在
-    async fn load(&self, roomid: &i32) -> Result<Option<f32>> {
+    async fn load(&self, roomid: &i64) -> Result<Option<f32>> {
         tracing::debug!("从数据库加载电费: roomid={}", roomid);
 
         // 查询房间信息
@@ -71,7 +71,7 @@ impl DataLoader<i32, f32> for ElectricityCacheLoader {
     /// - 单次数据库查询
     /// - 使用IN子句批量查询
     /// - 最大1000个ID分批处理
-    async fn load_batch(&self, roomids: &[i32]) -> Result<Vec<(i32, f32)>> {
+    async fn load_batch(&self, roomids: &[i64]) -> Result<Vec<(i64, f32)>> {
         if roomids.is_empty() {
             return Ok(Vec::new());
         }
@@ -82,7 +82,7 @@ impl DataLoader<i32, f32> for ElectricityCacheLoader {
         let rooms = self.repository.find_by_roomids(roomids).await?;
 
         // 转换为(roomid, electricity_fee)元组
-        let results: Vec<(i32, f32)> = rooms
+        let results: Vec<(i64, f32)> = rooms
             .into_iter()
             .map(|room| (room.roomid, room.electricity_fee))
             .collect();
@@ -91,9 +91,9 @@ impl DataLoader<i32, f32> for ElectricityCacheLoader {
 
         // 记录未找到的roomid（用于调试）
         if results.len() < roomids.len() {
-            let found_ids: HashMap<i32, ()> = results.iter().map(|(id, _)| (*id, ())).collect();
+            let found_ids: HashMap<i64, ()> = results.iter().map(|(id, _)| (*id, ())).collect();
 
-            let missing_ids: Vec<i32> = roomids
+            let missing_ids: Vec<i64> = roomids
                 .iter()
                 .filter(|id| !found_ids.contains_key(id))
                 .copied()

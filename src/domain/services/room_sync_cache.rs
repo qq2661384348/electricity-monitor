@@ -14,10 +14,10 @@ use tokio::sync::RwLock;
 /// 使用Arc<RwLock<HashMap>>实现线程安全的读写锁
 pub struct RoomSyncCache {
     /// 主缓存：roomid → Room
-    rooms: Arc<RwLock<HashMap<i32, Room>>>,
+    rooms: Arc<RwLock<HashMap<i64, Room>>>,
 
     /// 路径缓存：roomid → Vec<RoomPath>
-    paths: Arc<RwLock<HashMap<i32, Vec<RoomPath>>>>,
+    paths: Arc<RwLock<HashMap<i64, Vec<RoomPath>>>>,
 
     /// 数据库连接池（用于刷新缓存）
     pool: DbPool,
@@ -71,10 +71,10 @@ impl RoomSyncCache {
         tracing::debug!("查询到 {} 条额外路径", all_paths.len());
 
         // 3. 构建房间缓存
-        let rooms_map: HashMap<i32, Room> = all_rooms.into_iter().map(|r| (r.roomid, r)).collect();
+        let rooms_map: HashMap<i64, Room> = all_rooms.into_iter().map(|r| (r.roomid, r)).collect();
 
         // 4. 构建路径缓存（按roomid分组）
-        let mut paths_map: HashMap<i32, Vec<RoomPath>> = HashMap::new();
+        let mut paths_map: HashMap<i64, Vec<RoomPath>> = HashMap::new();
         for path in all_paths {
             paths_map.entry(path.roomid).or_default().push(path);
         }
@@ -143,7 +143,7 @@ impl RoomSyncCache {
     /// # 参数
     /// - `roomid`: 房间ID
     /// - `paths`: 该房间的所有路径
-    pub async fn update_paths(&self, roomid: i32, paths: Vec<RoomPath>) {
+    pub async fn update_paths(&self, roomid: i64, paths: Vec<RoomPath>) {
         let mut cache = self.paths.write().await;
 
         if paths.is_empty() {
@@ -161,7 +161,7 @@ impl RoomSyncCache {
     /// # 说明
     /// - 使用读锁，支持并发读取
     /// - 返回克隆，避免锁持有时间过长
-    pub async fn get_all_rooms(&self) -> HashMap<i32, Room> {
+    pub async fn get_all_rooms(&self) -> HashMap<i64, Room> {
         self.rooms.read().await.clone()
     }
 
@@ -177,7 +177,7 @@ impl RoomSyncCache {
     /// # 说明
     /// - 优先从缓存读取
     /// - 缓存未命中时降级到数据库查询（兜底）
-    pub async fn get_room(&self, roomid: i32) -> Result<Option<Room>> {
+    pub async fn get_room(&self, roomid: i64) -> Result<Option<Room>> {
         // 1. 尝试从缓存获取
         {
             let cache = self.rooms.read().await;
@@ -208,7 +208,7 @@ impl RoomSyncCache {
     ///
     /// # 返回
     /// 路径列表（如果不存在返回空Vec）
-    pub async fn get_paths(&self, roomid: i32) -> Vec<RoomPath> {
+    pub async fn get_paths(&self, roomid: i64) -> Vec<RoomPath> {
         self.paths
             .read()
             .await
@@ -221,7 +221,7 @@ impl RoomSyncCache {
     ///
     /// # 参数
     /// - `roomid`: 房间ID
-    pub async fn remove_room(&self, roomid: i32) {
+    pub async fn remove_room(&self, roomid: i64) {
         self.rooms.write().await.remove(&roomid);
         self.paths.write().await.remove(&roomid);
 

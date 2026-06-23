@@ -16,7 +16,8 @@ pub struct ElectricityHistory {
     /// 唯一标识符
     pub id: Uuid,
     /// 房间ID
-    pub roomid: i32,
+    #[serde(with = "crate::utils::roomid")]
+    pub roomid: i64,
     /// 电费值
     pub electricity_fee: f32,
     /// 记录时间（业务时间）
@@ -30,7 +31,7 @@ pub struct ElectricityHistory {
 #[diesel(table_name = electricity_history)]
 pub struct NewElectricityHistory {
     /// 房间ID
-    pub roomid: i32,
+    pub roomid: i64,
     /// 电费值
     pub electricity_fee: f32,
     /// 记录时间
@@ -44,7 +45,7 @@ impl NewElectricityHistory {
     /// - `roomid`: 房间ID
     /// - `electricity_fee`: 电费值
     /// - `recorded_at`: 记录时间
-    pub fn new(roomid: i32, electricity_fee: f32, recorded_at: NaiveDateTime) -> Self {
+    pub fn new(roomid: i64, electricity_fee: f32, recorded_at: NaiveDateTime) -> Self {
         Self {
             roomid,
             electricity_fee,

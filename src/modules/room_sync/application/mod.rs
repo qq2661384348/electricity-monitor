@@ -126,7 +126,7 @@ impl RoomSyncUseCase {
         Ok(job_id)
     }
 
-    pub async fn get_room_paths(&self, roomid: i32) -> Result<RoomAggregate> {
+    pub async fn get_room_paths(&self, roomid: i64) -> Result<RoomAggregate> {
         self.repository
             .find_room_with_all_paths(roomid)
             .await?

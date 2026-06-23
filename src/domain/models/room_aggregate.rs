@@ -72,7 +72,7 @@ mod tests {
         }
     }
 
-    fn create_test_path(roomid: i32, roompath: String) -> RoomPath {
+    fn create_test_path(roomid: i64, roompath: String) -> RoomPath {
         RoomPath {
             id: Uuid::new_v4(),
             roomid,

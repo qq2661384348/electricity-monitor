@@ -14,7 +14,7 @@ export interface User {
 
 export interface Room {
   id: string;
-  roomid: number;
+  roomid: string;
   electricity_fee: number;
   send_flag: boolean;
   threshold: number;
@@ -32,7 +32,7 @@ export interface Room {
 export interface Binding {
   id: string;
   user_id: string;
-  roomid: number;
+  roomid: string;
   notification_enabled: boolean;
   created_at: string;
   updated_at: string;
@@ -56,7 +56,7 @@ export interface PathChild {
   name: string;
   is_leaf: boolean;
   room_count: number;
-  roomid?: number;
+  roomid?: string;
 }
 
 export interface PathChildrenResponse {
@@ -66,7 +66,7 @@ export interface PathChildrenResponse {
 }
 
 export interface RoomByPathResponse {
-  roomid: number;
+  roomid: string;
   room_name: string;
   electricity_fee: number;
   threshold: number;

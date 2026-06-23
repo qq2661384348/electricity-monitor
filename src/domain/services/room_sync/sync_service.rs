@@ -78,7 +78,7 @@ impl SyncStats {
 #[derive(Debug, Clone)]
 struct RoomUpdateOps {
     /// 房间ID
-    roomid: i32,
+    roomid: i64,
     /// 新的主路径（如果变更）
     new_primary_path: Option<(String, i64)>, // (path, hash)
     /// 要添加的路径

@@ -284,12 +284,12 @@ mod tests {
     struct TestLoader;
 
     #[async_trait]
-    impl DataLoader<i32, String> for TestLoader {
-        async fn load(&self, key: &i32) -> Result<Option<String>> {
+    impl DataLoader<i64, String> for TestLoader {
+        async fn load(&self, key: &i64) -> Result<Option<String>> {
             Ok(Some(format!("value_{}", key)))
         }
 
-        async fn load_batch(&self, keys: &[i32]) -> Result<Vec<(i32, String)>> {
+        async fn load_batch(&self, keys: &[i64]) -> Result<Vec<(i64, String)>> {
             Ok(keys.iter().map(|k| (*k, format!("value_{}", k))).collect())
         }
     }
@@ -306,7 +306,7 @@ mod tests {
             null_cache_seconds: 0,
         };
 
-        let cache = EntityCache::<i32, String>::new("test", config, None);
+        let cache = EntityCache::<i64, String>::new("test", config, None);
         let loader = TestLoader;
 
         // 第一次加载

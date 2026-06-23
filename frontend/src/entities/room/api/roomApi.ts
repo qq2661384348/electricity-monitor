@@ -9,7 +9,7 @@ export const roomApi = {
     return data;
   },
 
-  async getRoomByRoomId(roomid: number): Promise<Room> {
+  async getRoomByRoomId(roomid: string): Promise<Room> {
     const { data } = await httpClient.get<Room>(`/rooms/by-roomid/${roomid}`);
     return data;
   },

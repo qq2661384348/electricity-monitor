@@ -2,7 +2,7 @@
 CREATE TABLE user_room_bindings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    roomid INT4 NOT NULL,
+    roomid BIGINT NOT NULL,
     notification_enabled BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),

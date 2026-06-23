@@ -1,7 +1,7 @@
 -- 创建rooms表
 CREATE TABLE rooms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    roomid INTEGER NOT NULL,
+    roomid BIGINT NOT NULL,
     electricity_fee REAL NOT NULL DEFAULT 0.0,
     send_flag BOOLEAN NOT NULL DEFAULT FALSE,
     threshold REAL NOT NULL,

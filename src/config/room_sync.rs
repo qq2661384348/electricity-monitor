@@ -21,8 +21,13 @@ pub struct RoomSyncConfig {
 /// 爬虫配置
 #[derive(Debug, Clone, Deserialize)]
 pub struct CrawlerConfig {
-    /// API URL
+    /// API Base URL
+    #[serde(default = "default_api_url")]
     pub api_url: String,
+
+    /// 学校 / 商户 / 项目的业务标识
+    #[serde(default = "default_cid")]
+    pub cid: String,
 
     /// 请求超时时间（秒）
     pub timeout_seconds: u64,
@@ -37,10 +42,19 @@ pub struct CrawlerConfig {
     pub concurrency: usize,
 }
 
+fn default_api_url() -> String {
+    "https://upayadmin.gyruibo.cn/UpayManage/Home".to_string()
+}
+
+fn default_cid() -> String {
+    "689885779152867328".to_string()
+}
+
 impl Default for CrawlerConfig {
     fn default() -> Self {
         Self {
-            api_url: "https://zywxhd02.gxust.edu.cn/Home/GetRoomTree".to_string(),
+            api_url: default_api_url(),
+            cid: default_cid(),
             timeout_seconds: 30,
             connect_timeout_seconds: 10,
             max_retries: 3,

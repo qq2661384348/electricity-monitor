@@ -57,7 +57,7 @@ pub struct PathNode {
     pub is_leaf: bool,
 
     /// 叶子节点存储的 roomid 列表（支持 1:N 映射）
-    pub roomids: Vec<i32>,
+    pub roomids: Vec<i64>,
 }
 
 impl PathNode {
@@ -89,7 +89,7 @@ struct MutablePathNode {
     name: String,
     children: HashMap<String, Box<MutablePathNode>>,
     is_leaf: bool,
-    roomids: Vec<i32>,
+    roomids: Vec<i64>,
 }
 
 impl MutablePathNode {
@@ -150,7 +150,7 @@ struct PathHashEntry {
     /// 房间路径
     roompath: String,
     /// 房间ID
-    roomid: i32,
+    roomid: i64,
 }
 
 impl RoomPathTree {
@@ -170,7 +170,7 @@ impl RoomPathTree {
     /// 索引；不要先把完整 `Room` 组装成临时大向量。
     pub fn build_from_path_entries<I, P>(rooms: I) -> Self
     where
-        I: IntoIterator<Item = (i32, P)>,
+        I: IntoIterator<Item = (i64, P)>,
         P: AsRef<str>,
     {
         let mut mutable_root = MutablePathNode::new(String::new(), false);
@@ -240,7 +240,7 @@ impl RoomPathTree {
     /// 与额外路径，应优先调用 `build_from_path_entries`，避免遗漏 1:N 路径。
     pub fn build_from_primary_paths<I, P>(rooms: I) -> Self
     where
-        I: IntoIterator<Item = (i32, P)>,
+        I: IntoIterator<Item = (i64, P)>,
         P: AsRef<str>,
     {
         Self::build_from_path_entries(rooms)
@@ -350,7 +350,7 @@ impl RoomPathTree {
     /// # 返回
     /// - `Some(roomid)`: 找到房间
     /// - `None`: 路径不存在或非叶子节点
-    pub async fn find_roomid_by_path(&self, path: &str) -> Option<i32> {
+    pub async fn find_roomid_by_path(&self, path: &str) -> Option<i64> {
         let root = self.root.read().await;
         let parts: Vec<&str> = path.split(PATH_SEPARATOR).collect();
 
@@ -380,7 +380,7 @@ impl RoomPathTree {
     /// # 返回
     /// - `Some(roomid)`: 找到房间
     /// - `None`: 哈希不存在或路径不匹配
-    pub async fn find_roomid_by_hash(&self, hash: i64, path: &str) -> Option<i32> {
+    pub async fn find_roomid_by_hash(&self, hash: i64, path: &str) -> Option<i64> {
         let index = self.hash_index.read().await;
 
         match index.get(&hash) {
@@ -429,7 +429,7 @@ pub struct PathChildNode {
     pub room_count: usize,
 
     /// 叶子节点对应的 roomid；绑定流程只需要这个最小标识，不应先读取完整房间详情。
-    pub roomid: Option<i32>,
+    pub roomid: Option<i64>,
 }
 
 #[cfg(test)]

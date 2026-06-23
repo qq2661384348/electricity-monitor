@@ -16,12 +16,14 @@ use crate::errors::{AppError, Result};
 use crate::infrastructure::repositories::{RoomRepository, UserRoomBindingRepository};
 use crate::middleware::auth::UserContext;
 use crate::state::AppState;
+use crate::utils::roomid;
 
 /// 创建绑定请求
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateBindingRequest {
     /// 房间ID
-    pub roomid: i32,
+    #[serde(deserialize_with = "roomid::deserialize")]
+    pub roomid: i64,
 
     /// 是否启用通知（默认: false）
     #[serde(default)]
@@ -40,7 +42,7 @@ pub struct UpdateNotificationRequest {
 pub struct BindingResponse {
     pub id: String,
     pub user_id: String,
-    pub roomid: i32,
+    pub roomid: String,
     pub notification_enabled: bool,
     pub created_at: String,
     pub updated_at: String,
@@ -55,7 +57,7 @@ impl From<UserRoomBinding> for BindingResponse {
         Self {
             id: binding.id.to_string(),
             user_id: binding.user_id.to_string(),
-            roomid: binding.roomid,
+            roomid: roomid::to_string(binding.roomid),
             notification_enabled: binding.notification_enabled,
             created_at: binding.created_at.to_string(),
             updated_at: binding.updated_at.to_string(),
@@ -183,7 +185,7 @@ pub async fn list_bindings(
     }
 
     // 2. 收集所有roomid
-    let roomids: Vec<i32> = bindings.iter().map(|b| b.roomid).collect();
+    let roomids: Vec<i64> = bindings.iter().map(|b| b.roomid).collect();
 
     // 3. 批量查询房间信息
     let room_repo = RoomRepository::new(state.db_pool.clone());
@@ -191,7 +193,7 @@ pub async fn list_bindings(
 
     // 4. 构建roomid -> Room 的映射，方便快速查找
     use std::collections::HashMap;
-    let room_map: HashMap<i32, &crate::domain::models::Room> =
+    let room_map: HashMap<i64, &crate::domain::models::Room> =
         rooms.iter().map(|r| (r.roomid, r)).collect();
 
     // 5. 组装响应，填充房间信息

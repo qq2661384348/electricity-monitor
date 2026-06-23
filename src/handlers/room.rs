@@ -17,6 +17,7 @@ use crate::middleware::auth::UserContext;
 use crate::modules::room::{application::RoomAccessUseCase, domain::RoomActor};
 use crate::state::AppState;
 use crate::utils::hash::calculate_roompath_hash;
+use crate::utils::roomid;
 
 const MIN_PAGE_LIMIT: i64 = 1;
 const MAX_PAGE_LIMIT: i64 = 100;
@@ -26,7 +27,8 @@ const MAX_PAGE_OFFSET: i64 = 10_000;
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateRoomRequest {
     /// 房间ID
-    pub roomid: i32,
+    #[serde(deserialize_with = "roomid::deserialize")]
+    pub roomid: i64,
 
     /// 电费阈值
     #[validate(range(min = 0.0, message = "阈值不能为负数"))]
@@ -93,7 +95,7 @@ impl PaginationQuery {
 #[derive(Debug, Serialize)]
 pub struct RoomResponse {
     pub id: Uuid,
-    pub roomid: i32,
+    pub roomid: String,
     pub electricity_fee: f32,
     pub send_flag: bool,
     pub threshold: f32,
@@ -117,7 +119,7 @@ impl From<crate::domain::models::Room> for RoomResponse {
     fn from(room: crate::domain::models::Room) -> Self {
         Self {
             id: room.id,
-            roomid: room.roomid,
+            roomid: roomid::to_string(room.roomid),
             electricity_fee: room.electricity_fee,
             send_flag: room.send_flag,
             threshold: room.threshold,
@@ -196,7 +198,7 @@ pub async fn get_room(
 pub async fn get_rooms_by_roomid(
     State(state): State<AppState>,
     Extension(user_ctx): Extension<UserContext>,
-    Path(roomid): Path<i32>,
+    Path(roomid): Path<i64>,
 ) -> Result<Json<RoomResponse>> {
     let actor = RoomActor::from_user_context(&user_ctx)?;
     let use_case = RoomAccessUseCase::from_state(&state);

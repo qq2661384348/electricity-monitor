@@ -7,7 +7,7 @@ export const bindingApi = {
     return data;
   },
 
-  async createBinding(roomid: number): Promise<Binding> {
+  async createBinding(roomid: string): Promise<Binding> {
     const { data } = await httpClient.post<Binding>('/bindings', { roomid });
     return data;
   },

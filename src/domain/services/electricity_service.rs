@@ -38,7 +38,7 @@ impl Default for BatchConfig {
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct ElectricityData {
     /// 房间ID
-    pub roomid: i32,
+    pub roomid: i64,
 
     /// 电费值
     pub electricity_fee: f32,
@@ -388,7 +388,7 @@ pub trait ElectricityFetcher: Send + Sync {
     /// 电费值的Future
     fn fetch_electricity_fee(
         &self,
-        roomid: i32,
+        roomid: i64,
     ) -> impl std::future::Future<Output = Result<f32>> + Send;
 
     /// 批量获取房间电费（可选实现）
@@ -403,8 +403,8 @@ pub trait ElectricityFetcher: Send + Sync {
     /// 串行调用单个获取方法
     fn fetch_electricity_batch(
         &self,
-        roomids: Vec<i32>,
-    ) -> impl std::future::Future<Output = Result<HashMap<i32, f32>>> + Send {
+        roomids: Vec<i64>,
+    ) -> impl std::future::Future<Output = Result<HashMap<i64, f32>>> + Send {
         async move {
             let mut results = HashMap::new();
 

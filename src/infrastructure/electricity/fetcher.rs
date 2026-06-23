@@ -11,8 +11,8 @@ use tokio::sync::Semaphore;
 /// 房间查询结果
 #[derive(Debug, Clone)]
 pub struct RoomResult {
-    /// 房间 ID（i32类型）
-    pub room_id: i32,
+    /// 房间 ID（i64类型）
+    pub room_id: i64,
     /// 电费值（成功时为 Some）
     pub electricity: Option<f32>,
     /// 错误信息（失败时为 Some）
@@ -57,7 +57,7 @@ impl RoomBatchFetcher {
     }
 
     /// 获取单个房间电费
-    async fn fetch_one(&self, room_id: i32) -> RoomResult {
+    async fn fetch_one(&self, room_id: i64) -> RoomResult {
         // 获取许可（限流）
         // Semaphore只有在被关闭时才会失败，而在我们的使用场景中永远不会关闭
         let _permit = self
@@ -66,7 +66,7 @@ impl RoomBatchFetcher {
             .await
             .expect("Semaphore已关闭：这不应该发生");
 
-        // 构建 URL（i32转字符串）
+        // 构建 URL（i64转字符串）
         let url = format!("{}{}", self.url_template, room_id);
 
         // 执行请求
@@ -90,12 +90,12 @@ impl RoomBatchFetcher {
     /// 批量获取电费（HashMap模式）
     ///
     /// # 参数
-    /// - `room_ids`: 房间ID列表（i32类型）
+    /// - `room_ids`: 房间ID列表（i64类型）
     ///
     /// # 返回
-    /// - 成功的HashMap<i32, f32>
+    /// - 成功的HashMap<i64, f32>
     /// - 失败的列表会在DEBUG日志中输出
-    pub async fn fetch_batch(&self, room_ids: Vec<i32>) -> HashMap<i32, f32> {
+    pub async fn fetch_batch(&self, room_ids: Vec<i64>) -> HashMap<i64, f32> {
         let mut results = HashMap::with_capacity(room_ids.len());
         let mut stream = self.fetch_stream(room_ids);
 
@@ -120,7 +120,7 @@ impl RoomBatchFetcher {
     /// 返回异步 Stream，可以逐个处理结果
     pub fn fetch_stream(
         &self,
-        room_ids: Vec<i32>,
+        room_ids: Vec<i64>,
     ) -> impl futures_util::Stream<Item = RoomResult> + '_ {
         // 这里必须用 buffer_unordered 做背压，而不是提前 spawn 全量房间任务。
         // 生产库会有数千个房间，提前创建所有 Tokio task 会制造大量短生命周期分配，
@@ -154,7 +154,10 @@ mod tests {
 
     #[test]
     fn test_fetcher_creation() {
-        let fetcher = RoomBatchFetcher::new("https://example.com/api?roomid=".to_string(), 50);
+        let fetcher = RoomBatchFetcher::new(
+            "https://upayadmin.gyruibo.cn/UpayManage/Home/GetRoom?roomid=".to_string(),
+            50,
+        );
         assert!(fetcher.is_ok());
     }
 
@@ -169,7 +172,7 @@ mod tests {
         async fn handler(Query(query): Query<StdHashMap<String, String>>) -> impl IntoResponse {
             let room_id = query
                 .get("roomid")
-                .and_then(|value| value.parse::<i32>().ok())
+                .and_then(|value| value.parse::<i64>().ok())
                 .unwrap_or_default();
 
             if room_id == 1001 {

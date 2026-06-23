@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 前端可维护性接缝
-updated_at: 2026-05-06
-verified_at: 2026-05-06
+updated_at: 2026-06-23
+verified_at: 2026-06-23
 sources:
   - frontend/src/App.tsx
   - frontend/src/shared/api/http-client.ts
@@ -29,6 +29,7 @@ summary: 前端启动、会话、HTTP、page/feature/entity 和可复用 UI 接�
 - `frontend/src/shared/api/http-client.ts` 是真实 HTTP client 真源，统一处理 `/api` 前缀、`withCredentials`、Bearer token 注入、refresh 和 401 重放。
 - `frontend/src/services/api.ts` 只是兼容 facade，不应重新演化成新的 API 真源。
 - 新增接口优先落在 `shared/api`、`entities/*/api` 或 `features/*/api`，不要直接在页面或组件里散落 Axios 调用。
+- 后端 HTTP JSON 中的 `roomid` 对前端是字符串，不是 number；React Query key、绑定请求体和路径树叶子节点都应保留字符串，避免 18 位 Upay RoomID 在浏览器中丢精度。
 
 ## 公开运行时配置接缝
 

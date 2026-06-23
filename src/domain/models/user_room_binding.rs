@@ -17,7 +17,8 @@ pub struct UserRoomBinding {
     pub user_id: Uuid,
 
     /// 房间ID (外键)
-    pub roomid: i32,
+    #[serde(with = "crate::utils::roomid")]
+    pub roomid: i64,
 
     /// 是否启用通知
     pub notification_enabled: bool,
@@ -43,7 +44,8 @@ pub struct NewUserRoomBinding {
     pub user_id: Uuid,
 
     /// 房间ID
-    pub roomid: i32,
+    #[serde(deserialize_with = "crate::utils::roomid::deserialize")]
+    pub roomid: i64,
 
     /// 是否启用通知 (默认: true)
     #[serde(default = "default_true")]

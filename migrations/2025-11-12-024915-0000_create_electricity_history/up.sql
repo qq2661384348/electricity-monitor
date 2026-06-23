@@ -1,7 +1,7 @@
 -- 创建电费历史记录表
 CREATE TABLE electricity_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    roomid INT4 NOT NULL,
+    roomid BIGINT NOT NULL,
     electricity_fee FLOAT4 NOT NULL,
     recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

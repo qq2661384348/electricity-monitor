@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 后端可维护性接缝
-updated_at: 2026-05-08
-verified_at: 2026-05-08
+updated_at: 2026-06-23
+verified_at: 2026-06-23
 sources:
   - src/modules/auth/api/middleware.rs
   - src/modules/auth/application/actor_resolver.rs
@@ -22,6 +22,9 @@ sources:
   - src/infrastructure/repositories/room_repository.rs
   - src/domain/services/room_path_tree.rs
   - src/modules/room_sync/application/mod.rs
+  - src/domain/services/room_sync/crawler/client.rs
+  - src/domain/services/room_sync/crawler/fetcher.rs
+  - src/infrastructure/electricity/parser.rs
 summary: 后端鉴权、验证码限流、房间授权、缓存、通知域、后台批处理、启动内存优化和模块化迁移接缝
 ---
 
@@ -65,6 +68,9 @@ summary: 后端鉴权、验证码限流、房间授权、缓存、通知域、�
 - `src/infrastructure/external/` 提供统一 `reqwest` 客户端构造与 HTTP 状态错误映射。
 - `electricity`、`room_sync crawler`、`qq_client` 已接入这条统一入口。
 - `electricity` 电费抓取客户端必须保留 HTTPS 证书校验；测试或开发调试不得把 `danger_accept_invalid_certs=true` 带回生产路径。
+- 房间树外部真源是 `https://upayadmin.gyruibo.cn/UpayManage/Home` 下的三段 GET 接口：`GetRoomSchool?cid=...`、`GetRoomApart?cid=...&sid=SchoolId`、`GetRoomList?cid=...&apid=ApartID`；固定 `cid` 当前为 `689885779152867328`。
+- 电费外部真源是 `GetRoom?roomid=RoomID`，余额字段来自响应 `Data[0].ResNum`；旧 `GetRoomInfo` / `component[].Value` 只作为解析兼容路径保留。
+- Upay `RoomID` 可能是超过 i32 且超过 JavaScript 安全整数范围的 18 位数字文本。后端数据库和内部领域模型使用 `i64`，HTTP JSON 对外统一把 `roomid` 序列化为字符串。
 - 电费全量抓取会覆盖生产库全部 active roomid；`RoomBatchFetcher` 必须通过 `buffer_unordered(self.max_concurrent)` 做流式背压，不能提前为所有房间 `tokio::spawn`，`ElectricityFetcherService` 的定时入口必须跳过未完成的上一轮任务，避免批处理内存高水位和外部 API 压力叠加。
 - 新增外部 HTTP 依赖时，应优先复用这条接缝，而不是各模块自行创建 `reqwest::Client`。
 

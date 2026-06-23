@@ -246,7 +246,7 @@ async fn qq_and_email_accounts_keep_bindings_isolated() {
         "/api/bindings",
         &qq_login.access_token,
         serde_json::json!({
-            "roomid": room.roomid,
+            "roomid": room.roomid.to_string(),
             "notification_enabled": true,
         }),
     )
@@ -427,7 +427,7 @@ async fn user_can_complete_binding_crud_flow() {
         "/api/bindings",
         &login.access_token,
         serde_json::json!({
-            "roomid": room.roomid,
+            "roomid": room.roomid.to_string(),
             "notification_enabled": false,
         }),
     )
@@ -439,14 +439,20 @@ async fn user_can_complete_binding_crud_flow() {
         .as_str()
         .expect("绑定 ID 应为字符串")
         .to_string();
-    assert_eq!(created_binding["roomid"], room.roomid);
+    assert_eq!(
+        created_binding["roomid"].as_str(),
+        Some(room.roomid.to_string().as_str())
+    );
     assert_eq!(created_binding["notification_enabled"], false);
 
     let list_response = get_with_bearer(&test_app.app, "/api/bindings", &login.access_token).await;
     assert_eq!(list_response.status(), StatusCode::OK);
     let bindings: Vec<Value> = read_json(list_response).await;
     assert_eq!(bindings.len(), 1);
-    assert_eq!(bindings[0]["room"]["roomid"], room.roomid);
+    assert_eq!(
+        bindings[0]["room"]["roomid"].as_str(),
+        Some(room.roomid.to_string().as_str())
+    );
 
     let detail_response = get_with_bearer(
         &test_app.app,
@@ -507,7 +513,7 @@ async fn user_cannot_access_other_users_binding() {
         "/api/bindings",
         &owner_login.access_token,
         serde_json::json!({
-            "roomid": room.roomid,
+            "roomid": room.roomid.to_string(),
             "notification_enabled": false,
         }),
     )
@@ -544,7 +550,7 @@ async fn binding_creation_requires_auth_but_no_extra_code() {
         &test_app.app,
         "/api/bindings",
         serde_json::json!({
-            "roomid": room.roomid,
+            "roomid": room.roomid.to_string(),
             "notification_enabled": false,
         }),
     )
@@ -564,7 +570,7 @@ async fn binding_creation_requires_auth_but_no_extra_code() {
         "/api/bindings",
         &login.access_token,
         serde_json::json!({
-            "roomid": room.roomid,
+            "roomid": room.roomid.to_string(),
             "notification_enabled": false,
         }),
     )
@@ -625,7 +631,10 @@ async fn user_needs_binding_before_reading_room_path_details() {
                 .find(|child| child["name"] == Value::String(leaf_name.to_string()))
         })
         .expect("路径树叶子节点应存在");
-    assert_eq!(leaf["roomid"].as_i64(), Some(room.roomid as i64));
+    assert_eq!(
+        leaf["roomid"].as_str(),
+        Some(room.roomid.to_string().as_str())
+    );
     assert!(
         leaf.get("electricity_fee").is_none(),
         "绑定入口只能返回 roomid，不应提前泄露电费详情"
@@ -654,7 +663,7 @@ async fn user_needs_binding_before_reading_room_path_details() {
         "/api/bindings",
         &login.access_token,
         serde_json::json!({
-            "roomid": room.roomid,
+            "roomid": room.roomid.to_string(),
             "notification_enabled": false,
         }),
     )
@@ -674,7 +683,10 @@ async fn user_needs_binding_before_reading_room_path_details() {
     .await;
     assert_eq!(bound_by_path.status(), StatusCode::OK);
     let room_detail: Value = read_json(bound_by_path).await;
-    assert_eq!(room_detail["roomid"].as_i64(), Some(room.roomid as i64));
+    assert_eq!(
+        room_detail["roomid"].as_str(),
+        Some(room.roomid.to_string().as_str())
+    );
     assert_eq!(room_detail["electricity_fee"].as_f64(), Some(25.0));
 
     let _ = delete_with_bearer(
@@ -756,7 +768,7 @@ async fn additional_room_paths_resolve_through_path_tree_and_path_lookup() {
         "/api/bindings",
         &login.access_token,
         serde_json::json!({
-            "roomid": room.roomid,
+            "roomid": room.roomid.to_string(),
             "notification_enabled": false,
         }),
     )
@@ -790,7 +802,10 @@ async fn additional_room_paths_resolve_through_path_tree_and_path_lookup() {
                 .find(|child| child["name"] == Value::String(leaf_name.to_string()))
         })
         .expect("路径树应包含 room_paths 表中的额外路径叶子节点");
-    assert_eq!(leaf["roomid"].as_i64(), Some(room.roomid as i64));
+    assert_eq!(
+        leaf["roomid"].as_str(),
+        Some(room.roomid.to_string().as_str())
+    );
 
     let encoded_path = urlencoding::encode(&additional_path);
     let by_path = get_with_bearer(
@@ -801,7 +816,10 @@ async fn additional_room_paths_resolve_through_path_tree_and_path_lookup() {
     .await;
     assert_eq!(by_path.status(), StatusCode::OK);
     let room_detail: Value = read_json(by_path).await;
-    assert_eq!(room_detail["roomid"].as_i64(), Some(room.roomid as i64));
+    assert_eq!(
+        room_detail["roomid"].as_str(),
+        Some(room.roomid.to_string().as_str())
+    );
 
     let hash = calculate_roompath_hash(&additional_path);
     let by_hash = get_with_bearer(
@@ -812,7 +830,10 @@ async fn additional_room_paths_resolve_through_path_tree_and_path_lookup() {
     .await;
     assert_eq!(by_hash.status(), StatusCode::OK);
     let room_detail: Value = read_json(by_hash).await;
-    assert_eq!(room_detail["roomid"].as_i64(), Some(room.roomid as i64));
+    assert_eq!(
+        room_detail["roomid"].as_str(),
+        Some(room.roomid.to_string().as_str())
+    );
 
     let _ = delete_with_bearer(
         &test_app.app,
@@ -835,7 +856,7 @@ async fn admin_can_create_and_list_own_binding() {
         "/api/bindings",
         &admin_login.access_token,
         serde_json::json!({
-            "roomid": room.roomid,
+            "roomid": room.roomid.to_string(),
             "notification_enabled": false,
         }),
     )
@@ -847,7 +868,10 @@ async fn admin_can_create_and_list_own_binding() {
         .as_str()
         .expect("绑定 ID 应为字符串")
         .to_string();
-    assert_eq!(created_binding["roomid"], room.roomid);
+    assert_eq!(
+        created_binding["roomid"].as_str(),
+        Some(room.roomid.to_string().as_str())
+    );
 
     let list_response =
         get_with_bearer(&test_app.app, "/api/bindings", &admin_login.access_token).await;

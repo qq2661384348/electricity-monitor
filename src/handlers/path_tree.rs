@@ -13,6 +13,7 @@ use crate::middleware::auth::UserContext;
 use crate::modules::room::{application::RoomAccessUseCase, domain::RoomActor};
 use crate::state::AppState;
 use crate::utils::hash::calculate_roompath_hash;
+use crate::utils::roomid;
 
 /// 查询路径子节点请求
 #[derive(Debug, Deserialize)]
@@ -49,7 +50,7 @@ pub struct PathChild {
 
     /// 叶子节点绑定用的最小房间标识；非叶子节点不返回。
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub roomid: Option<i32>,
+    pub roomid: Option<String>,
 }
 
 /// 查询路径的子节点
@@ -85,7 +86,7 @@ pub async fn query_path_tree(
             name: child.name,
             is_leaf: child.is_leaf,
             room_count: child.room_count,
-            roomid: child.roomid,
+            roomid: child.roomid.map(roomid::to_string),
         })
         .collect();
 
@@ -107,7 +108,7 @@ pub struct QueryByPathRequest {
 #[derive(Debug, Serialize)]
 pub struct RoomByPathResponse {
     /// 房间ID
-    pub roomid: i32,
+    pub roomid: String,
 
     /// 房间名称
     pub room_name: String,
@@ -144,7 +145,7 @@ pub async fn get_room_by_path(
     let room = use_case.get_room_by_path(&actor, &params.path).await?;
 
     Ok(Json(RoomByPathResponse {
-        roomid: room.roomid,
+        roomid: roomid::to_string(room.roomid),
         room_name: room.room_name,
         electricity_fee: room.electricity_fee,
         threshold: room.threshold,
@@ -190,7 +191,7 @@ pub async fn get_room_by_hash(
         .await?;
 
     Ok(Json(RoomByPathResponse {
-        roomid: room.roomid,
+        roomid: roomid::to_string(room.roomid),
         room_name: room.room_name,
         electricity_fee: room.electricity_fee,
         threshold: room.threshold,

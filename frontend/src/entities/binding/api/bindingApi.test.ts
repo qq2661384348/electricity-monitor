@@ -18,7 +18,7 @@ describe('bindingApi', () => {
           {
             id: 'binding-1',
             user_id: 'user-1',
-            roomid: 1001,
+            roomid: '1001',
             notification_enabled: false,
             created_at: '2026-05-07T00:00:00Z',
             updated_at: '2026-05-07T00:00:00Z',
@@ -28,10 +28,10 @@ describe('bindingApi', () => {
       }),
     );
 
-    const binding = await bindingApi.createBinding(1001);
+    const binding = await bindingApi.createBinding('1001');
 
-    expect(receivedBody).toEqual({ roomid: 1001 });
-    expect(binding.roomid).toBe(1001);
+    expect(receivedBody).toEqual({ roomid: '1001' });
+    expect(binding.roomid).toBe('1001');
   });
 
   it('refreshes access token once and replays concurrent unauthorized requests', async () => {
@@ -56,13 +56,13 @@ describe('bindingApi', () => {
           {
             id: 'binding-1',
             user_id: 'user-1',
-            roomid: 1001,
+            roomid: '1001',
             notification_enabled: true,
             created_at: '2026-03-25T00:00:00Z',
             updated_at: '2026-03-25T00:00:00Z',
             room: {
               id: 'room-1',
-              roomid: 1001,
+              roomid: '1001',
               electricity_fee: 23.5,
               send_flag: false,
               threshold: 30,

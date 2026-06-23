@@ -2,7 +2,7 @@
 
 CREATE TABLE room_paths (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    roomid INTEGER NOT NULL,
+    roomid BIGINT NOT NULL,
     
     roompath VARCHAR(255) NOT NULL UNIQUE,
     roompath_hash BIGINT NOT NULL,

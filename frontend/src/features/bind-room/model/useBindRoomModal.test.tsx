@@ -31,12 +31,12 @@ async function selectDefaultRoom(result: { current: BindRoomModalState }) {
       name: '101',
       is_leaf: true,
       room_count: 1,
-      roomid: 1001,
+      roomid: '1001',
     });
   });
 
   await waitFor(() => {
-    expect(result.current.finalRoom?.roomid).toBe(1001);
+    expect(result.current.finalRoom?.roomid).toBe('1001');
     expect(result.current.currentStep).toBe(5);
   });
 }

@@ -2,16 +2,18 @@
 type: semantic
 status: verified
 scope: 前端架构与工作区真源
-updated_at: 2026-05-06
-verified_at: 2026-05-06
+updated_at: 2026-06-23
+verified_at: 2026-06-23
 sources:
   - frontend/package.json
   - frontend/vite.config.ts
   - frontend/src/App.tsx
   - frontend/src/shared/api/http-client.ts
+  - frontend/src/shared/api/queryKeys.ts
   - frontend/src/entities/public-config/api/publicConfigApi.ts
   - frontend/src/features/public-config/model/usePublicConfig.ts
   - frontend/src/stores/authStore.ts
+  - frontend/src/types/index.ts
 summary: 前端技术基线、工作区真源、目录职责和验证入口
 ---
 
@@ -50,6 +52,7 @@ summary: 前端技术基线、工作区真源、目录职责和验证入口
 - `frontend/src/features/bind-room/`：bind-room feature 样板，包含 `api / model / ui / index`。
 - `frontend/src/entities/room/api/roomApi.ts` 与 `frontend/src/entities/binding/api/bindingApi.ts`：单领域 API 出口。
 - `frontend/src/features/dashboard/model/useDashboardPage.ts`：dashboard 页面装配层状态与 mutation 编排。
+- `frontend/src/types/index.ts` 中面向 HTTP 的 `roomid` 类型是 `string`；前端不得把 Upay 18 位 RoomID 转成 JavaScript number。
 
 ## 验证入口
 

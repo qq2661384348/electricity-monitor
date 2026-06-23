@@ -10,7 +10,10 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 
 use super::client::RoomClient;
-use super::models::{ApiResponse, MergeStatistics, RoomComponent, RoomData, RoomInfo};
+use super::models::{
+    ApartmentComponent, MergeStatistics, RoomData, RoomInfo, RoomListComponent, SchoolComponent,
+    UpayResponse,
+};
 use super::parser;
 
 /// 房间数据爬取器
@@ -86,7 +89,7 @@ impl RoomFetcher {
             return Ok(Vec::new());
         }
 
-        // 2. Level 2-4: 并发处理校区（通过信号量控制并发数）
+        // 2. Level 2-3: 并发处理校区（通过信号量控制并发数）
         let fetcher = self.clone();
 
         let all_rooms: Vec<RoomInfo> = stream::iter(campuses)
@@ -97,21 +100,25 @@ impl RoomFetcher {
                     tracing::info!(
                         "→ 并发处理校区 {}: {} (ID: {})",
                         idx + 1,
-                        campus.dep_name,
-                        campus.room_dep_id
+                        campus.school_name.as_deref().unwrap_or("未知校区"),
+                        campus.school_id.as_deref().unwrap_or("")
                     );
 
                     match fetcher.fetch_campus_rooms(&campus).await {
                         Ok(rooms) => {
                             tracing::info!(
                                 "  ✓ 校区 \"{}\" 完成：获取到 {} 个房间",
-                                campus.dep_name,
+                                campus.school_name.as_deref().unwrap_or("未知校区"),
                                 rooms.len()
                             );
                             Ok::<Vec<RoomInfo>, anyhow::Error>(rooms)
                         }
                         Err(e) => {
-                            tracing::error!("  ✗ 校区 \"{}\" 失败: {:?}", campus.dep_name, e);
+                            tracing::error!(
+                                "  ✗ 校区 \"{}\" 失败: {:?}",
+                                campus.school_name.as_deref().unwrap_or("未知校区"),
+                                e
+                            );
                             // 继续处理其他校区（优雅降级）
                             Ok::<Vec<RoomInfo>, anyhow::Error>(Vec::new())
                         }
@@ -149,7 +156,7 @@ impl RoomFetcher {
     }
 
     /// Level 1: 获取校区列表
-    async fn fetch_level1(&self) -> Result<Vec<RoomComponent>> {
+    async fn fetch_level1(&self) -> Result<Vec<SchoolComponent>> {
         tracing::debug!("Level 1: 请求校区列表");
 
         let json_str = self
@@ -160,90 +167,75 @@ impl RoomFetcher {
 
         let value = parser::safe_parse(&json_str).context("Level 1 JSON解析失败")?;
 
-        let response: ApiResponse =
-            sonic_rs::from_value(&value).context("Level 1 ApiResponse转换失败")?;
+        let response: UpayResponse<SchoolComponent> =
+            sonic_rs::from_value(&value).context("Level 1 UpayResponse转换失败")?;
 
-        let campuses = response.component.unwrap_or_default();
+        let campuses = response
+            .into_data()
+            .into_iter()
+            .filter(|school| school.school_id.is_some() && school.school_name.is_some())
+            .collect::<Vec<_>>();
 
         tracing::debug!("Level 1: 收到 {} 个校区", campuses.len());
         Ok(campuses)
     }
 
-    /// Level 2: 获取单个校区的所有建筑
-    async fn fetch_buildings(&self, campus_id: &str) -> Result<Vec<RoomComponent>> {
-        tracing::debug!("Level 2: 请求建筑列表（校区 ID: {}）", campus_id);
+    /// Level 2: 获取单个校区的所有楼栋
+    async fn fetch_buildings(&self, campus_id: &str) -> Result<Vec<ApartmentComponent>> {
+        tracing::debug!("Level 2: 请求楼栋列表（校区 ID: {}）", campus_id);
 
-        let params = format!("yzm=123&RoomDepId={}&level=2&floor=0", campus_id);
         let json_str = self
             .client
-            .fetch_tree(&params)
+            .fetch_apartments(campus_id)
             .await
             .context("Level 2 请求失败")?;
 
         let value = parser::safe_parse(&json_str).context("Level 2 JSON解析失败")?;
 
-        let response: ApiResponse =
-            sonic_rs::from_value(&value).context("Level 2 ApiResponse转换失败")?;
+        let response: UpayResponse<ApartmentComponent> =
+            sonic_rs::from_value(&value).context("Level 2 UpayResponse转换失败")?;
 
-        let buildings = response.component.unwrap_or_default();
+        let buildings = response
+            .into_data()
+            .into_iter()
+            .filter(|apart| apart.apart_id.is_some() && apart.apart_name.is_some())
+            .collect::<Vec<_>>();
 
         tracing::debug!("Level 2: 收到 {} 个建筑", buildings.len());
         Ok(buildings)
     }
 
-    /// Level 3: 获取楼层列表
-    async fn fetch_floors(&self, building_id: &str) -> Result<Vec<RoomComponent>> {
-        tracing::debug!("Level 3: 请求楼层列表（建筑 ID: {}）", building_id);
+    /// Level 3: 获取房间列表
+    async fn fetch_rooms(&self, apart_id: &str, room_path: &str) -> Result<Vec<RoomInfo>> {
+        tracing::debug!("Level 3: 请求房间列表（楼栋 ID: {}）", apart_id);
 
-        let params = format!("yzm=123&RoomDepId={}&level=3&floor=0", building_id);
         let json_str = self
             .client
-            .fetch_tree(&params)
+            .fetch_rooms(apart_id)
             .await
             .context("Level 3 请求失败")?;
 
         let value = parser::safe_parse(&json_str).context("Level 3 JSON解析失败")?;
 
-        let response: ApiResponse =
-            sonic_rs::from_value(&value).context("Level 3 ApiResponse转换失败")?;
+        let response: UpayResponse<RoomListComponent> =
+            sonic_rs::from_value(&value).context("Level 3 UpayResponse转换失败")?;
 
-        let floors = response.component.unwrap_or_default();
+        let room_components = response.into_data();
 
-        tracing::debug!("Level 3: 收到 {} 个楼层", floors.len());
-        Ok(floors)
-    }
-
-    /// Level 4: 获取房间列表
-    async fn fetch_rooms(&self, floor_id: &str, room_path: &str) -> Result<Vec<RoomInfo>> {
-        tracing::debug!("Level 4: 请求房间列表（楼层 ID: {}）", floor_id);
-
-        let params = format!("yzm=123&RoomDepId={}&level=4", floor_id);
-        let json_str = self
-            .client
-            .fetch_tree(&params)
-            .await
-            .context("Level 4 请求失败")?;
-
-        let value = parser::safe_parse(&json_str).context("Level 4 JSON解析失败")?;
-
-        let response: ApiResponse =
-            sonic_rs::from_value(&value).context("Level 4 ApiResponse转换失败")?;
-
-        let room_components = response.component.unwrap_or_default();
-
-        tracing::debug!("Level 4: 收到 {} 个房间", room_components.len());
+        tracing::debug!("Level 3: 收到 {} 个房间", room_components.len());
 
         // 构建最终的房间信息
         let rooms: Vec<RoomInfo> = room_components
             .into_iter()
-            .map(|component| {
-                // 构建完整路径：校区/建筑/楼层/房间
-                let full_path = format!("{}/{}", room_path, component.dep_name).replace("//", "/"); // 清理可能的双斜杠
+            .filter_map(|component| {
+                let room_name = component.room_name?;
+                let room_id = component.room_id?;
+                let full_path = format!("{}/{}", room_path, room_name).replace("//", "/");
 
-                RoomInfo {
+                Some(RoomInfo {
                     roompath: full_path,
-                    roomid: component.room_dep_id,
-                }
+                    roomid: room_id,
+                })
             })
             .collect();
 
@@ -253,22 +245,24 @@ impl RoomFetcher {
     /// 处理单个校区（获取其下所有房间）
     ///
     /// 使用并发处理建筑，提升性能
-    async fn fetch_campus_rooms(&self, campus: &RoomComponent) -> Result<Vec<RoomInfo>> {
-        // Level 2: 获取建筑列表
-        let buildings = self.fetch_buildings(&campus.room_dep_id).await?;
+    async fn fetch_campus_rooms(&self, campus: &SchoolComponent) -> Result<Vec<RoomInfo>> {
+        let campus_id = campus.school_id.as_deref().context("校区 SchoolId 为空")?;
+        let campus_name = campus
+            .school_name
+            .as_deref()
+            .context("校区 SchoolName 为空")?;
 
-        tracing::debug!(
-            "  校区 \"{}\" 有 {} 个建筑",
-            campus.dep_name,
-            buildings.len()
-        );
+        // Level 2: 获取建筑列表
+        let buildings = self.fetch_buildings(campus_id).await?;
+
+        tracing::debug!("  校区 \"{}\" 有 {} 个建筑", campus_name, buildings.len());
 
         if buildings.is_empty() {
             return Ok(Vec::new());
         }
 
         // 并发处理建筑
-        let campus_name = campus.dep_name.clone();
+        let campus_name = campus_name.to_string();
         let fetcher = self.clone();
 
         let rooms: Vec<RoomInfo> = stream::iter(buildings)
@@ -285,15 +279,15 @@ impl RoomFetcher {
 
                     tracing::debug!(
                         "    → 并发处理建筑: {} (ID: {})",
-                        building.dep_name,
-                        building.room_dep_id
+                        building.apart_name.as_deref().unwrap_or("未知楼栋"),
+                        building.apart_id.as_deref().unwrap_or("")
                     );
 
                     match fetcher.fetch_building_rooms(&campus_name, &building).await {
                         Ok(building_rooms) => {
                             tracing::debug!(
                                 "    ✓ 建筑 \"{}\" 完成：{} 个房间",
-                                building.dep_name,
+                                building.apart_name.as_deref().unwrap_or("未知楼栋"),
                                 building_rooms.len()
                             );
                             Ok(building_rooms)
@@ -315,7 +309,7 @@ impl RoomFetcher {
 
         tracing::debug!(
             "  ✓ 校区 \"{}\" 完成：获取到 {} 个房间",
-            campus.dep_name,
+            campus_name,
             rooms.len()
         );
 
@@ -326,41 +320,19 @@ impl RoomFetcher {
     async fn fetch_building_rooms(
         &self,
         campus_name: &str,
-        building: &RoomComponent,
+        building: &ApartmentComponent,
     ) -> Result<Vec<RoomInfo>> {
-        // Level 3: 获取楼层列表
-        let floors = self.fetch_floors(&building.room_dep_id).await?;
-
-        tracing::debug!(
-            "      建筑 \"{}\" 有 {} 个楼层",
-            building.dep_name,
-            floors.len()
-        );
-
-        if floors.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        // Level 4: 顺序获取所有楼层的房间
-        let mut all_rooms = Vec::new();
-
-        for floor in floors {
-            let room_path = format!("{}/{}/{}", campus_name, building.dep_name, floor.dep_name);
-
-            match self.fetch_rooms(&floor.room_dep_id, &room_path).await {
-                Ok(rooms) => {
-                    all_rooms.extend(rooms);
-                }
-                Err(e) => {
-                    tracing::warn!("      ✗ 楼层处理失败: {:?}", e);
-                    // 继续处理其他楼层
-                }
-            }
-        }
+        let apart_id = building.apart_id.as_deref().context("楼栋 ApartID 为空")?;
+        let apart_name = building
+            .apart_name
+            .as_deref()
+            .context("楼栋 ApartName 为空")?;
+        let room_path = format!("{}/{}", campus_name, apart_name);
+        let all_rooms = self.fetch_rooms(apart_id, &room_path).await?;
 
         tracing::debug!(
             "      ✓ 建筑 \"{}\" 完成：获取到 {} 个房间",
-            building.dep_name,
+            apart_name,
             all_rooms.len()
         );
 
@@ -372,8 +344,8 @@ impl RoomFetcher {
     /// 将扁平的RawRoomInfo列表按roomid分组，处理1:N映射场景
     ///
     /// # 算法步骤
-    /// 1. 使用HashMap<i32, Vec<String>>按roomid分组
-    /// 2. 处理roomid类型转换（String → i32）
+    /// 1. 使用HashMap<i64, Vec<String>>按roomid分组
+    /// 2. 处理roomid类型转换（String → i64）
     /// 3. 统计转换失败的记录
     /// 4. 生成MergeStatistics
     ///
@@ -402,12 +374,12 @@ impl RoomFetcher {
         raw: Vec<RoomInfo>,
     ) -> Result<(Vec<RoomData>, MergeStatistics)> {
         let raw_count = raw.len();
-        let mut map: HashMap<i32, Vec<String>> = HashMap::new();
+        let mut map: HashMap<i64, Vec<String>> = HashMap::new();
         let mut parse_error_count = 0;
 
         // 遍历原始数据，按roomid分组
         for room in raw {
-            match room.roomid.parse::<i32>() {
+            match room.roomid.parse::<i64>() {
                 Ok(roomid) => {
                     // roomid转换成功，添加到对应的路径列表
                     map.entry(roomid).or_default().push(room.roompath);
@@ -445,6 +417,7 @@ impl RoomFetcher {
 mod tests {
     use super::*;
     use crate::config::CrawlerConfig;
+    use crate::infrastructure::electricity::fetcher::RoomBatchFetcher;
 
     #[test]
     fn test_group_by_roomid_normal() {
@@ -532,6 +505,23 @@ mod tests {
     }
 
     #[test]
+    fn test_group_by_roomid_accepts_large_upay_room_id() {
+        let client = Arc::new(RoomClient::new(&CrawlerConfig::default()).unwrap());
+        let fetcher = RoomFetcher::new(client);
+
+        let raw = vec![RoomInfo {
+            roompath: "文昌校区/北区4栋公寓/107".into(),
+            roomid: "982318536531644416".into(),
+        }];
+
+        let (merged, stats) = fetcher.group_by_roomid_from_info(raw).unwrap();
+
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].roomid.to_string(), "982318536531644416");
+        assert_eq!(stats.parse_error_count, 0);
+    }
+
+    #[test]
     fn test_group_by_roomid_deduplication() {
         let client = Arc::new(RoomClient::new(&CrawlerConfig::default()).unwrap());
         let fetcher = RoomFetcher::new(client);
@@ -557,5 +547,61 @@ mod tests {
 
         let room_101 = &merged[0];
         assert_eq!(room_101.path_count, 2); // 去重后只有2个路径
+    }
+
+    #[tokio::test]
+    async fn test_real_upay_room_tree_room_id_and_electricity_e2e() {
+        if std::env::var("RUN_EXTERNAL_INTEGRATION_TESTS").is_err() {
+            println!("跳过真实 Upay e2e：设置 RUN_EXTERNAL_INTEGRATION_TESTS=1 以启用");
+            return;
+        }
+
+        let config = CrawlerConfig {
+            timeout_seconds: 20,
+            connect_timeout_seconds: 10,
+            max_retries: 2,
+            concurrency: 8,
+            ..CrawlerConfig::default()
+        };
+        let client = Arc::new(RoomClient::new(&config).expect("创建真实 RoomClient 失败"));
+        let fetcher = RoomFetcher::with_config(client, 8, 2, 4);
+
+        let rooms = fetcher
+            .fetch_all()
+            .await
+            .expect("真实房间树 e2e 应能获取房间");
+        assert!(!rooms.is_empty(), "真实房间树 e2e 应至少返回一个房间");
+
+        let room = rooms
+            .iter()
+            .find(|room| room.roomid > i32::MAX as i64)
+            .or_else(|| rooms.first())
+            .expect("真实房间树 e2e 应至少返回一个可用 roomid");
+        assert!(
+            !room.primary_roompath.trim().is_empty(),
+            "真实房间树 e2e 返回的主路径不应为空"
+        );
+
+        let electricity_fetcher = RoomBatchFetcher::new(
+            "https://upayadmin.gyruibo.cn/UpayManage/Home/GetRoom?roomid=".to_string(),
+            1,
+        )
+        .expect("创建真实电费获取器失败");
+        let electricity = electricity_fetcher.fetch_batch(vec![room.roomid]).await;
+
+        assert!(
+            electricity.contains_key(&room.roomid),
+            "真实电费 e2e 应能通过房间树得到的 roomid={} 获取电费；roompath={}",
+            room.roomid,
+            room.primary_roompath
+        );
+
+        println!(
+            "真实 Upay e2e 通过：rooms={}, roomid={}, roompath={}, electricity={}",
+            rooms.len(),
+            room.roomid,
+            room.primary_roompath,
+            electricity[&room.roomid]
+        );
     }
 }

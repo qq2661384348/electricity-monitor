@@ -20,7 +20,7 @@ impl RoomQueries {
         self.repository.find_by_id(id).await
     }
 
-    pub async fn find_by_roomid(&self, roomid: i32) -> Result<Option<Room>> {
+    pub async fn find_by_roomid(&self, roomid: i64) -> Result<Option<Room>> {
         self.repository.find_by_roomid(roomid).await
     }
 
@@ -30,7 +30,7 @@ impl RoomQueries {
 
     pub async fn find_by_roomids_paged(
         &self,
-        roomids: &[i32],
+        roomids: &[i64],
         limit: i64,
         offset: i64,
     ) -> Result<Vec<Room>> {
@@ -90,7 +90,7 @@ impl BindingQueries {
     pub async fn find_by_user_and_room(
         &self,
         user_id: Uuid,
-        roomid: i32,
+        roomid: i64,
     ) -> Result<Option<UserRoomBinding>> {
         self.repository.find_by_user_and_room(user_id, roomid).await
     }

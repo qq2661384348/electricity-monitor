@@ -42,7 +42,7 @@ impl Default for ElectricityFetcherConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            api_url: "https://example.com/api?roomid=".to_string(),
+            api_url: "https://upayadmin.gyruibo.cn/UpayManage/Home/GetRoom?roomid=".to_string(),
             fetch_interval_minutes: 5,
             history_interval_hours: 1,
             history_retention_days: 8,

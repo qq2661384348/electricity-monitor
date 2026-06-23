@@ -24,7 +24,7 @@ describe('useDashboardPage', () => {
 
     const room = {
       id: 'room-1',
-      roomid: 1001,
+      roomid: '1001',
       electricity_fee: 23.5,
       send_flag: false,
       threshold: 30,

@@ -8,7 +8,7 @@ import type { PathChild } from '@/types';
 import { bindRoomApi } from '../api/bindRoomApi';
 
 interface SelectedRoomPreview {
-  readonly roomid: number;
+  readonly roomid: string;
   readonly room_name: string;
   readonly primary_roompath: string;
 }
@@ -31,7 +31,7 @@ export function useBindRoomModal({
   const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   const queryClient = useQueryClient();
-  const stepLabels = ['校区', '建筑', '楼层', '房间'];
+  const stepLabels = ['校区', '楼栋', '房间'];
   const parent = selectedPath.join('/');
   const {
     data: pathData,
@@ -71,7 +71,7 @@ export function useBindRoomModal({
     setError(null);
 
     if (option.is_leaf) {
-      if (typeof option.roomid !== 'number') {
+      if (typeof option.roomid !== 'string') {
         setError('查询房间失败，请稍后重试');
         return;
       }

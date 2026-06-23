@@ -74,7 +74,7 @@
 ```sql
 CREATE TABLE rooms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    roomid INTEGER NOT NULL,                    -- 业务ID（外部系统ID）
+    roomid BIGINT NOT NULL,                    -- 业务ID（外部系统ID）
     electricity_fee REAL NOT NULL DEFAULT 0.0,  -- 当前电费
     send_flag BOOLEAN NOT NULL DEFAULT FALSE,   -- 通知标志
     threshold REAL NOT NULL,                    -- 电费阈值
@@ -110,7 +110,7 @@ FOR EACH ROW EXECUTE FUNCTION update_send_flag();
 ```sql
 CREATE TABLE room_paths (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    roomid INTEGER NOT NULL,                    -- 关联rooms.roomid
+    roomid BIGINT NOT NULL,                    -- 关联rooms.roomid
     roompath VARCHAR(255) NOT NULL,             -- 额外路径
     roompath_hash BIGINT NOT NULL,              -- 路径哈希（查询索引）
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -195,7 +195,7 @@ impl ElectricityFetcherService {
 ```
 
 **生产配置**:
-- ✅ **电费数据源API**: 已配置生产API URL（`https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid=`）
+- ✅ **电费数据源API**: 已配置生产API URL（`https://upayadmin.gyruibo.cn/UpayManage/Home/GetRoom?roomid=`）
 - ✅ **响应解析**: ElectricityParser已实现完整的JSON响应解析
 - ✅ **认证边界**: 此处为历史快照描述；当前外部数据源与内部接口权限以运行时配置和 API 参考文档为准
 
@@ -299,7 +299,7 @@ impl RoomSyncService {
 - ✅ 代码质量: 98%
 
 **生产配置**（已完成）:
-- ✅ **API URL**: `https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid=`
+- ✅ **API URL**: `https://upayadmin.gyruibo.cn/UpayManage/Home/GetRoom?roomid=`
 - ✅ **响应格式**: JSON `{"BS":"1","Msg":"成功","total":0,"component":[{"Name":"状态","Value":"正常"},{"Name":"剩余","Value":"67.66"}],"url":null}`
 - ✅ **解析器**: ElectricityParser支持正常值、负值、房间不存在等情况，自动提取"剩余"字段的Value
 - ✅ **认证边界**: 此处为历史快照描述；当前外部数据源与内部接口权限以运行时配置和 API 参考文档为准
@@ -309,7 +309,7 @@ impl RoomSyncService {
 # config/development.toml（已配置）
 [electricity_fetcher]
 enabled = true
-api_url = "https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid="
+api_url = "https://upayadmin.gyruibo.cn/UpayManage/Home/GetRoom?roomid="
 fetch_interval_minutes = 5
 history_interval_hours = 1
 history_retention_days = 8
@@ -470,9 +470,9 @@ impl NotificationSender for WeChatNotificationSender {
 
 集成测试（4个，条件执行）:
 - test_create_redis_pool: Redis连接池创建和验证
-- test_fetch_room_tree: 爬虫网络请求（GetRoomTree API）
+- test_fetch_room_tree: 爬虫网络请求（GetRoomSchool/GetRoomApart/GetRoomList API）
 - test_rate_limiter: 限流器Redis集成
-- test_parse_real_api_response: 真实电费API调用和解析验证（GetRoomInfo API, roomid=4330，默认执行；若网络不可达或响应读取失败将自动跳过并打印提示）
+- test_parse_real_api_response: 真实电费API调用和解析验证（GetRoom API, roomid=982318536498089984，默认执行；若网络不可达或响应读取失败将自动跳过并打印提示）
 ```
 
 **测试执行**:
@@ -690,7 +690,7 @@ room:flagged             # send_flag=true的房间列表
 - [x] **定时任务**：tokio-cron-scheduler集成完成
 
 **当前状态**: ✅ 服务已实现并已配置生产API  
-**API地址**: `https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid=`  
+**API地址**: `https://upayadmin.gyruibo.cn/UpayManage/Home/GetRoom?roomid=`
 **运行状态**: 可立即启动使用（`enabled = true`）
 
 ---
@@ -901,7 +901,7 @@ room:flagged             # send_flag=true的房间列表
 6. ✅ **Diesel代码优化**: 3项优化完成，代码质量98%
 
 ### 下一步开发需要确认
-1. ✅ **电费数据源API**: 已配置完成（`https://zywxhd02.gxust.edu.cn/Home/GetRoomInfo?roomid=`）
+1. ✅ **电费数据源API**: 已配置完成（`https://upayadmin.gyruibo.cn/UpayManage/Home/GetRoom?roomid=`）
 2. **通知渠道**: 微信AppID/Secret、邮件SMTP配置、短信API密钥
 3. **定时任务调整**（可选）: 电费获取频率（当前5分钟）、历史记录频率（当前1小时）
 4. **生产环境**: 数据库配置、Redis配置、JWT密钥

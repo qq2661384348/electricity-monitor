@@ -4,58 +4,50 @@
 
 use serde::{Deserialize, Serialize};
 
-/// API响应根结构
-///
-/// API返回的JSON格式：
-/// ```json
-/// {
-///     "BS": "1",
-///     "Msg": "成功",
-///     "total": 5,
-///     "component": [
-///         {"RoomDepId": "3", "DepName": "箭盘校区", "IsBuilding": 1},
-///         ...
-///     ]
-/// }
-/// ```
+/// 新房间树接口的通用响应结构。
 #[derive(Debug, Deserialize, Clone)]
-pub struct ApiResponse {
-    /// 状态码（"1"表示成功）
-    #[serde(rename = "BS")]
-    pub bs: Option<String>,
+pub struct UpayResponse<T> {
+    #[serde(rename = "Total")]
+    pub total: Option<i64>,
 
-    /// 消息
-    #[serde(rename = "Msg")]
-    pub msg: Option<String>,
-
-    /// 总数
-    pub total: Option<i32>,
-
-    /// 组件列表（可能为空）
-    pub component: Option<Vec<RoomComponent>>,
+    #[serde(rename = "Data")]
+    pub data: Option<Vec<T>>,
 }
 
-/// 房间组件（通用结构，适配4层级）
-///
-/// 用于表示：
-/// - Level 1: 校区（Campus）
-/// - Level 2: 建筑（Building）
-/// - Level 3: 楼层（Floor）
-/// - Level 4: 房间（Room）
+impl<T> UpayResponse<T> {
+    pub fn into_data(self) -> Vec<T> {
+        self.data.unwrap_or_default()
+    }
+}
+
+/// 校区节点。
 #[derive(Debug, Deserialize, Clone)]
-#[serde(rename_all = "PascalCase")]
-pub struct RoomComponent {
-    /// 房间部门ID（层级标识符）
-    pub room_dep_id: String,
+pub struct SchoolComponent {
+    #[serde(rename = "SchoolId")]
+    pub school_id: Option<String>,
 
-    /// 部门名称（显示名称）
-    pub dep_name: String,
+    #[serde(rename = "SchoolName")]
+    pub school_name: Option<String>,
+}
 
-    /// 是否是建筑（可选）
-    pub is_building: Option<i32>,
+/// 楼栋节点。
+#[derive(Debug, Deserialize, Clone)]
+pub struct ApartmentComponent {
+    #[serde(rename = "ApartID")]
+    pub apart_id: Option<String>,
 
-    /// 楼层列表（可选）
-    pub floor_list: Option<Vec<i32>>,
+    #[serde(rename = "ApartName")]
+    pub apart_name: Option<String>,
+}
+
+/// 房间节点。
+#[derive(Debug, Deserialize, Clone)]
+pub struct RoomListComponent {
+    #[serde(rename = "RoomID")]
+    pub room_id: Option<String>,
+
+    #[serde(rename = "RoomName")]
+    pub room_name: Option<String>,
 }
 
 /// 房间信息（最终输出结构）
@@ -69,7 +61,7 @@ pub struct RoomComponent {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoomInfo {
-    /// 房间完整路径（校区/建筑/楼层/房间）
+    /// 房间完整路径（校区/楼栋/房间）
     pub roompath: String,
 
     /// 房间唯一标识符
@@ -81,8 +73,8 @@ pub struct RoomInfo {
 /// 支持1:N映射：一个roomid可以对应多个roompath
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoomData {
-    /// 房间ID（整数）
-    pub roomid: i32,
+    /// 房间ID。外部接口可能返回超过 i32 的 18 位业务 ID，后端内部使用 i64 保存。
+    pub roomid: i64,
 
     /// 所有房间路径（已去重和排序）
     pub roompaths: Vec<String>,
@@ -115,7 +107,7 @@ impl RoomData {
     /// assert_eq!(room.path_count, 2);  // 去重后
     /// assert_eq!(room.primary_roompath, "广西/桂林/雁山/05栋/0501");  // 排序后第一个
     /// ```
-    pub fn new(roomid: i32, mut roompaths: Vec<String>) -> Self {
+    pub fn new(roomid: i64, mut roompaths: Vec<String>) -> Self {
         // 去重和排序
         roompaths.sort();
         roompaths.dedup();
