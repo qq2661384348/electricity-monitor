@@ -16,6 +16,8 @@ use support::{
 
 #[tokio::test]
 async fn runtime_endpoints_from_smoke_contract_pass() {
+    prepare_static_entry_fixture();
+
     let test_app = create_test_app().await;
     let targets = load_smoke_targets();
 
@@ -43,6 +45,18 @@ async fn runtime_endpoints_from_smoke_contract_pass() {
         );
         assert_required_headers(response.headers(), &targets, endpoint.as_str());
     }
+}
+
+fn prepare_static_entry_fixture() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let static_dir = repo_root.join("static");
+    let index_path = static_dir.join("index.html");
+
+    fs::create_dir_all(&static_dir).expect("应能准备静态文件测试目录");
+    // release readiness 在后端 test job 中运行，不会先执行前端 build:prod。
+    // 这里写入最小入口文件，只验证后端静态服务和 smoke 静态入口契约。
+    fs::write(index_path, "<!doctype html><title>release readiness</title>")
+        .expect("应能准备静态入口测试文件");
 }
 
 #[tokio::test]

@@ -61,12 +61,12 @@ summary: 后端测试真源、前端检查入口、CI 门禁结构和本地执�
 
 ## CI 门禁结构
 
-- `backend-tests`：准备本地 PostgreSQL / Redis、复制开发模板、执行迁移、后端关键回归与 `cargo clippy --all-targets -- -D warnings`。
+- `backend-tests`：准备本地 PostgreSQL / Redis、复制开发模板、执行迁移、后端关键回归与 `cargo clippy --all-targets -- -D warnings`。其中 `release_readiness_test` 会准备最小 `static/index.html` fixture，用于验证后端静态入口和 smoke 契约，不依赖前端构建 job 先执行。
 - `backend-external-tests`：仅在手动 workflow 且显式开启时执行真实外部测试。
 - `frontend-quality`：在 `frontend/` 中执行 `bun install --frozen-lockfile`、`bun run lint`、`bun audit`、`bun run build:prod`、`bun run check:bundle`，其中 bundle 检查分析上一步生成的 `frontend/dist/`。
 - `frontend-tests`：在 `frontend/` 中执行 `bun install --frozen-lockfile`、`bun run test`。
 - `dependency-audit`：执行 `cargo audit -q`，上传审计 artifact 并写入 workflow summary；当前为阻断项。
-- `architecture-guard`：执行 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。
+- `architecture-guard`：先安装 `ripgrep`，再执行 `powershell -ExecutionPolicy Bypass -File scripts/check-architecture.ps1`。
 - 所有 job 都会上传对应日志 artifact，便于失败定位。
 
 ## 本地执行约定

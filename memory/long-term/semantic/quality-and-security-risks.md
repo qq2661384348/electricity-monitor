@@ -2,13 +2,15 @@
 type: semantic
 status: verified
 scope: 长期质量风险与安全风险
-updated_at: 2026-05-08
-verified_at: 2026-05-08
+updated_at: 2026-06-23
+verified_at: 2026-06-23
 sources:
   - docs/guides/TECHNICAL_DEBT.md
   - docs/guides/SECRETS_INVENTORY.md
   - .github/workflows/ci.yml
+  - Cargo.lock
   - frontend/package.json
+  - frontend/bun.lock
   - src/handlers/auth.rs
   - src/handlers/binding.rs
   - src/domain/services/rate_limiter.rs
@@ -34,8 +36,8 @@ summary: 已关闭风险、当前质量风险、供应链风险、仓库历史�
 - 前端 access token 已从持久化存储移除，只在内存里保存；refresh token 只通过 HTTPOnly Cookie 往返。
 - 后端 CORS 已改成配置驱动白名单，并为 cookie 会话开启 `allow_credentials(true)`。
 - `admin.default_qq_number` 在生产环境下已经要求显式真实值，模板占位值不会再触发管理员权限。
-- Rust 依赖审计当前可通过 `cargo audit -q`。
-- 前端依赖审计当前可通过 `bun audit`；前端工具链升级后的传递依赖修复由 `frontend/package.json` 中的 `overrides` 负责固化。
+- Rust 依赖审计当前可通过 `cargo audit -q`；2026-06-23 刷新后阻断漏洞清零，仍保留 `cargo-audit` 已允许的 warning。
+- 前端依赖审计当前可通过 `bun audit`；前端工具链升级后的传递依赖修复由 `frontend/package.json` 中的 `overrides` 负责固化，当前覆盖 `@babel/core`、`brace-expansion`、`form-data` 等传递依赖安全版本。
 - 前端生产构建不再保留默认 chunk warning 残留；真实 JS chunk 上限由 `frontend/scripts/check-bundle-budgets.ts` 持续校验。
 - 后端统一响应安全头已收敛到应用层与 `deploy/smoke.targets` 共享契约；release smoke 与 readiness test 会同时校验这些头。
 - release 部署脚本已对 secret file 做 owner-only 权限校验，过宽权限会直接阻断部署。

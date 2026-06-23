@@ -283,6 +283,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install architecture guard dependencies
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
       - name: Prepare architecture log directory
         run: mkdir -p artifacts/architecture
 

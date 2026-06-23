@@ -224,7 +224,7 @@ cargo test --lib
   - 运行 `cargo test --lib`
   - 运行 `cargo test --test auth_integration_test`
   - 运行 `cargo test --test send_verification_code_integration_test`
-  - 运行 `cargo test --test release_readiness_test`
+  - 运行 `cargo test --test release_readiness_test`；该测试会准备最小 `static/index.html` fixture，用于验证后端静态入口和 smoke 契约，不依赖前端构建 job 先执行
   - 运行 `cargo clippy --all-targets -- -D warnings`
   - 默认设置 `RUN_INTEGRATION_TESTS=1` 与 Redis 连接变量，确保本地 DB/Redis 相关测试不再被短路
 - `backend-external-tests`
@@ -245,6 +245,7 @@ cargo test --lib
   - 上传审计 artifact 并将摘要写入 workflow summary
   - 当前为 Rust 依赖阻断项，失败会直接阻断 workflow
 - `architecture-guard`
+  - 安装 `ripgrep`
   - 运行 `scripts/check-architecture.ps1`
 
 各 job 当前都会上传对应日志 artifact，便于失败定位。
@@ -252,6 +253,7 @@ cargo test --lib
 ## readiness 与 smoke 的关系
 
 - `tests/runtime/release_readiness_test.rs` 在本地 / CI 中读取 `deploy/smoke.targets`
+- 该测试会准备最小 `static/index.html` fixture，确保 `/` 静态入口检查验证的是后端静态服务能力，而不是 CI job 之间的前端构建顺序
 - `deploy/smoke.sh` 在 release 目录中读取同一份 `smoke.targets`
 - 当前共用的检查目标包括：
   - `/api/health`

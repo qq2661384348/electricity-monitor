@@ -39,6 +39,8 @@ export function CaptchaModal({ isOpen, onClose, onSuccess, publicConfig }: Captc
     setIsRefreshing(true);
     setError('');
     setUserAnswer('');
+    setCaptchaId('');
+    setCaptchaImage('');
 
     try {
       const response = await captchaService.generateConfiguredCaptcha(captchaConfig);
@@ -71,7 +73,7 @@ export function CaptchaModal({ isOpen, onClose, onSuccess, publicConfig }: Captc
       if (response.success && response.token) {
         // 验证成功
         onSuccess(response.token);
-        onClose();
+        handleClose();
       } else {
         // 验证失败，自动刷新新验证码
         setError(response.message || '验证失败');
@@ -86,6 +88,18 @@ export function CaptchaModal({ isOpen, onClose, onSuccess, publicConfig }: Captc
     }
   };
 
+  const resetCaptchaState = useCallback(() => {
+    setUserAnswer('');
+    setError('');
+    setCaptchaId('');
+    setCaptchaImage('');
+  }, []);
+
+  const handleClose = useCallback(() => {
+    resetCaptchaState();
+    onClose();
+  }, [onClose, resetCaptchaState]);
+
   // 键盘事件处理
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !isLoading) {
@@ -96,22 +110,22 @@ export function CaptchaModal({ isOpen, onClose, onSuccess, publicConfig }: Captc
   // Modal打开时加载验证码
   useEffect(() => {
     if (isOpen) {
-      loadCaptcha();
-      // 延迟聚焦，等待动画完成
-      setTimeout(() => inputRef.current?.focus(), 300);
-    } else {
-      // 关闭时清理状态
-      setUserAnswer('');
-      setError('');
-      setCaptchaId('');
-      setCaptchaImage('');
+      const loadTimer = window.setTimeout(() => {
+        void loadCaptcha();
+      }, 0);
+      const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 300);
+
+      return () => {
+        window.clearTimeout(loadTimer);
+        window.clearTimeout(focusTimer);
+      };
     }
   }, [isOpen, loadCaptcha]);
 
   return (
     <ComicModal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       size="sm"
       title="安全验证"
       showCloseButton
@@ -119,7 +133,7 @@ export function CaptchaModal({ isOpen, onClose, onSuccess, publicConfig }: Captc
       footer={
         <div className="flex gap-3 w-full">
           <Button
-            onClick={onClose}
+            onClick={handleClose}
             variant="secondary"
             size="lg"
             disabled={isLoading}
