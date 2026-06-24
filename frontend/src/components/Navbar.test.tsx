@@ -22,7 +22,7 @@ describe('Navbar', () => {
     await user.click(screen.getByRole('button', { name: '查看公告' }));
 
     expect(screen.getByText('项目源码已公开发布')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'https://github.com/qq2661384348/electricity-monitor' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'https://github.com/python-rust/electricity-monitor' })).toBeInTheDocument();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
   });
 

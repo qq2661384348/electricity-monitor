@@ -76,12 +76,12 @@ export function AnnouncementModal({ isOpen, onClose }: AnnouncementModalProps) {
           <p className="text-sm font-bold text-gray-800 leading-relaxed">
             项目已开源到{' '}
             <a
-              href="https://github.com/qq2661384348/electricity-monitor"
+              href="https://github.com/python-rust/electricity-monitor"
               target="_blank"
               rel="noreferrer"
               className="break-all font-black text-brand-primary underline decoration-2 underline-offset-4 hover:text-sky-600"
             >
-              https://github.com/qq2661384348/electricity-monitor
+              https://github.com/python-rust/electricity-monitor
             </a>
             。如果有问题及时联系管理员：
             <InlineQQNumber value={adminQQ} fallback="正在读取管理员QQ" />
