@@ -14,6 +14,17 @@ pub struct RoomSyncConfig {
     /// 默认电费阈值
     pub default_threshold: f32,
 
+    /// 单次同步允许停用的最大活跃房间比例。
+    ///
+    /// Upay 是房间源真相，但外部接口临时异常时可能返回过小集合。
+    /// 这个保护阈值用于阻止一次同步误停用大量生产房间。
+    #[serde(default = "default_max_deactivate_ratio")]
+    pub max_deactivate_ratio: f64,
+
+    /// 已有房间数据时，允许执行停用逻辑所需的最小源端房间数量。
+    #[serde(default = "default_min_source_room_count")]
+    pub min_source_room_count: usize,
+
     /// 爬虫配置
     pub crawler: CrawlerConfig,
 }
@@ -50,6 +61,14 @@ fn default_cid() -> String {
     "689885779152867328".to_string()
 }
 
+fn default_max_deactivate_ratio() -> f64 {
+    0.5
+}
+
+fn default_min_source_room_count() -> usize {
+    1000
+}
+
 impl Default for CrawlerConfig {
     fn default() -> Self {
         Self {
@@ -69,6 +88,8 @@ impl Default for RoomSyncConfig {
             enabled: false,
             interval_hours: 24,
             default_threshold: 100.0,
+            max_deactivate_ratio: default_max_deactivate_ratio(),
+            min_source_room_count: default_min_source_room_count(),
             crawler: CrawlerConfig::default(),
         }
     }

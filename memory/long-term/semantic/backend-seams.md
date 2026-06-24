@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 后端可维护性接缝
-updated_at: 2026-06-23
-verified_at: 2026-06-23
+updated_at: 2026-06-24
+verified_at: 2026-06-24
 sources:
   - src/modules/auth/api/middleware.rs
   - src/modules/auth/application/actor_resolver.rs
@@ -87,3 +87,5 @@ summary: 后端鉴权、验证码限流、房间授权、缓存、通知域、�
 ## 房间同步接缝
 
 - 手动房间同步在单应用进程内通过运行中 job registry 复用正在执行的 `job_id`，避免重复点击或并发请求启动多个手动同步任务；多进程部署仍应视为仓库外调度边界。
+- 房间同步以 Upay 实时房间树为源真相；管理员手动同步和定时同步共用同一任务执行器，都会在完成后刷新电费缓存与内存路径树。
+- 源端缺失的旧 active 房间会被软停用，不再进入 active 路径树和电费抓取；停用前必须通过 `max_deactivate_ratio` 与 `min_source_room_count` 保护，避免外部接口异常时误停用大量房间。

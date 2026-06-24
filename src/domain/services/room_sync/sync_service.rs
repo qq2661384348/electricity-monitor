@@ -5,7 +5,7 @@
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::domain::models::{NewRoom, NewRoomPath};
@@ -34,6 +34,9 @@ pub struct SyncStats {
     /// 跳过数
     pub skipped: usize,
 
+    /// 停用数
+    pub deactivated: usize,
+
     /// 总处理数
     pub total: usize,
 
@@ -51,6 +54,7 @@ impl SyncStats {
             updated: 0,
             failed: 0,
             skipped: 0,
+            deactivated: 0,
             total: 0,
             started_at: Utc::now().to_rfc3339(),
             completed_at: None,
@@ -64,10 +68,11 @@ impl SyncStats {
     /// 输出统计日志
     pub fn log(&self) {
         tracing::info!(
-            "同步完成: 总数={}, 新增={}, 更新={}, 失败={}, 跳过={}",
+            "同步完成: 总数={}, 新增={}, 更新={}, 停用={}, 失败={}, 跳过={}",
             self.total,
             self.new,
             self.updated,
+            self.deactivated,
             self.failed,
             self.skipped
         );
@@ -87,6 +92,130 @@ struct RoomUpdateOps {
     paths_to_remove: Vec<String>,
     /// has_additional_paths标志的新值
     has_additional_paths: Option<bool>,
+    /// 是否需要重新激活曾经被停用的房间
+    reactivate: bool,
+}
+
+#[derive(Debug)]
+struct SyncPlan {
+    to_create: Vec<RoomData>,
+    to_update: Vec<RoomData>,
+    stale_roomids: Vec<i64>,
+    active_roomids: Vec<i64>,
+    skipped: usize,
+}
+
+impl SyncPlan {
+    #[cfg(test)]
+    fn from_latest_and_existing(
+        latest_rooms: Vec<RoomData>,
+        existing_rooms: Vec<crate::domain::models::Room>,
+    ) -> Self {
+        let existing_map = existing_rooms
+            .into_iter()
+            .map(|room| (room.roomid, room))
+            .collect::<HashMap<_, _>>();
+
+        Self::from_latest_and_existing_map(latest_rooms, &existing_map)
+    }
+
+    fn from_latest_and_existing_map(
+        latest_rooms: Vec<RoomData>,
+        existing_map: &HashMap<i64, crate::domain::models::Room>,
+    ) -> Self {
+        let mut to_create = Vec::new();
+        let mut to_update = Vec::new();
+        let mut active_roomids = Vec::with_capacity(latest_rooms.len());
+        let mut latest_roomids = HashSet::with_capacity(latest_rooms.len());
+        let mut skipped = 0;
+
+        for room_data in latest_rooms {
+            active_roomids.push(room_data.roomid);
+            latest_roomids.insert(room_data.roomid);
+
+            match existing_map.get(&room_data.roomid) {
+                None => to_create.push(room_data),
+                Some(existing_room) => {
+                    if room_needs_update(existing_room, &room_data) {
+                        to_update.push(room_data);
+                    } else {
+                        skipped += 1;
+                    }
+                }
+            }
+        }
+
+        active_roomids.sort_unstable();
+        active_roomids.dedup();
+
+        let mut stale_roomids = existing_map
+            .values()
+            .filter(|room| room.is_active && !latest_roomids.contains(&room.roomid))
+            .map(|room| room.roomid)
+            .collect::<Vec<_>>();
+        stale_roomids.sort_unstable();
+
+        Self {
+            to_create,
+            to_update,
+            stale_roomids,
+            active_roomids,
+            skipped,
+        }
+    }
+}
+
+fn room_needs_update(existing: &crate::domain::models::Room, new_data: &RoomData) -> bool {
+    if !existing.is_active {
+        return true;
+    }
+
+    // 1. 主路径变化
+    if existing.primary_roompath != new_data.primary_roompath {
+        return true;
+    }
+
+    // 2. 路径数量变化
+    let new_has_additional = new_data.path_count > 1;
+    if existing.has_additional_paths != new_has_additional {
+        return true;
+    }
+
+    // 3. 路径内容变化（简化判断，后续可优化）
+    if new_has_additional {
+        return true;
+    }
+
+    false
+}
+
+fn validate_deactivation_plan(
+    existing_active_count: usize,
+    latest_source_count: usize,
+    stale_count: usize,
+    max_deactivate_ratio: f64,
+    min_source_room_count: usize,
+) -> Result<()> {
+    if existing_active_count == 0 || stale_count == 0 {
+        return Ok(());
+    }
+
+    if latest_source_count < min_source_room_count {
+        return Err(AppError::Internal(format!(
+            "源端房间数量过低，拒绝执行停用：source_count={}, min_source_room_count={}",
+            latest_source_count, min_source_room_count
+        )));
+    }
+
+    let stale_ratio = stale_count as f64 / existing_active_count as f64;
+    if stale_ratio > max_deactivate_ratio {
+        return Err(AppError::Internal(format!(
+            "停用比例超过保护阈值，拒绝执行停用：stale_count={}, existing_active_count={}, ratio={:.4}, max_deactivate_ratio={:.4}",
+            stale_count, existing_active_count, stale_ratio, max_deactivate_ratio
+        )));
+    }
+
+    Ok(())
 }
 
 /// 房间同步服务（优化版）
@@ -105,6 +234,12 @@ pub struct RoomSyncService {
 
     /// 默认电费阈值
     default_threshold: f32,
+
+    /// 单次同步允许停用的最大活跃房间比例
+    max_deactivate_ratio: f64,
+
+    /// 已有房间数据时，允许执行停用逻辑所需的最小源端房间数量
+    min_source_room_count: usize,
 }
 
 /// 静态函数：执行房间更新操作（在事务中）
@@ -121,12 +256,21 @@ async fn execute_room_update_ops_static(
 
     // 1. 更新主路径（如果需要）
     if let Some((ref new_path, hash)) = ops.new_primary_path {
+        let room_name = new_path
+            .split('/')
+            .next_back()
+            .unwrap_or("未知房间")
+            .to_string();
+
         diesel_async::RunQueryDsl::execute(
             diesel::update(rooms::table)
                 .filter(rooms::roomid.eq(ops.roomid))
                 .set((
                     rooms::primary_roompath.eq(new_path),
                     rooms::primary_roompath_hash.eq(hash),
+                    rooms::room_name.eq(room_name),
+                    rooms::source_type.eq("api_sync"),
+                    rooms::last_synced_at.eq(Some(Utc::now().naive_utc())),
                 )),
             conn,
         )
@@ -176,7 +320,10 @@ async fn execute_room_update_ops_static(
         diesel_async::RunQueryDsl::execute(
             diesel::update(rooms::table)
                 .filter(rooms::roomid.eq(ops.roomid))
-                .set(rooms::has_additional_paths.eq(has_additional)),
+                .set((
+                    rooms::has_additional_paths.eq(has_additional),
+                    rooms::last_synced_at.eq(Some(Utc::now().naive_utc())),
+                )),
             conn,
         )
         .await?;
@@ -186,6 +333,23 @@ async fn execute_room_update_ops_static(
             ops.roomid,
             has_additional
         );
+    }
+
+    // 5. 重新激活源端再次出现的旧房间。
+    if ops.reactivate {
+        diesel_async::RunQueryDsl::execute(
+            diesel::update(rooms::table)
+                .filter(rooms::roomid.eq(ops.roomid))
+                .set((
+                    rooms::is_active.eq(true),
+                    rooms::source_type.eq("api_sync"),
+                    rooms::last_synced_at.eq(Some(Utc::now().naive_utc())),
+                )),
+            conn,
+        )
+        .await?;
+
+        tracing::debug!("重新激活房间: roomid={}", ops.roomid);
     }
 
     Ok(())
@@ -199,6 +363,8 @@ impl RoomSyncService {
         fetcher: Arc<RoomFetcher>,
         cache: Arc<RoomSyncCache>,
         default_threshold: f32,
+        max_deactivate_ratio: f64,
+        min_source_room_count: usize,
     ) -> Self {
         Self {
             db_pool,
@@ -206,6 +372,8 @@ impl RoomSyncService {
             fetcher,
             cache,
             default_threshold,
+            max_deactivate_ratio,
+            min_source_room_count,
         }
     }
 
@@ -231,43 +399,48 @@ impl RoomSyncService {
         stats.total = latest_rooms.len();
         tracing::info!("从爬虫获取到 {} 个房间数据", stats.total);
 
-        // 2️⃣ 从缓存获取现有数据（⭐ 零数据库查询）
-        let existing_map = self.cache.get_all_rooms().await;
-
-        tracing::debug!("从缓存加载 {} 个现有房间", existing_map.len());
-
-        // 3️⃣ 内存增量差异计算
-        let mut to_create = Vec::new();
-        let mut to_update = Vec::new();
-
-        for room_data in latest_rooms {
-            match existing_map.get(&room_data.roomid) {
-                None => {
-                    // 新增房间
-                    to_create.push(room_data);
-                }
-                Some(existing_room) => {
-                    // 检查是否需要更新（路径变化）
-                    if self.needs_update(existing_room, &room_data) {
-                        to_update.push(room_data);
-                    } else {
-                        stats.skipped += 1;
-                    }
-                }
-            }
+        // 2️⃣ 获取现有数据。缓存只包含 active 房间；额外查询 latest roomid
+        // 是为了识别“曾经存在但已停用”的房间，避免重新出现时插入冲突。
+        let latest_roomids = latest_rooms
+            .iter()
+            .map(|room| room.roomid)
+            .collect::<Vec<_>>();
+        let active_map = self.cache.get_all_rooms().await;
+        let known_rooms = self.repository.find_by_roomids(&latest_roomids).await?;
+        let mut existing_map = active_map.clone();
+        for room in known_rooms {
+            existing_map.insert(room.roomid, room);
         }
 
+        tracing::debug!(
+            active_rooms = active_map.len(),
+            known_rooms = existing_map.len(),
+            "加载现有房间用于同步差异计算"
+        );
+
+        // 3️⃣ 内存增量差异计算
+        let plan = SyncPlan::from_latest_and_existing_map(latest_rooms, &existing_map);
+        validate_deactivation_plan(
+            active_map.len(),
+            plan.active_roomids.len(),
+            plan.stale_roomids.len(),
+            self.max_deactivate_ratio,
+            self.min_source_room_count,
+        )?;
+        stats.skipped = plan.skipped;
+
         tracing::info!(
-            "差异计算完成: 新增={}, 更新={}, 跳过={}",
-            to_create.len(),
-            to_update.len(),
+            "差异计算完成: 新增={}, 更新={}, 停用={}, 跳过={}",
+            plan.to_create.len(),
+            plan.to_update.len(),
+            plan.stale_roomids.len(),
             stats.skipped
         );
 
         // 4️⃣ 批量创建新房间（单次事务）
-        let created_rooms = if !to_create.is_empty() {
-            let create_count = to_create.len();
-            match self.batch_create_rooms(to_create).await {
+        let created_rooms = if !plan.to_create.is_empty() {
+            let create_count = plan.to_create.len();
+            match self.batch_create_rooms(plan.to_create).await {
                 Ok(rooms) => {
                     stats.new = rooms.len();
                     rooms
@@ -283,19 +456,31 @@ impl RoomSyncService {
         };
 
         // 5️⃣ 批量更新房间（优化：批量事务）
-        if !to_update.is_empty() {
-            let (updated_count, failed_count) =
-                self.batch_update_rooms_transactional(to_update).await?;
+        if !plan.to_update.is_empty() {
+            let (updated_count, failed_count) = self
+                .batch_update_rooms_transactional(plan.to_update)
+                .await?;
             stats.updated = updated_count;
             stats.failed += failed_count;
         }
 
-        // 6️⃣ 增量更新缓存（⭐ 保持同步）
-        if !created_rooms.is_empty() {
-            self.cache.add_rooms(created_rooms).await;
+        // 6️⃣ 停用源端已经不存在的旧房间。房间模型使用软删除，历史绑定和电费记录
+        // 继续保留；active 路径树和电费抓取只使用 is_active=true 的房间。
+        if !plan.stale_roomids.is_empty() {
+            stats.deactivated = self
+                .repository
+                .deactivate_except(&plan.active_roomids)
+                .await?;
+            tracing::info!(deactivated = stats.deactivated, "停用源端缺失房间完成");
         }
 
-        // 7️⃣ 完成统计
+        // 7️⃣ 写库后全量刷新同步缓存。这里刻意选择全量刷新，而不是手工维护
+        // 多个增量分支，避免批量路径删除和重新激活后缓存与数据库漂移。
+        if !created_rooms.is_empty() || stats.updated > 0 || stats.deactivated > 0 {
+            self.cache.full_refresh().await?;
+        }
+
+        // 8️⃣ 完成统计
         stats.complete();
         stats.log();
 
@@ -419,6 +604,7 @@ impl RoomSyncService {
             paths_to_add: Vec::new(),
             paths_to_remove,
             has_additional_paths: None,
+            reactivate: !existing_aggregate.room.is_active,
         };
 
         // 主路径变化
@@ -457,27 +643,6 @@ impl RoomSyncService {
         }
 
         Ok(ops)
-    }
-
-    /// 检查房间是否需要更新
-    fn needs_update(&self, existing: &crate::domain::models::Room, new_data: &RoomData) -> bool {
-        // 1. 主路径变化
-        if existing.primary_roompath != new_data.primary_roompath {
-            return true;
-        }
-
-        // 2. 路径数量变化
-        let new_has_additional = new_data.path_count > 1;
-        if existing.has_additional_paths != new_has_additional {
-            return true;
-        }
-
-        // 3. 路径内容变化（简化判断，后续可优化）
-        if new_has_additional {
-            return true;
-        }
-
-        false
     }
 
     /// 批量创建房间（保持原有逻辑）
@@ -562,6 +727,7 @@ impl RoomSyncService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::models::Room;
 
     #[test]
     fn test_sync_stats_new() {
@@ -578,5 +744,82 @@ mod tests {
         let mut stats = SyncStats::new();
         stats.complete();
         assert!(stats.completed_at.is_some());
+    }
+
+    fn test_room(roomid: i64, primary_roompath: &str, is_active: bool) -> Room {
+        let now = Utc::now().naive_utc();
+
+        Room {
+            id: uuid::Uuid::new_v4(),
+            roomid,
+            electricity_fee: 0.0,
+            send_flag: false,
+            threshold: 100.0,
+            room_name: primary_roompath
+                .split('/')
+                .next_back()
+                .unwrap_or("测试房间")
+                .to_string(),
+            created_at: now,
+            updated_at: now,
+            primary_roompath: primary_roompath.to_string(),
+            primary_roompath_hash: calculate_roompath_hash(primary_roompath),
+            has_additional_paths: false,
+            is_active,
+            source_type: "test".to_string(),
+            external_id: None,
+            last_synced_at: None,
+            last_recovered_at: None,
+        }
+    }
+
+    #[test]
+    fn sync_plan_marks_active_rooms_missing_from_source_as_stale() {
+        let existing = vec![
+            test_room(1, "校区/楼/101", true),
+            test_room(2, "校区/楼/102", true),
+        ];
+        let latest = vec![RoomData::new(1, vec!["校区/楼/101".to_string()])];
+
+        let plan = SyncPlan::from_latest_and_existing(latest, existing);
+
+        assert_eq!(plan.active_roomids, vec![1]);
+        assert_eq!(plan.stale_roomids, vec![2]);
+    }
+
+    #[test]
+    fn sync_plan_reactivates_known_inactive_rooms_instead_of_creating_duplicates() {
+        let existing = vec![test_room(1, "旧校区/旧楼/101", false)];
+        let latest = vec![RoomData::new(1, vec!["新校区/新楼/101".to_string()])];
+
+        let plan = SyncPlan::from_latest_and_existing(latest, existing);
+
+        assert!(plan.to_create.is_empty());
+        assert_eq!(plan.to_update.len(), 1);
+        assert_eq!(plan.to_update[0].roomid, 1);
+        assert_eq!(plan.active_roomids, vec![1]);
+        assert!(plan.stale_roomids.is_empty());
+    }
+
+    #[test]
+    fn deactivation_guard_rejects_source_count_below_minimum_for_existing_database() {
+        let err = validate_deactivation_plan(5_594, 100, 100, 0.5, 1_000)
+            .expect_err("低于最小源端数量时必须拒绝停用");
+
+        assert!(err.to_string().contains("源端房间数量过低"));
+    }
+
+    #[test]
+    fn deactivation_guard_allows_current_production_scale_delta() {
+        validate_deactivation_plan(5_594, 4_622, 2_068, 0.5, 1_000)
+            .expect("当前生产修正规模应在默认停用保护阈值内");
+    }
+
+    #[test]
+    fn deactivation_guard_rejects_excessive_stale_ratio() {
+        let err = validate_deactivation_plan(5_594, 2_000, 4_000, 0.5, 1_000)
+            .expect_err("超过停用比例上限时必须拒绝停用");
+
+        assert!(err.to_string().contains("停用比例"));
     }
 }

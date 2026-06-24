@@ -54,6 +54,8 @@ query_per_second = 200
 enabled = true
 interval_hours = 24
 default_threshold = 100.0
+max_deactivate_ratio = 0.5
+min_source_room_count = 1000
 
 [room_sync.crawler]
 api_url = "https://upayadmin.gyruibo.cn/UpayManage/Home"

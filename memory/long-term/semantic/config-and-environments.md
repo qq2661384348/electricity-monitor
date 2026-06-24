@@ -2,8 +2,8 @@
 type: semantic
 status: verified
 scope: 运行时配置与环境
-updated_at: 2026-06-23
-verified_at: 2026-06-23
+updated_at: 2026-06-24
+verified_at: 2026-06-24
 sources:
   - src/config/app.rs
   - src/config/captcha.rs
@@ -60,6 +60,7 @@ summary: 运行时配置加载顺序、环境语义、关键依赖和 fail-fast 
 - `[captcha]` 控制第三方图形验证码的 `api_url`、请求超时、一次性 `captcha_token` 有效期、验证码类型、宽高和难度；前端与后端校验代理通过 `/api/public-config` 共享这些非敏感参数，避免硬编码漂移。
 - `[verification]` 控制登录验证码长度、Redis 有效期和 key 前缀；验证码长度允许配置为 1 到 20 位数字，Redis key 会按 `qq` / `email` 登录渠道隔离。
 - `[room_sync.crawler]` 的 `api_url` 默认是 `https://upayadmin.gyruibo.cn/UpayManage/Home`，`cid` 默认是 `689885779152867328`；客户端会在该 base URL 下访问 `GetRoomSchool`、`GetRoomApart` 和 `GetRoomList`。
+- `[room_sync]` 的 `max_deactivate_ratio` 与 `min_source_room_count` 是源端缺失房间停用保护真源，用于阻止 Upay 临时异常返回小集合时误停用大量生产房间。
 - `[electricity_fetcher].api_url` 默认是 `https://upayadmin.gyruibo.cn/UpayManage/Home/GetRoom?roomid=`，配置校验仍要求以 `?roomid=` 结尾。
 
 ## 与测试相关的环境变量

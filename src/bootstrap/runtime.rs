@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::{
     config::AppConfig,
@@ -12,6 +13,7 @@ use crate::{
         repositories::{RoomRepository, UserRepository, UserRoomBindingRepository},
         DbPool, QQClient, RedisPool,
     },
+    modules::room_sync::application::RoomSyncUseCase,
     state::AppState,
 };
 
@@ -80,6 +82,8 @@ pub async fn run_startup_room_sync(config: &AppConfig, db_pool: &DbPool) -> anyh
         fetcher,
         room_sync_cache,
         config.room_sync.default_threshold,
+        config.room_sync.max_deactivate_ratio,
+        config.room_sync.min_source_room_count,
     );
 
     match sync_service.sync().await {
@@ -104,6 +108,55 @@ pub async fn run_startup_room_sync(config: &AppConfig, db_pool: &DbPool) -> anyh
     }
 
     Ok(())
+}
+
+fn room_sync_interval_duration(interval_hours: u64) -> Duration {
+    Duration::from_secs(interval_hours.max(1).saturating_mul(3600))
+}
+
+pub fn spawn_room_sync_scheduler(state: AppState) {
+    let config = AppConfig::global();
+    if !config.room_sync.enabled {
+        tracing::info!("Room sync scheduler disabled");
+        return;
+    }
+
+    let interval = room_sync_interval_duration(config.room_sync.interval_hours);
+
+    tokio::spawn(async move {
+        log_task_started("room_sync_scheduler", "room_sync");
+
+        loop {
+            tokio::time::sleep(interval).await;
+            let use_case = RoomSyncUseCase::from_state(&state);
+
+            match use_case.trigger_scheduled_sync().await {
+                Ok(Some(job_id)) => {
+                    tracing::info!(
+                        task_name = "room_sync_scheduler",
+                        module = "room_sync",
+                        job_id = %job_id,
+                        "定时房间同步任务已触发"
+                    );
+                }
+                Ok(None) => {
+                    tracing::info!(
+                        task_name = "room_sync_scheduler",
+                        module = "room_sync",
+                        "已有房间同步任务运行中，本次定时触发跳过"
+                    );
+                }
+                Err(error) => {
+                    log_task_failed(
+                        "room_sync_scheduler",
+                        "room_sync",
+                        TaskFailureCategory::Dependency,
+                        &error.to_string(),
+                    );
+                }
+            }
+        }
+    });
 }
 
 pub async fn initialize_electricity_fetcher_service(
@@ -278,5 +331,15 @@ pub fn spawn_background_services(state: AppState) {
             );
             tracing::error!("QQ客户端初始化失败，通知服务未启动: {}", error);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn room_sync_interval_duration_uses_configured_hours() {
+        assert_eq!(room_sync_interval_duration(24), Duration::from_secs(86_400));
     }
 }

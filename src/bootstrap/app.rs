@@ -55,6 +55,7 @@ pub async fn run() -> anyhow::Result<()> {
     .with_email_sender(email_sender);
 
     runtime::initialize_path_tree(&state, &db_pool).await;
+    runtime::spawn_room_sync_scheduler(state.clone());
     runtime::spawn_background_services(state.clone());
 
     let app = router::create_app(state);
